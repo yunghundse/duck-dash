@@ -98,6 +98,7 @@
     <h1>Duck Dash</h1>
     <div class="subtitle">Die Kicker-Ente auf WM-Tour</div>
     <button id="startBtn" class="btn">Spiel starten</button>
+    <button id="muteBtn" class="btn" style="background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 22px;">🔊 Ton an</button>
     <div class="hint">Springen: Leertaste / ↑ / W / Tap &nbsp;·&nbsp; Ducken: ↓ / S / Wisch runter</div>
   </div>
 
@@ -184,6 +185,7 @@ const overEl = document.getElementById("over");
 const storyEl = document.getElementById("story");
 const winEl = document.getElementById("win");
 const startBtn = document.getElementById("startBtn");
+const muteBtn = document.getElementById("muteBtn");
 const retryBtn = document.getElementById("retryBtn");
 const finalScoreEl = document.getElementById("finalScore");
 const winScoreEl = document.getElementById("winScore");
@@ -208,6 +210,9 @@ let speed = BASE_SPEED;
 let distance = 0;      // fuer Speed-Ramp
 let score = 0;
 let obstacles = [];
+let collectibles = [];
+let particles = [];
+let collectTimer = 0;
 let spawnTimer = 0;
 let runTime = 0;
 
@@ -227,6 +232,50 @@ function saveBest() {
     best = Math.floor(score);
     try { localStorage.setItem("dd_best", String(best)); } catch (e) {}
   }
+}
+
+// ---- Sound (WebAudio) ----
+let muted = false;
+try { muted = localStorage.getItem("dd_muted") === "1"; } catch (e) {}
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+}
+// tone: freq, dur, type, vol, glideTo
+function tone(freq, dur, type, vol, glideTo) {
+  if (muted || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type || "sine";
+  osc.frequency.setValueAtTime(freq, t);
+  if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(vol || 0.18, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+function seq(notes) { // [[freq,delay,dur,type], ...]
+  if (muted || !audioCtx) return;
+  notes.forEach(([f, d, dur, ty]) => setTimeout(() => tone(f, dur || 0.12, ty || "triangle", 0.16), d));
+}
+const SFX = {
+  jump:   () => tone(420, 0.12, "square", 0.12, 700),
+  coin:   () => { tone(880, 0.08, "square", 0.14); setTimeout(() => tone(1320, 0.1, "square", 0.13), 60); },
+  trophy: () => seq([[660,0,0.12],[880,90,0.12],[1180,180,0.18]]),
+  hit:    () => tone(200, 0.22, "sawtooth", 0.16, 90),
+  levelup:() => seq([[523,0,0.12],[659,110,0.12],[784,220,0.2]]),
+  over:   () => seq([[440,0,0.18,"sawtooth"],[330,150,0.18,"sawtooth"],[220,320,0.3,"sawtooth"]]),
+  win:    () => seq([[523,0,0.14],[659,130,0.14],[784,260,0.14],[1046,400,0.32]]),
+};
+function setMuted(m) {
+  muted = m;
+  try { localStorage.setItem("dd_muted", m ? "1" : "0"); } catch (e) {}
+  if (muteBtn) muteBtn.textContent = muted ? "🔇 Ton aus" : "🔊 Ton an";
 }
 
 // ---- State-Handling ----
@@ -262,6 +311,9 @@ function resetGame() {
   distance = 0;
   score = 0;
   obstacles = [];
+  collectibles = [];
+  particles = [];
+  collectTimer = 1.0;
   spawnTimer = 0.8;
   runTime = 0;
   lives = MAX_LIVES;
@@ -273,13 +325,26 @@ function resetGame() {
   bgScroll = 0;
 }
 
-function startGame() { resetGame(); showStory(0); }
+function startGame() { initAudio(); resetGame(); showStory(0); }
+
+// ---- Partikel ----
+function burst(x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 60 + Math.random() * 180;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
+      life: 0.5 + Math.random() * 0.4, t: 0, color, r: 2 + Math.random() * 3,
+    });
+  }
+}
 
 function beginLevel() { setState(State.PLAY); }
 
 function advanceLevel() {
   if (levelIndex >= LEVELS.length - 1) {
     saveBest();
+    SFX.win();
     winScoreEl.textContent = Math.floor(score);
     setState(State.WIN);
     return;
@@ -287,6 +352,7 @@ function advanceLevel() {
   levelIndex++;
   levelDist = 0;
   score += 100; // Etappen-Bonus
+  SFX.levelup();
   showStory(levelIndex);
 }
 
@@ -295,7 +361,9 @@ function hitObstacle() {
   lives--;
   invuln = INVULN_TIME;
   shake = 0.35;
-  if (lives <= 0) gameOver();
+  burst(duck.x + duck.w / 2, duck.y + duck.h / 2, "#d9b64a", 14);
+  if (lives <= 0) { SFX.over(); gameOver(); }
+  else SFX.hit();
 }
 
 function gameOver() {
@@ -308,6 +376,8 @@ startBtn.addEventListener("click", startGame);
 retryBtn.addEventListener("click", startGame);
 winBtn.addEventListener("click", startGame);
 storyBtn.addEventListener("click", beginLevel);
+muteBtn.addEventListener("click", () => { initAudio(); setMuted(!muted); });
+setMuted(muted);
 
 // ---- Eingabe ----
 function requestJump() {
@@ -324,12 +394,14 @@ function tryConsumeJump() {
     duck.jumps = 1;
     duck.buffer = 0;
     endSlide();
+    SFX.jump();
   } else if (duck.jumps < 2) {
     // Doppelsprung
     duck.vy = JUMP_V * 0.92;
     duck.jumps = 2;
     duck.buffer = 0;
     endSlide();
+    SFX.jump();
   }
 }
 function startSlide() {
@@ -409,6 +481,32 @@ function nextSpawnDelay() {
   return base + Math.random() * 0.55 / t;
 }
 
+// Collectibles: Fussball (haeufig) oder goldener Pokal (selten)
+function spawnCollectible() {
+  const trophy = Math.random() < 0.06;
+  const heights = [70, 120, 180, 240];
+  const yOff = heights[Math.floor(Math.random() * heights.length)];
+  const size = trophy ? 30 : 22;
+  collectibles.push({
+    type: trophy ? "trophy" : "ball",
+    x: W + 30, y: GROUND_Y - yOff, r: size / 2, size,
+    bob: Math.random() * Math.PI * 2, taken: false,
+  });
+}
+
+function collectAt(o) {
+  o.taken = true;
+  if (o.type === "trophy") {
+    score += 200; balls += 5;
+    burst(o.x, o.y, "#f0d061", 22);
+    SFX.trophy();
+  } else {
+    score += 5; balls += 1;
+    burst(o.x, o.y, "#dfe5ee", 10);
+    SFX.coin();
+  }
+}
+
 // ---- Update ----
 function update(dt) {
   if (state !== State.PLAY) return;
@@ -473,6 +571,31 @@ function update(dt) {
     if (!o.passed && o.x + o.w < duck.x) { o.passed = true; score += 10; }
   }
   obstacles = obstacles.filter((o) => o.x + o.w > -20);
+
+  // Collectibles spawnen + bewegen + einsammeln
+  collectTimer -= dt;
+  if (collectTimer <= 0) {
+    spawnCollectible();
+    collectTimer = 0.8 + Math.random() * 1.0;
+  }
+  const hb = duckHitbox();
+  for (const c of collectibles) {
+    c.x -= speed * dt;
+    c.bob += dt * 4;
+    if (!c.taken && aabb(hb.x, hb.y, hb.w, hb.h, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2)) {
+      collectAt(c);
+    }
+  }
+  collectibles = collectibles.filter((c) => !c.taken && c.x + c.r > -20);
+
+  // Partikel
+  for (const p of particles) {
+    p.t += dt;
+    p.vy += 520 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+  }
+  particles = particles.filter((p) => p.t < p.life);
 
   // Kollision (AABB) mit aktueller Hitbox
   if (invuln <= 0) {
@@ -714,15 +837,75 @@ function roundRect(x, y, w, h, r) {
 }
 function roundRectAbs(x, y, w, h, r) { roundRect(x, y, w, h, r); }
 
+function drawCollectible(c) {
+  const yy = c.y + Math.sin(c.bob) * 4; // dezentes Schweben
+  ctx.save();
+  if (c.type === "trophy") {
+    // goldener Pokal
+    ctx.fillStyle = "#f0d061";
+    ctx.strokeStyle = "#b8922e";
+    ctx.lineWidth = 2;
+    const s = c.size;
+    ctx.beginPath();
+    ctx.moveTo(c.x - s * 0.3, yy - s * 0.4);
+    ctx.lineTo(c.x + s * 0.3, yy - s * 0.4);
+    ctx.lineTo(c.x + s * 0.18, yy + s * 0.05);
+    ctx.lineTo(c.x - s * 0.18, yy + s * 0.05);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillRect(c.x - s * 0.06, yy + s * 0.05, s * 0.12, s * 0.18);
+    ctx.fillRect(c.x - s * 0.22, yy + s * 0.23, s * 0.44, s * 0.1);
+  } else {
+    // Fussball
+    ctx.fillStyle = "#eef1f5";
+    ctx.beginPath();
+    ctx.arc(c.x, yy, c.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#3a4250";
+    ctx.beginPath();
+    ctx.arc(c.x, yy, c.r * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 5; i++) {
+      const a = c.bob * 0.3 + i * (Math.PI * 2 / 5);
+      ctx.beginPath();
+      ctx.arc(c.x + Math.cos(a) * c.r * 0.62, yy + Math.sin(a) * c.r * 0.62, c.r * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = Math.max(0, 1 - p.t / p.life);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 function render() {
   ctx.clearRect(0, 0, W, H);
   ctx.save();
+  // dezente Kamera-Mikrobewegung (Flow)
+  let ox = 0, oy = 0;
+  if (state === State.PLAY) {
+    ox = Math.sin(runTime * 1.7) * 2.2;
+    oy = Math.cos(runTime * 2.3) * 1.8;
+  }
   if (shake > 0) {
     const m = shake * 18;
-    ctx.translate((Math.sin(runTime * 90) * m), (Math.cos(runTime * 110) * m));
+    ox += Math.sin(runTime * 90) * m;
+    oy += Math.cos(runTime * 110) * m;
   }
+  ctx.translate(ox, oy);
+
   drawBackground();
+  for (const c of collectibles) drawCollectible(c);
   for (const o of obstacles) drawObstacle(o);
+  drawParticles();
   // bei Unverwundbarkeit blinkt die Ente
   if (state === State.PLAY || state === State.OVER) {
     if (!(invuln > 0 && Math.floor(runTime * 12) % 2 === 0)) drawDuck();
