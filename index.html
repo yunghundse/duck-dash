@@ -133,6 +133,15 @@
   #boardList li .sc { font-weight:700; color:#cdd5e0; }
   #boardList li.me { border:2px solid #f4d35e; }
   #boardList .empty { color:#9aa6b5; text-align:center; padding:20px; }
+  #confetti { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+  #confetti span {
+    position:absolute; top:-20px; width:10px; height:14px; border-radius:2px;
+    animation: fall linear infinite;
+  }
+  @keyframes fall {
+    0% { transform: translateY(-20px) rotate(0deg); opacity:1; }
+    100% { transform: translateY(110vh) rotate(540deg); opacity:0.7; }
+  }
 </style>
 </head>
 <body>
@@ -155,6 +164,15 @@
       <button id="muteBtn" class="btn" style="margin-top:0;background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 16px;">🔊</button>
     </div>
     <div id="mHint" class="hint">…</div>
+    <div id="eggProgress" class="hint" style="margin-top:8px;color:#c7b06f;">🌍 0/4</div>
+  </div>
+
+  <div id="egg" class="overlay hidden">
+    <div id="confetti"></div>
+    <h1 style="color:#f0d061;">✨ Golden Quack! ✨</h1>
+    <div id="eggText" class="subtitle">Du hast Duck Dash in allen 4 Sprachen gemeistert!</div>
+    <div class="big-score" style="font-size:60px;">🦆👑</div>
+    <button id="eggBtn" class="btn">🎉</button>
   </div>
 
   <div id="shop" class="overlay hidden" style="justify-content:flex-start;overflow-y:auto;">
@@ -226,7 +244,7 @@ const BASE_SPEED = 360;        // px/s
 const SPEED_RAMP = 7;          // px/s pro Sekunde
 
 // ---- Zustaende ----
-const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN", SHOP: "SHOP", BOARD: "BOARD" };
+const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN", SHOP: "SHOP", BOARD: "BOARD", EGG: "EGG" };
 let state = State.MENU;
 
 // ---- WM-Etappen ----
@@ -451,6 +469,7 @@ const SKINS = [
   { id: "hat",     name: { de: "Kapitaens-Hut", en: "Captain Hat", es: "Gorra de capitan", fr: "Casquette" }, price: 120, body: "#f2c14e", hat: true },
   { id: "glasses", name: { de: "Coole Brille", en: "Cool Glasses", es: "Gafas chulas", fr: "Lunettes cool" }, price: 120, body: "#f2c14e", glasses: true },
   { id: "golden",  name: { de: "Goldene Ente", en: "Golden Duck", es: "Pato dorado", fr: "Canard dore" }, price: 400, body: "#f0d061", golden: true },
+  { id: "goldenquack", name: { de: "Golden Quack 👑", en: "Golden Quack 👑", es: "Golden Quack 👑", fr: "Golden Quack 👑" }, price: 0, body: "#f0d061", golden: true, crown: true, secret: true },
 ];
 const POWERUPS = [
   { id: "shield",    name: { de: "Schild", en: "Shield", es: "Escudo", fr: "Bouclier" }, price: 80,
@@ -536,6 +555,32 @@ const ScoreStore = {
   },
 };
 
+// ---- Easter Egg: alle Sprachen durchspielen ----
+const ALL_LANGS = ["de", "en", "es", "fr"];
+let completedLangs = [];
+try { completedLangs = JSON.parse(localStorage.getItem("dd_langsdone") || "[]"); } catch (e) {}
+let eggUnlocked = false;
+try { eggUnlocked = localStorage.getItem("dd_egg") === "1"; } catch (e) {}
+
+function markLangCompleted(l) {
+  if (!completedLangs.includes(l)) {
+    completedLangs.push(l);
+    try { localStorage.setItem("dd_langsdone", JSON.stringify(completedLangs)); } catch (e) {}
+  }
+  updateEggProgress();
+  // alle 4 Sprachen durch -> freischalten
+  if (!eggUnlocked && ALL_LANGS.every((x) => completedLangs.includes(x))) {
+    eggUnlocked = true;
+    try { localStorage.setItem("dd_egg", "1"); } catch (e) {}
+    if (!Store.has("goldenquack")) { Store.owned.push("goldenquack"); Store.skin = "goldenquack"; Store.save(); }
+    return true; // Egg jetzt erreicht
+  }
+  return false;
+}
+function updateEggProgress() {
+  if (eggProgressEl) eggProgressEl.textContent = "🌍 " + completedLangs.length + "/4" + (eggUnlocked ? " 👑" : "");
+}
+
 // ---- State-Handling ----
 function setState(next) {
   state = next;
@@ -545,6 +590,7 @@ function setState(next) {
   winEl.classList.toggle("hidden", state !== State.WIN);
   shopEl.classList.toggle("hidden", state !== State.SHOP);
   boardEl.classList.toggle("hidden", state !== State.BOARD);
+  eggEl.classList.toggle("hidden", state !== State.EGG);
 }
 
 function showStory(idx) {
@@ -612,6 +658,7 @@ function advanceLevel() {
     saveBest();
     Store.addCoins(balls);
     SFX.win();
+    pendingEgg = markLangCompleted(lang); // Sprache als durchgespielt markieren
     currentRunScore = Math.floor(score);
     winScoreEl.textContent = currentRunScore;
     winEntry.style.display = "flex";
@@ -658,7 +705,7 @@ function gameOver() {
 
 startBtn.addEventListener("click", startGame);
 retryBtn.addEventListener("click", startGame);
-winBtn.addEventListener("click", startGame);
+winBtn.addEventListener("click", () => { if (pendingEgg) showEgg(); else startGame(); });
 storyBtn.addEventListener("click", beginLevel);
 muteBtn.addEventListener("click", () => { initAudio(); setMuted(!muted); });
 
@@ -712,6 +759,7 @@ function renderShop() {
   shopClose.textContent = { de: "Zurück", en: "Back", es: "Volver", fr: "Retour" }[lang];
   let html = '<div class="shopSection">' + ts("skins") + '</div>';
   for (const s of SKINS) {
+    if (s.secret && !Store.has(s.id)) continue; // Bonus-Skin erst nach Freischaltung
     const owned = Store.has(s.id);
     const equipped = Store.skin === s.id;
     let btn;
@@ -810,6 +858,32 @@ overBoard.addEventListener("click", () => showBoard(State.OVER));
 winBoard.addEventListener("click", () => showBoard(State.WIN));
 overSave.addEventListener("click", () => saveScore(overName, currentRunScore, overEntry));
 winSave.addEventListener("click", () => saveScore(winName, currentRunScore, winEntry));
+
+// ---- Easter-Egg UI ----
+const eggEl = document.getElementById("egg");
+const eggBtn = document.getElementById("eggBtn");
+const eggProgressEl = document.getElementById("eggProgress");
+const confettiEl = document.getElementById("confetti");
+let pendingEgg = false;
+
+function showEgg() {
+  // Confetti erzeugen
+  const colors = ["#f4d35e", "#7cc47f", "#6fa3c7", "#d96a6a", "#e0b97a", "#cdd5e0"];
+  let html = "";
+  for (let i = 0; i < 60; i++) {
+    const left = (i * 37) % 100;          // deterministisch (kein Math.random Pflicht)
+    const dur = 2.5 + (i % 5) * 0.6;
+    const delay = (i % 10) * 0.25;
+    const col = colors[i % colors.length];
+    html += '<span style="left:' + left + '%;background:' + col +
+      ';animation-duration:' + dur + 's;animation-delay:' + delay + 's;"></span>';
+  }
+  confettiEl.innerHTML = html;
+  pendingEgg = false;
+  setState(State.EGG);
+}
+eggBtn.addEventListener("click", () => { confettiEl.innerHTML = ""; startGame(); });
+updateEggProgress();
 
 // ---- Eingabe ----
 function requestJump() {
@@ -1214,6 +1288,22 @@ function drawDuck() {
     ctx.fillStyle = "#34506e";
     ctx.fillRect(headX - headR * 0.6, headY - headR * 0.95, headR * 1.5, headR * 0.4);
     ctx.fillRect(headX - headR * 0.3, headY - headR * 1.4, headR * 0.9, headR * 0.55);
+  }
+
+  // Krone (Golden Quack)
+  if (skin.crown) {
+    ctx.fillStyle = "#f4d35e";
+    const cx = headX, cy = headY - headR * 1.0, cw = headR * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx - cw / 2, cy + 8);
+    ctx.lineTo(cx - cw / 2, cy);
+    ctx.lineTo(cx - cw / 4, cy + 5);
+    ctx.lineTo(cx, cy - 3);
+    ctx.lineTo(cx + cw / 4, cy + 5);
+    ctx.lineTo(cx + cw / 2, cy);
+    ctx.lineTo(cx + cw / 2, cy + 8);
+    ctx.closePath();
+    ctx.fill();
   }
 
   // Schnabel (orange)
