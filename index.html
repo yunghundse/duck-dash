@@ -117,6 +117,22 @@
   .act.active { background:#f4d35e; color:#1a1f2b; }
   .act.disabled { background:rgba(255,255,255,0.08); color:#6b7585; cursor:not-allowed; }
   .swatch { width:34px; height:34px; border-radius:8px; flex-shrink:0; }
+  .nameEntry { display:flex; gap:8px; align-items:center; margin:14px 0 4px; }
+  .nameInput {
+    padding:10px 14px; font-size:16px; border-radius:10px;
+    border:2px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.25);
+    color:#eef1f5; width:160px; text-align:center;
+  }
+  #boardList li {
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,0.06); border-radius:10px;
+    padding:9px 14px; margin-bottom:6px; font-size:15px;
+  }
+  #boardList li .rank { width:28px; font-weight:800; color:#f4d35e; }
+  #boardList li .nm { flex:1; text-align:left; font-weight:600; }
+  #boardList li .sc { font-weight:700; color:#cdd5e0; }
+  #boardList li.me { border:2px solid #f4d35e; }
+  #boardList .empty { color:#9aa6b5; text-align:center; padding:20px; }
 </style>
 </head>
 <body>
@@ -133,8 +149,9 @@
       <button class="langBtn" data-lang="fr">🇫🇷 FR</button>
     </div>
     <button id="startBtn" class="btn">Spiel starten</button>
-    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;">
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap;justify-content:center;">
       <button id="shopBtn" class="btn" style="margin-top:0;background:#e0b97a;box-shadow:0 5px 0 #b8945a;font-size:16px;padding:10px 22px;">🛒 Shop</button>
+      <button id="boardBtn" class="btn" style="margin-top:0;background:#c7b06f;box-shadow:0 5px 0 #9e8b54;font-size:16px;padding:10px 22px;">🏅</button>
       <button id="muteBtn" class="btn" style="margin-top:0;background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 16px;">🔊</button>
     </div>
     <div id="mHint" class="hint">…</div>
@@ -151,7 +168,14 @@
     <h1>Game Over</h1>
     <div class="subtitle">Score</div>
     <div id="finalScore" class="big-score">0</div>
-    <button id="retryBtn" class="btn">Nochmal</button>
+    <div id="overEntry" class="nameEntry">
+      <input id="overName" class="nameInput" maxlength="12" placeholder="Name">
+      <button id="overSave" class="btn" style="margin-top:0;padding:10px 20px;font-size:16px;">💾</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+      <button id="retryBtn" class="btn">Nochmal</button>
+      <button id="overBoard" class="btn" style="background:#c7b06f;box-shadow:0 5px 0 #9e8b54;">🏅</button>
+    </div>
   </div>
 
   <div id="story" class="overlay hidden">
@@ -165,7 +189,20 @@
     <h1>🏆 Weltmeister!</h1>
     <div class="subtitle">Duck Dash gewonnen</div>
     <div id="winScore" class="big-score">0</div>
-    <button id="winBtn" class="btn">Nochmal</button>
+    <div id="winEntry" class="nameEntry">
+      <input id="winName" class="nameInput" maxlength="12" placeholder="Name">
+      <button id="winSave" class="btn" style="margin-top:0;padding:10px 20px;font-size:16px;">💾</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+      <button id="winBtn" class="btn">Nochmal</button>
+      <button id="winBoard" class="btn" style="background:#c7b06f;box-shadow:0 5px 0 #9e8b54;">🏅</button>
+    </div>
+  </div>
+
+  <div id="board" class="overlay hidden" style="justify-content:flex-start;overflow-y:auto;">
+    <h1 style="font-size:clamp(24px,5vw,40px);margin-top:12px;">🏅 <span id="boardTitle">Bestenliste</span></h1>
+    <ol id="boardList" style="list-style:none;width:100%;max-width:420px;margin-top:16px;padding:0;"></ol>
+    <button id="boardClose" class="btn">Zurück</button>
   </div>
 </div>
 
@@ -189,7 +226,7 @@ const BASE_SPEED = 360;        // px/s
 const SPEED_RAMP = 7;          // px/s pro Sekunde
 
 // ---- Zustaende ----
-const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN", SHOP: "SHOP" };
+const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN", SHOP: "SHOP", BOARD: "BOARD" };
 let state = State.MENU;
 
 // ---- WM-Etappen ----
@@ -472,6 +509,33 @@ const Store = {
 };
 Store.load();
 
+// ---- Bestenliste (gekapselt) ----
+// ScoreStore kapselt die Persistenz hinter async load()/submit().
+// Aktuell: localStorage. Spaeter austauschbar gegen ein Online-Backend
+// (z.B. fetch zu einer REST-API) ohne Aenderung am restlichen Spielcode.
+const ScoreStore = {
+  KEY: "dd_scores",
+  MAX: 20,
+  async load() {
+    // TODO Online-Backend: hier stattdessen `await fetch('/api/scores')` o.ae.
+    try {
+      const arr = JSON.parse(localStorage.getItem(this.KEY) || "[]");
+      return arr.sort((a, b) => b.score - a.score).slice(0, this.MAX);
+    } catch (e) { return []; }
+  },
+  async submit(entry) {
+    // entry: { name, score }
+    // TODO Online-Backend: hier stattdessen `await fetch('/api/scores', {method:'POST', ...})`
+    const e = { name: (entry.name || "???").slice(0, 12), score: Math.floor(entry.score), ts: runTime };
+    let arr = await this.load();
+    arr.push(e);
+    arr.sort((a, b) => b.score - a.score);
+    arr = arr.slice(0, this.MAX);
+    try { localStorage.setItem(this.KEY, JSON.stringify(arr)); } catch (err) {}
+    return { saved: e, top: arr };
+  },
+};
+
 // ---- State-Handling ----
 function setState(next) {
   state = next;
@@ -480,6 +544,7 @@ function setState(next) {
   storyEl.classList.toggle("hidden", state !== State.STORY);
   winEl.classList.toggle("hidden", state !== State.WIN);
   shopEl.classList.toggle("hidden", state !== State.SHOP);
+  boardEl.classList.toggle("hidden", state !== State.BOARD);
 }
 
 function showStory(idx) {
@@ -547,7 +612,11 @@ function advanceLevel() {
     saveBest();
     Store.addCoins(balls);
     SFX.win();
-    winScoreEl.textContent = Math.floor(score);
+    currentRunScore = Math.floor(score);
+    winScoreEl.textContent = currentRunScore;
+    winEntry.style.display = "flex";
+    winName.value = defaultName();
+    lastSavedTs = null;
     setState(State.WIN);
     return;
   }
@@ -570,14 +639,20 @@ function hitObstacle() {
   invuln = INVULN_TIME;
   shake = 0.35;
   burst(duck.x + duck.w / 2, duck.y + duck.h / 2, "#d9b64a", 14);
-  if (lives <= 0) { SFX.over(); gameOver(); }
+  if (lives <= 0) { gameOver(); }
   else SFX.hit();
 }
 
+let currentRunScore = 0;
 function gameOver() {
   saveBest();
   Store.addCoins(balls);
-  finalScoreEl.textContent = Math.floor(score);
+  currentRunScore = Math.floor(score);
+  finalScoreEl.textContent = currentRunScore;
+  overEntry.style.display = "flex";
+  overName.value = defaultName();
+  lastSavedTs = null;
+  SFX.over();
   setState(State.OVER);
 }
 
@@ -672,6 +747,69 @@ shopList.addEventListener("click", (e) => {
 });
 shopBtn.addEventListener("click", () => { initAudio(); renderShop(); setState(State.SHOP); });
 shopClose.addEventListener("click", () => setState(State.MENU));
+
+// ---- Bestenliste UI ----
+const boardEl = document.getElementById("board");
+const boardBtn = document.getElementById("boardBtn");
+const boardClose = document.getElementById("boardClose");
+const boardList = document.getElementById("boardList");
+const boardTitleEl = document.getElementById("boardTitle");
+const overEntry = document.getElementById("overEntry");
+const overName = document.getElementById("overName");
+const overSave = document.getElementById("overSave");
+const overBoard = document.getElementById("overBoard");
+const winEntry = document.getElementById("winEntry");
+const winName = document.getElementById("winName");
+const winSave = document.getElementById("winSave");
+const winBoard = document.getElementById("winBoard");
+
+const BOARDT = {
+  de: { title: "Bestenliste", empty: "Noch keine Eintraege", back: "Zurück" },
+  en: { title: "Leaderboard", empty: "No entries yet", back: "Back" },
+  es: { title: "Clasificacion", empty: "Sin registros", back: "Volver" },
+  fr: { title: "Classement", empty: "Aucun score", back: "Retour" },
+};
+let lastSavedTs = null;          // markiert eigenen Eintrag
+let prevState = State.MENU;      // wohin "Zurück" fuehrt
+
+function defaultName() {
+  try { return localStorage.getItem("dd_name") || ""; } catch (e) { return ""; }
+}
+
+async function showBoard(fromState) {
+  prevState = fromState || State.MENU;
+  boardTitleEl.textContent = BOARDT[lang].title;
+  boardClose.textContent = BOARDT[lang].back;
+  const top = (await ScoreStore.load()).slice(0, 10);
+  if (!top.length) {
+    boardList.innerHTML = '<div class="empty">' + BOARDT[lang].empty + '</div>';
+  } else {
+    boardList.innerHTML = top.map((e, i) => {
+      const me = (e.ts === lastSavedTs) ? " me" : "";
+      return '<li class="' + me + '"><span class="rank">' + (i + 1) + '</span>' +
+        '<span class="nm">' + escapeHtml(e.name) + '</span>' +
+        '<span class="sc">' + e.score + '</span></li>';
+    }).join("");
+  }
+  setState(State.BOARD);
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+async function saveScore(nameInput, score, entryEl) {
+  const name = (nameInput.value || defaultName() || "Spieler").trim();
+  try { localStorage.setItem("dd_name", name); } catch (e) {}
+  const res = await ScoreStore.submit({ name, score });
+  lastSavedTs = res.saved.ts;
+  if (entryEl) entryEl.style.display = "none";
+  SFX.coin();
+}
+
+boardBtn.addEventListener("click", () => showBoard(State.MENU));
+boardClose.addEventListener("click", () => setState(prevState));
+overBoard.addEventListener("click", () => showBoard(State.OVER));
+winBoard.addEventListener("click", () => showBoard(State.WIN));
+overSave.addEventListener("click", () => saveScore(overName, currentRunScore, overEntry));
+winSave.addEventListener("click", () => saveScore(winName, currentRunScore, winEntry));
 
 // ---- Eingabe ----
 function requestJump() {
