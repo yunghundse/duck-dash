@@ -28,6 +28,7 @@
     background: #2a3142;
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    touch-action: none;
   }
   /* Overlays */
   .overlay {
@@ -39,18 +40,24 @@
     padding: 4%;
   }
   .hidden { display: none !important; }
-  #menu h1 {
+  h1 {
     font-size: clamp(28px, 7vw, 64px);
     font-weight: 800;
     letter-spacing: 1px;
     color: #f4d35e;
     text-shadow: 0 3px 0 rgba(0,0,0,0.25);
   }
-  #menu .subtitle {
+  .subtitle {
     font-size: clamp(13px, 2.6vw, 22px);
     margin-top: 8px;
     color: #cdd5e0;
     font-weight: 500;
+  }
+  .big-score {
+    font-size: clamp(20px, 4vw, 34px);
+    font-weight: 700;
+    color: #f4d35e;
+    margin-top: 6px;
   }
   .btn {
     margin-top: clamp(20px, 4vh, 40px);
@@ -65,9 +72,11 @@
     box-shadow: 0 5px 0 #5a9d5d;
     transition: transform .08s, box-shadow .08s;
   }
-  .btn:active {
-    transform: translateY(3px);
-    box-shadow: 0 2px 0 #5a9d5d;
+  .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #5a9d5d; }
+  .hint {
+    font-size: clamp(11px, 2.2vw, 15px);
+    margin-top: 16px;
+    color: #9aa6b5;
   }
 </style>
 </head>
@@ -79,6 +88,14 @@
     <h1>Duck Dash</h1>
     <div class="subtitle">Die Kicker-Ente auf WM-Tour</div>
     <button id="startBtn" class="btn">Spiel starten</button>
+    <div class="hint">Springen: Leertaste / ↑ / W / Tap &nbsp;·&nbsp; Ducken: ↓ / S / Wisch runter</div>
+  </div>
+
+  <div id="over" class="overlay hidden">
+    <h1>Game Over</h1>
+    <div class="subtitle">Score</div>
+    <div id="finalScore" class="big-score">0</div>
+    <button id="retryBtn" class="btn">Nochmal</button>
   </div>
 </div>
 
@@ -88,6 +105,18 @@
 // ---- Konstanten ----
 const W = 960, H = 540;
 const GROUND_Y = H - 96;
+
+// Physik
+const GRAVITY = 2600;          // px/s^2
+const JUMP_V = -820;           // Absprung-Geschwindigkeit
+const MAX_FALL = 1500;
+const COYOTE_TIME = 0.10;      // s nach Kante noch springbar
+const BUFFER_TIME = 0.12;      // s Input-Puffer vor Landung
+const SLIDE_TIME = 0.55;       // s Dauer Slide
+
+// Welt-Speed
+const BASE_SPEED = 360;        // px/s
+const SPEED_RAMP = 7;          // px/s pro Sekunde
 
 // ---- Zustaende ----
 const State = { MENU: "MENU", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER" };
@@ -99,34 +128,374 @@ const ctx = canvas.getContext("2d");
 
 // ---- Overlays ----
 const menuEl = document.getElementById("menu");
+const overEl = document.getElementById("over");
 const startBtn = document.getElementById("startBtn");
+const retryBtn = document.getElementById("retryBtn");
+const finalScoreEl = document.getElementById("finalScore");
 
+// ---- Spielzustand ----
+const duck = {
+  x: 150, y: 0, w: 58, h: 52,
+  vy: 0,
+  onGround: true,
+  jumps: 0,            // genutzte Spruenge seit letztem Bodenkontakt
+  coyote: 0,           // verbleibende Coyote-Zeit
+  buffer: 0,           // verbleibender Sprung-Puffer
+  sliding: false,
+  slideT: 0,
+};
+let speed = BASE_SPEED;
+let distance = 0;      // fuer Speed-Ramp
+let score = 0;
+let obstacles = [];
+let spawnTimer = 0;
+let runTime = 0;
+
+// ---- State-Handling ----
 function setState(next) {
   state = next;
   menuEl.classList.toggle("hidden", state !== State.MENU);
+  overEl.classList.toggle("hidden", state !== State.OVER);
 }
 
-startBtn.addEventListener("click", () => setState(State.PLAY));
+function resetGame() {
+  duck.y = GROUND_Y - duck.h;
+  duck.vy = 0;
+  duck.onGround = true;
+  duck.jumps = 0;
+  duck.coyote = 0;
+  duck.buffer = 0;
+  duck.sliding = false;
+  duck.slideT = 0;
+  speed = BASE_SPEED;
+  distance = 0;
+  score = 0;
+  obstacles = [];
+  spawnTimer = 0.8;
+  runTime = 0;
+}
 
-// ---- Hintergrund ----
+function startGame() { resetGame(); setState(State.PLAY); }
+function gameOver() {
+  finalScoreEl.textContent = Math.floor(score);
+  setState(State.OVER);
+}
+
+startBtn.addEventListener("click", startGame);
+retryBtn.addEventListener("click", startGame);
+
+// ---- Eingabe ----
+function requestJump() {
+  if (state !== State.PLAY) return;
+  duck.buffer = BUFFER_TIME;
+}
+function tryConsumeJump() {
+  if (duck.buffer <= 0) return;
+  const canFirst = duck.onGround || duck.coyote > 0;
+  if (canFirst) {
+    duck.vy = JUMP_V;
+    duck.onGround = false;
+    duck.coyote = 0;
+    duck.jumps = 1;
+    duck.buffer = 0;
+    endSlide();
+  } else if (duck.jumps < 2) {
+    // Doppelsprung
+    duck.vy = JUMP_V * 0.92;
+    duck.jumps = 2;
+    duck.buffer = 0;
+    endSlide();
+  }
+}
+function startSlide() {
+  if (state !== State.PLAY) return;
+  if (!duck.onGround) {
+    // in der Luft: schnelles Runterziehen, Slide beginnt bei Landung
+    duck.vy = Math.max(duck.vy, 600);
+  }
+  duck.sliding = true;
+  duck.slideT = SLIDE_TIME;
+}
+function endSlide() { duck.sliding = false; duck.slideT = 0; }
+
+// Tastatur
+const downKeys = new Set();
+window.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  if (["arrowup", "w", " ", "spacebar"].includes(k) || e.code === "Space") {
+    if (!downKeys.has("jump")) { downKeys.add("jump"); requestJump(); }
+    e.preventDefault();
+  } else if (["arrowdown", "s"].includes(k)) {
+    startSlide();
+    e.preventDefault();
+  } else if (k === "enter") {
+    if (state === State.MENU || state === State.OVER) startGame();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  const k = e.key.toLowerCase();
+  if (["arrowup", "w", " ", "spacebar"].includes(k) || e.code === "Space") {
+    downKeys.delete("jump");
+  }
+});
+
+// Pointer (Klick / Tap / Wisch)
+let touchStartY = null, touchStartX = null, swiped = false;
+canvas.addEventListener("pointerdown", (e) => {
+  touchStartY = e.clientY; touchStartX = e.clientX; swiped = false;
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (touchStartY === null || swiped) return;
+  if (e.clientY - touchStartY > 40) { startSlide(); swiped = true; }
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!swiped) requestJump();
+  touchStartY = null;
+});
+
+// ---- Hindernisse ----
+// type: "high" (ueberspringen), "low" (Bande -> slide), "cone" (Huetchen, niedrig)
+function spawnObstacle() {
+  const r = Math.random();
+  let o;
+  if (r < 0.42) {
+    // hohes Hindernis (Tor-Pfosten/Abwehr) - Doppelsprung-knapp
+    const h = 78 + Math.random() * 46;     // 78..124
+    o = { type: "high", w: 40 + Math.random() * 26, h, x: W + 40, y: GROUND_Y - h, passed: false };
+  } else if (r < 0.75) {
+    // tiefe Bande (Hindernis oben -> drunter durchsliden)
+    // gap < Stehhoehe (~48) erzwingt Slide, >= Slidehoehe (26) bleibt fair schaffbar
+    const gap = 40;                        // freier Slide-Korridor am Boden
+    const h = 150;
+    o = { type: "low", w: 60 + Math.random() * 30, h, x: W + 40, y: GROUND_Y - gap - h, passed: false };
+  } else {
+    // Huetchen-Reihe (niedrig, einfacher Sprung)
+    const h = 40 + Math.random() * 18;
+    o = { type: "cone", w: 36, h, x: W + 40, y: GROUND_Y - h, passed: false };
+  }
+  obstacles.push(o);
+}
+
+function nextSpawnDelay() {
+  // Abstand schrumpft mit Tempo, bleibt aber fair schaffbar
+  const t = speed / BASE_SPEED;
+  const base = 1.15 / t;
+  return base + Math.random() * 0.55 / t;
+}
+
+// ---- Update ----
+function update(dt) {
+  if (state !== State.PLAY) return;
+
+  runTime += dt;
+  distance += speed * dt;
+  speed = BASE_SPEED + runTime * SPEED_RAMP * 6;
+  if (speed > 760) speed = 760;
+
+  score += dt * (speed / 36);
+
+  // Timer
+  if (duck.coyote > 0) duck.coyote -= dt;
+  if (duck.buffer > 0) duck.buffer -= dt;
+
+  // Slide-Dauer
+  if (duck.sliding) {
+    duck.slideT -= dt;
+    if (duck.slideT <= 0) endSlide();
+  }
+
+  // Sprung-Buffer einloesen
+  tryConsumeJump();
+
+  // Physik
+  const wasGround = duck.onGround;
+  duck.vy += GRAVITY * dt;
+  if (duck.vy > MAX_FALL) duck.vy = MAX_FALL;
+  duck.y += duck.vy * dt;
+
+  const floor = GROUND_Y - duck.h;
+  if (duck.y >= floor) {
+    duck.y = floor;
+    if (!wasGround) { duck.jumps = 0; }
+    duck.onGround = true;
+    duck.vy = 0;
+  } else {
+    if (wasGround) duck.coyote = COYOTE_TIME; // gerade Kante verlassen
+    duck.onGround = false;
+  }
+
+  // Spawnen
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    spawnObstacle();
+    spawnTimer = nextSpawnDelay();
+  }
+
+  // Hindernisse bewegen
+  for (const o of obstacles) {
+    o.x -= speed * dt;
+    if (!o.passed && o.x + o.w < duck.x) { o.passed = true; score += 10; }
+  }
+  obstacles = obstacles.filter((o) => o.x + o.w > -20);
+
+  // Kollision (AABB) mit aktueller Hitbox
+  const hb = duckHitbox();
+  for (const o of obstacles) {
+    if (aabb(hb.x, hb.y, hb.w, hb.h, o.x, o.y, o.w, o.h)) {
+      gameOver();
+      break;
+    }
+  }
+}
+
+function duckHitbox() {
+  // Beim Sliden flachere, niedrigere Hitbox
+  if (duck.sliding && duck.onGround) {
+    const h = duck.h * 0.5;
+    return { x: duck.x + 4, y: GROUND_Y - h, w: duck.w - 6, h };
+  }
+  return { x: duck.x + 6, y: duck.y + 4, w: duck.w - 12, h: duck.h - 6 };
+}
+
+function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+// ---- Render ----
 function drawBackground() {
-  // Himmel-Verlauf, dezent abgedunkelt
   const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
   sky.addColorStop(0, "#3a4a63");
   sky.addColorStop(1, "#6a7d94");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, GROUND_Y);
 
-  // Spielfeld (gruen) unten
   const grass = ctx.createLinearGradient(0, GROUND_Y, 0, H);
   grass.addColorStop(0, "#5f8f5a");
   grass.addColorStop(1, "#4a7547");
   ctx.fillStyle = grass;
   ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
 
-  // Bodenkante
   ctx.fillStyle = "#3c6139";
   ctx.fillRect(0, GROUND_Y, W, 4);
+}
+
+function drawDuck() {
+  const sliding = duck.sliding && duck.onGround;
+  let bx = duck.x, by = duck.y, bw = duck.w, bh = duck.h;
+  if (sliding) { bh = duck.h * 0.6; by = GROUND_Y - bh; bw = duck.w + 8; }
+
+  ctx.save();
+  ctx.translate(bx, by);
+
+  // Schatten
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.beginPath();
+  ctx.ellipse(bw * 0.5, GROUND_Y - by + 6, bw * 0.42, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Koerper
+  ctx.fillStyle = "#f2c14e";
+  roundRect(2, 6, bw - 4, bh - 6, 16);
+  ctx.fill();
+
+  // Schwanz
+  ctx.fillStyle = "#e3ad38";
+  ctx.beginPath();
+  ctx.moveTo(2, bh * 0.45);
+  ctx.lineTo(-10, bh * 0.30);
+  ctx.lineTo(2, bh * 0.62);
+  ctx.closePath();
+  ctx.fill();
+
+  // Fluegel
+  ctx.fillStyle = "#e6b33e";
+  ctx.beginPath();
+  ctx.ellipse(bw * 0.46, bh * 0.62, bw * 0.22, bh * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Kopf (oben rechts)
+  const headX = bw * 0.72, headY = bh * 0.30, headR = bw * 0.26;
+  ctx.fillStyle = "#f2c14e";
+  ctx.beginPath();
+  ctx.arc(headX, headY, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Auge
+  ctx.fillStyle = "#1d2330";
+  ctx.beginPath();
+  ctx.arc(headX + headR * 0.25, headY - headR * 0.15, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Schnabel (orange)
+  ctx.fillStyle = "#e8852b";
+  ctx.beginPath();
+  ctx.moveTo(headX + headR * 0.7, headY);
+  ctx.lineTo(headX + headR * 1.5, headY + 4);
+  ctx.lineTo(headX + headR * 0.7, headY + 11);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawObstacle(o) {
+  ctx.save();
+  if (o.type === "high") {
+    // Abwehr-Pylon (dunkelrot, gedaempft)
+    ctx.fillStyle = "#a85a4f";
+    roundRectAbs(o.x, o.y, o.w, o.h, 6);
+    ctx.fill();
+    ctx.fillStyle = "#8f4a40";
+    ctx.fillRect(o.x, o.y + o.h * 0.4, o.w, 6);
+  } else if (o.type === "low") {
+    // haengende Bande (Banner oben)
+    ctx.fillStyle = "#5d6b8a";
+    roundRectAbs(o.x, o.y, o.w, o.h, 6);
+    ctx.fill();
+    ctx.fillStyle = "#48557030";
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.fillStyle = "#cdd5e0";
+    ctx.fillRect(o.x + 4, o.y + o.h - 10, o.w - 8, 4);
+  } else {
+    // Huetchen (orange, gedaempft)
+    ctx.fillStyle = "#d98a3d";
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.w * 0.5, o.y);
+    ctx.lineTo(o.x + o.w, o.y + o.h);
+    ctx.lineTo(o.x, o.y + o.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#eaddc7";
+    ctx.fillRect(o.x, o.y + o.h - 6, o.w, 6);
+  }
+  ctx.restore();
+}
+
+function drawHUD() {
+  ctx.fillStyle = "#eef1f5";
+  ctx.font = "700 26px -apple-system, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(String(Math.floor(score)).padStart(5, "0"), W - 20, 40);
+  ctx.textAlign = "left";
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function roundRectAbs(x, y, w, h, r) { roundRect(x, y, w, h, r); }
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  for (const o of obstacles) drawObstacle(o);
+  if (state === State.PLAY || state === State.OVER) drawDuck();
+  if (state === State.PLAY) drawHUD();
 }
 
 // ---- Game-Loop ----
@@ -142,15 +511,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-function update(dt) {
-  // Spiellogik kommt in spaeteren Etappen
-}
-
-function render() {
-  ctx.clearRect(0, 0, W, H);
-  drawBackground();
-}
-
+// Anfangsposition fuer Menue-Render
+duck.y = GROUND_Y - duck.h;
 requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
 </script>
 </body>
