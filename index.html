@@ -88,6 +88,16 @@
     display: flex;
   }
   .flag > div { flex: 1; }
+  .langBtn {
+    padding: 8px 12px;
+    font-size: 14px; font-weight: 700;
+    color: #eef1f5;
+    background: rgba(255,255,255,0.10);
+    border: 2px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .langBtn.active { border-color: #f4d35e; background: rgba(244,211,94,0.15); }
 </style>
 </head>
 <body>
@@ -96,10 +106,16 @@
 
   <div id="menu" class="overlay">
     <h1>Duck Dash</h1>
-    <div class="subtitle">Die Kicker-Ente auf WM-Tour</div>
+    <div id="mSub" class="subtitle">Die Kicker-Ente auf WM-Tour</div>
+    <div id="langRow" style="display:flex;gap:8px;margin-top:16px;">
+      <button class="langBtn" data-lang="de">🇩🇪 DE</button>
+      <button class="langBtn" data-lang="en">🇬🇧 EN</button>
+      <button class="langBtn" data-lang="es">🇪🇸 ES</button>
+      <button class="langBtn" data-lang="fr">🇫🇷 FR</button>
+    </div>
     <button id="startBtn" class="btn">Spiel starten</button>
-    <button id="muteBtn" class="btn" style="background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 22px;">🔊 Ton an</button>
-    <div class="hint">Springen: Leertaste / ↑ / W / Tap &nbsp;·&nbsp; Ducken: ↓ / S / Wisch runter</div>
+    <button id="muteBtn" class="btn" style="background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 22px;">🔊</button>
+    <div id="mHint" class="hint">…</div>
   </div>
 
   <div id="over" class="overlay hidden">
@@ -170,6 +186,83 @@ const LEVELS = [
     sky: ["#3a3550", "#6b5f7a"], grass: ["#5f8f5a", "#487045"], accent: "#7a6a3a",
     story: "Das grosse Finale! Watschel zum Pokal." },
 ];
+// ---- Mehrsprachigkeit ----
+const I18N = {
+  de: {
+    soundOn: "🔊", soundOff: "🔇",
+    subtitle: "Die Kicker-Ente auf WM-Tour",
+    start: "Spiel starten", retry: "Nochmal", go: "Los!",
+    hintCtrl: "Springen: Leertaste / ↑ / W / Tap · Ducken: ↓ / S / Wisch runter",
+    gameover: "Game Over", scoreLabel: "Punkte", best: "Best", meters: "m",
+    win: "🏆 Weltmeister!", winSub: "Duck Dash gewonnen",
+    countries: { br: "Brasilien", de: "Deutschland", jp: "Japan", us: "USA", ar: "Argentinien", fin: "WM-Finale" },
+    stories: {
+      br: "Anpfiff in Rio! Watschel ueber den Strand-Platz.",
+      de: "Weiter nach Deutschland - praezises Timing zaehlt!",
+      jp: "Konnichiwa! In Japan wird's flink und flott.",
+      us: "Big Game in den USA - volle Tribuenen!",
+      ar: "Halbfinale in Argentinien - die Menge tobt!",
+      fin: "Das grosse Finale! Watschel zum Pokal.",
+    },
+  },
+  en: {
+    soundOn: "🔊", soundOff: "🔇",
+    subtitle: "The Rubber Duck on World Cup Tour",
+    start: "Start Game", retry: "Again", go: "Go!",
+    hintCtrl: "Jump: Space / ↑ / W / Tap · Duck: ↓ / S / Swipe down",
+    gameover: "Game Over", scoreLabel: "Score", best: "Best", meters: "m",
+    win: "🏆 World Champion!", winSub: "Duck Dash won",
+    countries: { br: "Brazil", de: "Germany", jp: "Japan", us: "USA", ar: "Argentina", fin: "World Cup Final" },
+    stories: {
+      br: "Kick-off in Rio! Waddle across the beach pitch.",
+      de: "On to Germany - precise timing matters!",
+      jp: "Konnichiwa! Japan gets quick and nimble.",
+      us: "Big game in the USA - packed stands!",
+      ar: "Semi-final in Argentina - the crowd roars!",
+      fin: "The big final! Waddle to the trophy.",
+    },
+  },
+  es: {
+    soundOn: "🔊", soundOff: "🔇",
+    subtitle: "El pato de goma en gira mundialista",
+    start: "Jugar", retry: "Otra vez", go: "¡Vamos!",
+    hintCtrl: "Saltar: Espacio / ↑ / W / Toca · Agacharse: ↓ / S / Desliza abajo",
+    gameover: "Fin del juego", scoreLabel: "Puntos", best: "Mejor", meters: "m",
+    win: "🏆 ¡Campeon del mundo!", winSub: "Duck Dash ganado",
+    countries: { br: "Brasil", de: "Alemania", jp: "Japon", us: "EE.UU.", ar: "Argentina", fin: "Final del Mundial" },
+    stories: {
+      br: "¡Saque en Rio! Camina por la cancha de playa.",
+      de: "¡Rumbo a Alemania - el tiempo preciso importa!",
+      jp: "¡Konnichiwa! Japon se vuelve rapido y agil.",
+      us: "¡Gran partido en EE.UU. - gradas llenas!",
+      ar: "¡Semifinal en Argentina - la multitud ruge!",
+      fin: "¡La gran final! Camina hacia la copa.",
+    },
+  },
+  fr: {
+    soundOn: "🔊", soundOff: "🔇",
+    subtitle: "Le canard en plastique en tournee Mondial",
+    start: "Jouer", retry: "Encore", go: "Allez!",
+    hintCtrl: "Sauter: Espace / ↑ / W / Tape · S'accroupir: ↓ / S / Glisse vers le bas",
+    gameover: "Partie terminee", scoreLabel: "Score", best: "Record", meters: "m",
+    win: "🏆 Champion du monde!", winSub: "Duck Dash gagne",
+    countries: { br: "Bresil", de: "Allemagne", jp: "Japon", us: "USA", ar: "Argentine", fin: "Finale du Mondial" },
+    stories: {
+      br: "Coup d'envoi a Rio! Dandine sur le terrain de plage.",
+      de: "Direction l'Allemagne - le timing precis compte!",
+      jp: "Konnichiwa! Le Japon devient vif et agile.",
+      us: "Grand match aux USA - tribunes pleines!",
+      ar: "Demi-finale en Argentine - la foule gronde!",
+      fin: "La grande finale! Dandine vers le trophee.",
+    },
+  },
+};
+let lang = "de";
+try { const s = localStorage.getItem("dd_lang"); if (s && I18N[s]) lang = s; } catch (e) {}
+function t(key) { return I18N[lang][key]; }
+function tCountry(k) { return I18N[lang].countries[k]; }
+function tStory(k) { return I18N[lang].stories[k]; }
+
 const LEVEL_GOAL = 2200;   // px Strecke pro Etappe
 let levelIndex = 0;
 let levelDist = 0;
@@ -275,7 +368,7 @@ const SFX = {
 function setMuted(m) {
   muted = m;
   try { localStorage.setItem("dd_muted", m ? "1" : "0"); } catch (e) {}
-  if (muteBtn) muteBtn.textContent = muted ? "🔇 Ton aus" : "🔊 Ton an";
+  if (muteBtn) muteBtn.textContent = muted ? t("soundOff") : t("soundOn");
 }
 
 // ---- State-Handling ----
@@ -293,8 +386,8 @@ function showStory(idx) {
     '<div style="background:' + lv.flag[0] + '"></div>' +
     '<div style="background:' + lv.flag[1] + '"></div>' +
     '<div style="background:' + lv.flag[2] + '"></div>';
-  storyCountryEl.textContent = lv.country;
-  storyTextEl.textContent = lv.story;
+  storyCountryEl.textContent = tCountry(lv.key);
+  storyTextEl.textContent = tStory(lv.key);
   setState(State.STORY);
 }
 
@@ -377,7 +470,34 @@ retryBtn.addEventListener("click", startGame);
 winBtn.addEventListener("click", startGame);
 storyBtn.addEventListener("click", beginLevel);
 muteBtn.addEventListener("click", () => { initAudio(); setMuted(!muted); });
-setMuted(muted);
+
+// ---- Sprache anwenden ----
+const mSubEl = document.getElementById("mSub");
+const mHintEl = document.getElementById("mHint");
+const langBtns = Array.from(document.querySelectorAll(".langBtn"));
+function applyLang() {
+  document.documentElement.lang = lang;
+  mSubEl.textContent = t("subtitle");
+  mHintEl.textContent = t("hintCtrl");
+  startBtn.textContent = t("start");
+  retryBtn.textContent = t("retry");
+  winBtn.textContent = t("retry");
+  storyBtn.textContent = t("go");
+  overEl.querySelector("h1").textContent = t("gameover");
+  overEl.querySelector(".subtitle").textContent = t("scoreLabel");
+  winEl.querySelector("h1").textContent = t("win");
+  winEl.querySelector(".subtitle").textContent = t("winSub");
+  setMuted(muted);
+  langBtns.forEach((b) => b.classList.toggle("active", b.dataset.lang === lang));
+}
+function setLang(l) {
+  if (!I18N[l]) return;
+  lang = l;
+  try { localStorage.setItem("dd_lang", l); } catch (e) {}
+  applyLang();
+}
+langBtns.forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
+applyLang();
 
 // ---- Eingabe ----
 function requestJump() {
@@ -804,8 +924,8 @@ function drawHUD() {
   ctx.fillText(String(Math.floor(score)).padStart(5, "0"), W - 20, 38);
   ctx.font = "600 14px -apple-system, sans-serif";
   ctx.fillStyle = "#aeb8c6";
-  ctx.fillText("Best " + best, W - 20, 58);
-  ctx.fillText("⚽ " + balls + "   " + Math.floor(distance / 10) + " m", W - 20, 78);
+  ctx.fillText(t("best") + " " + best, W - 20, 58);
+  ctx.fillText("⚽ " + balls + "   " + Math.floor(distance / 10) + " " + t("meters"), W - 20, 78);
 
   // Herzen links
   for (let i = 0; i < MAX_LIVES; i++) {
@@ -822,7 +942,7 @@ function drawHUD() {
   ctx.fillStyle = "#dfe5ee";
   ctx.font = "600 14px -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(lv.country, W / 2, by - 6);
+  ctx.fillText(tCountry(lv.key), W / 2, by - 6);
   ctx.textAlign = "left";
 }
 
