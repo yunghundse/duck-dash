@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#3f6b46"/>
+  <rect y="360" width="512" height="152" fill="#4a7547"/>
+  <!-- Schatten -->
+  <ellipse cx="256" cy="392" rx="150" ry="26" fill="rgba(0,0,0,0.18)"/>
+  <!-- Koerper -->
+  <rect x="120" y="190" width="230" height="180" rx="70" fill="#f2c14e"/>
+  <!-- Schwanz -->
+  <path d="M120 250 L70 215 L120 300 Z" fill="#d9ab38"/>
+  <!-- Fluegel -->
+  <ellipse cx="240" cy="300" rx="60" ry="42" fill="#e6b33e"/>
+  <!-- Kopf -->
+  <circle cx="320" cy="210" r="78" fill="#f2c14e"/>
+  <!-- Auge -->
+  <circle cx="342" cy="190" r="11" fill="#1d2330"/>
+  <!-- Schnabel -->
+  <path d="M388 205 L452 220 L388 240 Z" fill="#e8852b"/>
+</svg>

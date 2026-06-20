@@ -1,0 +1,21 @@
+{
+  "name": "Duck Dash – Die Kicker-Ente auf WM-Tour",
+  "short_name": "Duck Dash",
+  "description": "Gewaltfreier Endless Runner: Die Gummiente auf WM-Tour. Springen, sliden, Fussbaelle sammeln.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#1a1f2b",
+  "theme_color": "#3f6b46",
+  "lang": "de",
+  "categories": ["games", "kids"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

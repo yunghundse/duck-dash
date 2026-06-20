@@ -2,8 +2,16 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Duck Dash – Die Kicker-Ente auf WM-Tour</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#3f6b46">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Duck Dash">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon.svg">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -1501,6 +1509,13 @@ function frame(now) {
 // Anfangsposition fuer Menue-Render
 duck.y = GROUND_Y - duck.h;
 requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
+
+// ---- PWA: Service Worker registrieren ----
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
