@@ -78,6 +78,16 @@
     margin-top: 16px;
     color: #9aa6b5;
   }
+  .flag {
+    width: clamp(120px, 28vw, 200px);
+    height: clamp(80px, 18vw, 130px);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    margin-bottom: 18px;
+    display: flex;
+  }
+  .flag > div { flex: 1; }
 </style>
 </head>
 <body>
@@ -96,6 +106,20 @@
     <div class="subtitle">Score</div>
     <div id="finalScore" class="big-score">0</div>
     <button id="retryBtn" class="btn">Nochmal</button>
+  </div>
+
+  <div id="story" class="overlay hidden">
+    <div id="storyFlag" class="flag"></div>
+    <h1 id="storyCountry">Land</h1>
+    <div id="storyText" class="subtitle">…</div>
+    <button id="storyBtn" class="btn">Los!</button>
+  </div>
+
+  <div id="win" class="overlay hidden">
+    <h1>🏆 Weltmeister!</h1>
+    <div class="subtitle">Duck Dash gewonnen</div>
+    <div id="winScore" class="big-score">0</div>
+    <button id="winBtn" class="btn">Nochmal</button>
   </div>
 </div>
 
@@ -119,8 +143,36 @@ const BASE_SPEED = 360;        // px/s
 const SPEED_RAMP = 7;          // px/s pro Sekunde
 
 // ---- Zustaende ----
-const State = { MENU: "MENU", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER" };
+const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN" };
 let state = State.MENU;
+
+// ---- WM-Etappen ----
+// palette: sky-Verlauf [oben,unten], grass [oben,unten], accent (Tribuene/Linien)
+// flag: 3 vertikale Streifen. goal: Strecke (px) bis zum naechsten Land.
+const LEVELS = [
+  { key: "br", country: "Brasilien", flag: ["#3a7d44", "#e6c84f", "#2f5d8a"],
+    sky: ["#3f5a6b", "#6f917f"], grass: ["#5f8f5a", "#487045"], accent: "#3f6b46",
+    story: "Anpfiff in Rio! Watschel ueber den Strand-Platz." },
+  { key: "de", country: "Deutschland", flag: ["#2b2b2b", "#b23b3b", "#d9b64a"],
+    sky: ["#43506b", "#7a8294"], grass: ["#5c8a57", "#456b42"], accent: "#555f6e",
+    story: "Weiter nach Deutschland - praezises Timing zaehlt!" },
+  { key: "jp", country: "Japan", flag: ["#e9e6e0", "#c75450", "#e9e6e0"],
+    sky: ["#5a4f63", "#9a8a8f"], grass: ["#6a8f63", "#4f7049"], accent: "#7a6770",
+    story: "Konnichiwa! In Japan wird's flink und flott." },
+  { key: "us", country: "USA", flag: ["#3a4a7a", "#d9dde3", "#b23b4a"],
+    sky: ["#414a63", "#74809a"], grass: ["#5f8f5a", "#487045"], accent: "#4a5570",
+    story: "Big Game in den USA - volle Tribuenen!" },
+  { key: "ar", country: "Argentinien", flag: ["#6fa3c7", "#eef1f5", "#6fa3c7"],
+    sky: ["#48586b", "#8aa0b0"], grass: ["#5c8a57", "#456b42"], accent: "#5a7689",
+    story: "Halbfinale in Argentinien - die Menge tobt!" },
+  { key: "fin", country: "WM-Finale", flag: ["#b8922e", "#e6c84f", "#b8922e"],
+    sky: ["#3a3550", "#6b5f7a"], grass: ["#5f8f5a", "#487045"], accent: "#7a6a3a",
+    story: "Das grosse Finale! Watschel zum Pokal." },
+];
+const LEVEL_GOAL = 2200;   // px Strecke pro Etappe
+let levelIndex = 0;
+let levelDist = 0;
+let bgScroll = 0;
 
 // ---- Canvas ----
 const canvas = document.getElementById("game");
@@ -129,9 +181,17 @@ const ctx = canvas.getContext("2d");
 // ---- Overlays ----
 const menuEl = document.getElementById("menu");
 const overEl = document.getElementById("over");
+const storyEl = document.getElementById("story");
+const winEl = document.getElementById("win");
 const startBtn = document.getElementById("startBtn");
 const retryBtn = document.getElementById("retryBtn");
 const finalScoreEl = document.getElementById("finalScore");
+const winScoreEl = document.getElementById("winScore");
+const winBtn = document.getElementById("winBtn");
+const storyBtn = document.getElementById("storyBtn");
+const storyFlagEl = document.getElementById("storyFlag");
+const storyCountryEl = document.getElementById("storyCountry");
+const storyTextEl = document.getElementById("storyText");
 
 // ---- Spielzustand ----
 const duck = {
@@ -174,6 +234,19 @@ function setState(next) {
   state = next;
   menuEl.classList.toggle("hidden", state !== State.MENU);
   overEl.classList.toggle("hidden", state !== State.OVER);
+  storyEl.classList.toggle("hidden", state !== State.STORY);
+  winEl.classList.toggle("hidden", state !== State.WIN);
+}
+
+function showStory(idx) {
+  const lv = LEVELS[idx];
+  storyFlagEl.innerHTML =
+    '<div style="background:' + lv.flag[0] + '"></div>' +
+    '<div style="background:' + lv.flag[1] + '"></div>' +
+    '<div style="background:' + lv.flag[2] + '"></div>';
+  storyCountryEl.textContent = lv.country;
+  storyTextEl.textContent = lv.story;
+  setState(State.STORY);
 }
 
 function resetGame() {
@@ -195,9 +268,27 @@ function resetGame() {
   invuln = 0;
   balls = 0;
   shake = 0;
+  levelIndex = 0;
+  levelDist = 0;
+  bgScroll = 0;
 }
 
-function startGame() { resetGame(); setState(State.PLAY); }
+function startGame() { resetGame(); showStory(0); }
+
+function beginLevel() { setState(State.PLAY); }
+
+function advanceLevel() {
+  if (levelIndex >= LEVELS.length - 1) {
+    saveBest();
+    winScoreEl.textContent = Math.floor(score);
+    setState(State.WIN);
+    return;
+  }
+  levelIndex++;
+  levelDist = 0;
+  score += 100; // Etappen-Bonus
+  showStory(levelIndex);
+}
 
 function hitObstacle() {
   if (invuln > 0) return;
@@ -215,6 +306,8 @@ function gameOver() {
 
 startBtn.addEventListener("click", startGame);
 retryBtn.addEventListener("click", startGame);
+winBtn.addEventListener("click", startGame);
+storyBtn.addEventListener("click", beginLevel);
 
 // ---- Eingabe ----
 function requestJump() {
@@ -261,7 +354,8 @@ window.addEventListener("keydown", (e) => {
     startSlide();
     e.preventDefault();
   } else if (k === "enter") {
-    if (state === State.MENU || state === State.OVER) startGame();
+    if (state === State.MENU || state === State.OVER || state === State.WIN) startGame();
+    else if (state === State.STORY) beginLevel();
   }
 });
 window.addEventListener("keyup", (e) => {
@@ -321,8 +415,16 @@ function update(dt) {
 
   runTime += dt;
   distance += speed * dt;
+  levelDist += speed * dt;
+  bgScroll += speed * dt;
   speed = BASE_SPEED + runTime * SPEED_RAMP * 6;
   if (speed > 760) speed = 760;
+
+  // Etappen-Ziel erreicht?
+  if (levelDist >= LEVEL_GOAL) {
+    advanceLevel();
+    return;
+  }
 
   score += dt * (speed / 36);
 
@@ -399,19 +501,68 @@ function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
 
 // ---- Render ----
 function drawBackground() {
+  const lv = LEVELS[levelIndex] || LEVELS[0];
+
+  // Himmel
   const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-  sky.addColorStop(0, "#3a4a63");
-  sky.addColorStop(1, "#6a7d94");
+  sky.addColorStop(0, lv.sky[0]);
+  sky.addColorStop(1, lv.sky[1]);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, GROUND_Y);
 
+  // Parallax-Schicht 1: Tribuene (langsam)
+  const tribY = GROUND_Y - 150;
+  const s1 = (bgScroll * 0.15) % 80;
+  ctx.fillStyle = lv.accent;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y);
+  ctx.lineTo(0, tribY + 40);
+  ctx.lineTo(W, tribY);
+  ctx.lineTo(W, GROUND_Y);
+  ctx.closePath();
+  ctx.fill();
+  // Zuschauer-Punkte (gedaempft)
+  ctx.globalAlpha = 0.5;
+  for (let row = 0; row < 3; row++) {
+    for (let x = -s1; x < W; x += 26) {
+      ctx.fillStyle = (x + row) % 3 === 0 ? "#cdd5e0" : (row % 2 ? "#e0b97a" : "#b89a86");
+      ctx.fillRect(x, tribY + 12 + row * 24 - (x / W) * 20, 7, 7);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Parallax-Schicht 2: Bandenwerbung "WM 2026" (mittel)
+  const bandY = GROUND_Y - 46;
+  ctx.fillStyle = "#222732";
+  ctx.fillRect(0, bandY, W, 30);
+  const s2 = (bgScroll * 0.5) % 240;
+  ctx.font = "700 18px -apple-system, sans-serif";
+  ctx.textAlign = "left";
+  for (let x = -s2; x < W + 240; x += 240) {
+    ctx.fillStyle = lv.flag[1];
+    ctx.fillText("WM 2026", x + 20, bandY + 21);
+  }
+
+  // Spielfeld
   const grass = ctx.createLinearGradient(0, GROUND_Y, 0, H);
-  grass.addColorStop(0, "#5f8f5a");
-  grass.addColorStop(1, "#4a7547");
+  grass.addColorStop(0, lv.grass[0]);
+  grass.addColorStop(1, lv.grass[1]);
   ctx.fillStyle = grass;
   ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
 
-  ctx.fillStyle = "#3c6139";
+  // Spielfeldlinien (scrollen)
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 3;
+  const s3 = (bgScroll * 1.0) % 160;
+  for (let x = -s3; x < W; x += 160) {
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y + 6);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = lv.accent;
   ctx.fillRect(0, GROUND_Y, W, 4);
 }
 
@@ -537,6 +688,18 @@ function drawHUD() {
   for (let i = 0; i < MAX_LIVES; i++) {
     drawHeart(28 + i * 30, 22, 18, i < lives);
   }
+
+  // Etappen-Fortschritt (Mitte oben)
+  const lv = LEVELS[levelIndex] || LEVELS[0];
+  const bw = 200, bx = (W - bw) / 2, by = 24;
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(bx, by, bw, 8);
+  ctx.fillStyle = lv.flag[1];
+  ctx.fillRect(bx, by, bw * Math.min(1, levelDist / LEVEL_GOAL), 8);
+  ctx.fillStyle = "#dfe5ee";
+  ctx.font = "600 14px -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(lv.country, W / 2, by - 6);
   ctx.textAlign = "left";
 }
 
