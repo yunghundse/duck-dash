@@ -151,6 +151,24 @@ let obstacles = [];
 let spawnTimer = 0;
 let runTime = 0;
 
+// Leben / Treffer
+const MAX_LIVES = 3;
+const INVULN_TIME = 1.4;   // s Unverwundbarkeit nach Treffer
+let lives = MAX_LIVES;
+let invuln = 0;
+let balls = 0;             // gesammelte Baelle (spaeter)
+let shake = 0;             // Screenshake-Restzeit
+
+// Bestwert
+let best = 0;
+try { best = parseInt(localStorage.getItem("dd_best") || "0", 10) || 0; } catch (e) {}
+function saveBest() {
+  if (Math.floor(score) > best) {
+    best = Math.floor(score);
+    try { localStorage.setItem("dd_best", String(best)); } catch (e) {}
+  }
+}
+
 // ---- State-Handling ----
 function setState(next) {
   state = next;
@@ -173,10 +191,24 @@ function resetGame() {
   obstacles = [];
   spawnTimer = 0.8;
   runTime = 0;
+  lives = MAX_LIVES;
+  invuln = 0;
+  balls = 0;
+  shake = 0;
 }
 
 function startGame() { resetGame(); setState(State.PLAY); }
+
+function hitObstacle() {
+  if (invuln > 0) return;
+  lives--;
+  invuln = INVULN_TIME;
+  shake = 0.35;
+  if (lives <= 0) gameOver();
+}
+
 function gameOver() {
+  saveBest();
   finalScoreEl.textContent = Math.floor(score);
   setState(State.OVER);
 }
@@ -297,6 +329,8 @@ function update(dt) {
   // Timer
   if (duck.coyote > 0) duck.coyote -= dt;
   if (duck.buffer > 0) duck.buffer -= dt;
+  if (invuln > 0) invuln -= dt;
+  if (shake > 0) shake -= dt;
 
   // Slide-Dauer
   if (duck.sliding) {
@@ -339,11 +373,13 @@ function update(dt) {
   obstacles = obstacles.filter((o) => o.x + o.w > -20);
 
   // Kollision (AABB) mit aktueller Hitbox
-  const hb = duckHitbox();
-  for (const o of obstacles) {
-    if (aabb(hb.x, hb.y, hb.w, hb.h, o.x, o.y, o.w, o.h)) {
-      gameOver();
-      break;
+  if (invuln <= 0) {
+    const hb = duckHitbox();
+    for (const o of obstacles) {
+      if (aabb(hb.x, hb.y, hb.w, hb.h, o.x, o.y, o.w, o.h)) {
+        hitObstacle();
+        break;
+      }
     }
   }
 }
@@ -471,11 +507,36 @@ function drawObstacle(o) {
   ctx.restore();
 }
 
+function drawHeart(x, y, s, filled) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.moveTo(0, s * 0.3);
+  ctx.bezierCurveTo(0, 0, -s * 0.5, 0, -s * 0.5, s * 0.35);
+  ctx.bezierCurveTo(-s * 0.5, s * 0.65, 0, s * 0.85, 0, s);
+  ctx.bezierCurveTo(0, s * 0.85, s * 0.5, s * 0.65, s * 0.5, s * 0.35);
+  ctx.bezierCurveTo(s * 0.5, 0, 0, 0, 0, s * 0.3);
+  ctx.closePath();
+  ctx.fillStyle = filled ? "#d96a6a" : "rgba(255,255,255,0.18)";
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawHUD() {
+  // Score + Bestwert rechts
   ctx.fillStyle = "#eef1f5";
   ctx.font = "700 26px -apple-system, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText(String(Math.floor(score)).padStart(5, "0"), W - 20, 40);
+  ctx.fillText(String(Math.floor(score)).padStart(5, "0"), W - 20, 38);
+  ctx.font = "600 14px -apple-system, sans-serif";
+  ctx.fillStyle = "#aeb8c6";
+  ctx.fillText("Best " + best, W - 20, 58);
+  ctx.fillText("⚽ " + balls + "   " + Math.floor(distance / 10) + " m", W - 20, 78);
+
+  // Herzen links
+  for (let i = 0; i < MAX_LIVES; i++) {
+    drawHeart(28 + i * 30, 22, 18, i < lives);
+  }
   ctx.textAlign = "left";
 }
 
@@ -492,9 +553,18 @@ function roundRectAbs(x, y, w, h, r) { roundRect(x, y, w, h, r); }
 
 function render() {
   ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  if (shake > 0) {
+    const m = shake * 18;
+    ctx.translate((Math.sin(runTime * 90) * m), (Math.cos(runTime * 110) * m));
+  }
   drawBackground();
   for (const o of obstacles) drawObstacle(o);
-  if (state === State.PLAY || state === State.OVER) drawDuck();
+  // bei Unverwundbarkeit blinkt die Ente
+  if (state === State.PLAY || state === State.OVER) {
+    if (!(invuln > 0 && Math.floor(runTime * 12) % 2 === 0)) drawDuck();
+  }
+  ctx.restore();
   if (state === State.PLAY) drawHUD();
 }
 
