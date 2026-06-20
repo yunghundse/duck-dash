@@ -1,17 +1,157 @@
 <!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Building Challenge - Dein Minigame</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <main>
-      <h1>Dein Minigame</h1>
-      <canvas id="game" width="800" height="600"></canvas>
-      <p id="hint">Dein Spiel startet in <code>game.js</code>. Viel Erfolg!</p>
-    </main>
-    <script src="game.js"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Duck Dash – Die Kicker-Ente auf WM-Tour</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #1a1f2b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #stage {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    max-width: 960px;
+    aspect-ratio: 16 / 9;
+  }
+  #game {
+    display: block;
+    width: 100%; height: 100%;
+    background: #2a3142;
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  /* Overlays */
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    color: #eef1f5;
+    padding: 4%;
+  }
+  .hidden { display: none !important; }
+  #menu h1 {
+    font-size: clamp(28px, 7vw, 64px);
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #f4d35e;
+    text-shadow: 0 3px 0 rgba(0,0,0,0.25);
+  }
+  #menu .subtitle {
+    font-size: clamp(13px, 2.6vw, 22px);
+    margin-top: 8px;
+    color: #cdd5e0;
+    font-weight: 500;
+  }
+  .btn {
+    margin-top: clamp(20px, 4vh, 40px);
+    padding: 14px 32px;
+    font-size: clamp(15px, 2.8vw, 22px);
+    font-weight: 700;
+    color: #1a1f2b;
+    background: #7cc47f;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #5a9d5d;
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 #5a9d5d;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <div id="menu" class="overlay">
+    <h1>Duck Dash</h1>
+    <div class="subtitle">Die Kicker-Ente auf WM-Tour</div>
+    <button id="startBtn" class="btn">Spiel starten</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ---- Konstanten ----
+const W = 960, H = 540;
+const GROUND_Y = H - 96;
+
+// ---- Zustaende ----
+const State = { MENU: "MENU", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER" };
+let state = State.MENU;
+
+// ---- Canvas ----
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+// ---- Overlays ----
+const menuEl = document.getElementById("menu");
+const startBtn = document.getElementById("startBtn");
+
+function setState(next) {
+  state = next;
+  menuEl.classList.toggle("hidden", state !== State.MENU);
+}
+
+startBtn.addEventListener("click", () => setState(State.PLAY));
+
+// ---- Hintergrund ----
+function drawBackground() {
+  // Himmel-Verlauf, dezent abgedunkelt
+  const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  sky.addColorStop(0, "#3a4a63");
+  sky.addColorStop(1, "#6a7d94");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, GROUND_Y);
+
+  // Spielfeld (gruen) unten
+  const grass = ctx.createLinearGradient(0, GROUND_Y, 0, H);
+  grass.addColorStop(0, "#5f8f5a");
+  grass.addColorStop(1, "#4a7547");
+  ctx.fillStyle = grass;
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+
+  // Bodenkante
+  ctx.fillStyle = "#3c6139";
+  ctx.fillRect(0, GROUND_Y, W, 4);
+}
+
+// ---- Game-Loop ----
+let last = 0;
+function frame(now) {
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.05) dt = 0.05;
+  if (!isFinite(dt) || dt < 0) dt = 0;
+
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+function update(dt) {
+  // Spiellogik kommt in spaeteren Etappen
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+}
+
+requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
+</script>
+</body>
 </html>
