@@ -98,6 +98,25 @@
     cursor: pointer;
   }
   .langBtn.active { border-color: #f4d35e; background: rgba(244,211,94,0.15); }
+  .shopSection { font-weight:700; color:#f4d35e; text-align:left; margin:14px 4px 6px; font-size:16px; }
+  .shopItem {
+    display:flex; align-items:center; gap:12px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 10px 14px; margin-bottom: 8px;
+  }
+  .shopItem .info { flex:1; text-align:left; }
+  .shopItem .name { font-weight:700; font-size:15px; }
+  .shopItem .desc { font-size:12px; color:#9aa6b5; }
+  .shopItem .act {
+    padding:8px 16px; border:none; border-radius:999px;
+    font-weight:700; font-size:14px; cursor:pointer; min-width:88px;
+  }
+  .act.buy { background:#7cc47f; color:#1a1f2b; }
+  .act.equip { background:#6fa3c7; color:#1a1f2b; }
+  .act.owned { background:rgba(255,255,255,0.15); color:#cdd5e0; }
+  .act.active { background:#f4d35e; color:#1a1f2b; }
+  .act.disabled { background:rgba(255,255,255,0.08); color:#6b7585; cursor:not-allowed; }
+  .swatch { width:34px; height:34px; border-radius:8px; flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -114,8 +133,18 @@
       <button class="langBtn" data-lang="fr">🇫🇷 FR</button>
     </div>
     <button id="startBtn" class="btn">Spiel starten</button>
-    <button id="muteBtn" class="btn" style="background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 22px;">🔊</button>
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;">
+      <button id="shopBtn" class="btn" style="margin-top:0;background:#e0b97a;box-shadow:0 5px 0 #b8945a;font-size:16px;padding:10px 22px;">🛒 Shop</button>
+      <button id="muteBtn" class="btn" style="margin-top:0;background:#9aa6b5;box-shadow:0 5px 0 #76808d;font-size:15px;padding:10px 16px;">🔊</button>
+    </div>
     <div id="mHint" class="hint">…</div>
+  </div>
+
+  <div id="shop" class="overlay hidden" style="justify-content:flex-start;overflow-y:auto;">
+    <h1 style="font-size:clamp(24px,5vw,40px);margin-top:8px;">🛒 <span id="shopTitle">Shop</span></h1>
+    <div id="shopCoins" class="subtitle" style="color:#f4d35e;font-weight:700;">🪙 0</div>
+    <div id="shopList" style="width:100%;max-width:680px;margin-top:14px;"></div>
+    <button id="shopClose" class="btn">Zurück</button>
   </div>
 
   <div id="over" class="overlay hidden">
@@ -160,7 +189,7 @@ const BASE_SPEED = 360;        // px/s
 const SPEED_RAMP = 7;          // px/s pro Sekunde
 
 // ---- Zustaende ----
-const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN" };
+const State = { MENU: "MENU", STORY: "STORY", PLAY: "PLAY", PAUSED: "PAUSED", OVER: "OVER", WIN: "WIN", SHOP: "SHOP" };
 let state = State.MENU;
 
 // ---- WM-Etappen ----
@@ -314,8 +343,12 @@ const MAX_LIVES = 3;
 const INVULN_TIME = 1.4;   // s Unverwundbarkeit nach Treffer
 let lives = MAX_LIVES;
 let invuln = 0;
-let balls = 0;             // gesammelte Baelle (spaeter)
+let balls = 0;             // gesammelte Baelle (-> Muenzen am Ende)
 let shake = 0;             // Screenshake-Restzeit
+// Power-up Run-Status
+let scoreMult = 1;
+let magnetOn = false;
+let shieldUp = false;
 
 // Bestwert
 let best = 0;
@@ -371,6 +404,74 @@ function setMuted(m) {
   if (muteBtn) muteBtn.textContent = muted ? t("soundOff") : t("soundOn");
 }
 
+// ---- Shop / Geldboerse ----
+// Skins: body-Farbe + optionale Accessoires (hat, glasses, golden)
+const SKINS = [
+  { id: "classic", name: { de: "Klassik-Ente", en: "Classic Duck", es: "Pato clasico", fr: "Canard classique" }, price: 0, body: "#f2c14e" },
+  { id: "red",     name: { de: "Rotes Trikot", en: "Red Jersey", es: "Camiseta roja", fr: "Maillot rouge" }, price: 60, body: "#c75450" },
+  { id: "blue",    name: { de: "Blaues Trikot", en: "Blue Jersey", es: "Camiseta azul", fr: "Maillot bleu" }, price: 60, body: "#5a7fb0" },
+  { id: "green",   name: { de: "Brasilien-Trikot", en: "Brazil Jersey", es: "Camiseta Brasil", fr: "Maillot Bresil" }, price: 90, body: "#3a7d44" },
+  { id: "hat",     name: { de: "Kapitaens-Hut", en: "Captain Hat", es: "Gorra de capitan", fr: "Casquette" }, price: 120, body: "#f2c14e", hat: true },
+  { id: "glasses", name: { de: "Coole Brille", en: "Cool Glasses", es: "Gafas chulas", fr: "Lunettes cool" }, price: 120, body: "#f2c14e", glasses: true },
+  { id: "golden",  name: { de: "Goldene Ente", en: "Golden Duck", es: "Pato dorado", fr: "Canard dore" }, price: 400, body: "#f0d061", golden: true },
+];
+const POWERUPS = [
+  { id: "shield",    name: { de: "Schild", en: "Shield", es: "Escudo", fr: "Bouclier" }, price: 80,
+    desc: { de: "Faengt einen Treffer ab", en: "Blocks one hit", es: "Bloquea un golpe", fr: "Bloque un coup" } },
+  { id: "magnet",    name: { de: "Muenz-Magnet", en: "Coin Magnet", es: "Iman de monedas", fr: "Aimant a pieces" }, price: 120,
+    desc: { de: "Zieht Baelle an", en: "Attracts balls", es: "Atrae balones", fr: "Attire les ballons" } },
+  { id: "extralife", name: { de: "Extra-Leben", en: "Extra Life", es: "Vida extra", fr: "Vie bonus" }, price: 100,
+    desc: { de: "Startest mit 4 Herzen", en: "Start with 4 hearts", es: "Empieza con 4 vidas", fr: "Demarre avec 4 vies" } },
+  { id: "double",    name: { de: "Doppelpunkte", en: "Double Points", es: "Puntos dobles", fr: "Points doubles" }, price: 150,
+    desc: { de: "Punkte x2", en: "Score x2", es: "Puntos x2", fr: "Score x2" } },
+  { id: "boost",     name: { de: "Tempo-Boost", en: "Speed Boost", es: "Impulso", fr: "Boost de vitesse" }, price: 90,
+    desc: { de: "Sanfter Schub am Start", en: "Gentle start boost", es: "Impulso suave", fr: "Demarrage rapide" } },
+];
+const SHOPT = {
+  de: { shop: "Shop", buy: "Kaufen", equip: "Ausruesten", equipped: "Aktiv", on: "An", off: "Aus", skins: "Enten-Skins", power: "Power-ups" },
+  en: { shop: "Shop", buy: "Buy", equip: "Equip", equipped: "Equipped", on: "On", off: "Off", skins: "Duck Skins", power: "Power-ups" },
+  es: { shop: "Tienda", buy: "Comprar", equip: "Equipar", equipped: "Activo", on: "Si", off: "No", skins: "Skins de pato", power: "Mejoras" },
+  fr: { shop: "Boutique", buy: "Acheter", equip: "Equiper", equipped: "Equipe", on: "Oui", off: "Non", skins: "Skins canard", power: "Bonus" },
+};
+function ts(k) { return SHOPT[lang][k]; }
+
+const Store = {
+  coins: 0, owned: ["classic"], skin: "classic", active: [],
+  load() {
+    try {
+      this.coins = parseInt(localStorage.getItem("dd_coins") || "0", 10) || 0;
+      this.owned = JSON.parse(localStorage.getItem("dd_owned") || '["classic"]');
+      this.skin = localStorage.getItem("dd_skin") || "classic";
+      this.active = JSON.parse(localStorage.getItem("dd_active") || "[]");
+    } catch (e) {}
+    if (!this.owned.includes("classic")) this.owned.push("classic");
+  },
+  save() {
+    try {
+      localStorage.setItem("dd_coins", String(this.coins));
+      localStorage.setItem("dd_owned", JSON.stringify(this.owned));
+      localStorage.setItem("dd_skin", this.skin);
+      localStorage.setItem("dd_active", JSON.stringify(this.active));
+    } catch (e) {}
+  },
+  addCoins(n) { this.coins += n; this.save(); },
+  has(id) { return this.owned.includes(id); },
+  buy(item) {
+    if (this.has(item.id) || this.coins < item.price) return false;
+    this.coins -= item.price; this.owned.push(item.id); this.save(); return true;
+  },
+  equipSkin(id) { if (this.has(id)) { this.skin = id; this.save(); } },
+  togglePower(id) {
+    if (!this.has(id)) return;
+    const i = this.active.indexOf(id);
+    if (i >= 0) this.active.splice(i, 1); else this.active.push(id);
+    this.save();
+  },
+  isActive(id) { return this.active.includes(id); },
+  currentSkin() { return SKINS.find((s) => s.id === this.skin) || SKINS[0]; },
+};
+Store.load();
+
 // ---- State-Handling ----
 function setState(next) {
   state = next;
@@ -378,6 +479,7 @@ function setState(next) {
   overEl.classList.toggle("hidden", state !== State.OVER);
   storyEl.classList.toggle("hidden", state !== State.STORY);
   winEl.classList.toggle("hidden", state !== State.WIN);
+  shopEl.classList.toggle("hidden", state !== State.SHOP);
 }
 
 function showStory(idx) {
@@ -416,6 +518,12 @@ function resetGame() {
   levelIndex = 0;
   levelDist = 0;
   bgScroll = 0;
+  // Power-ups anwenden
+  scoreMult = Store.isActive("double") ? 2 : 1;
+  magnetOn = Store.isActive("magnet");
+  shieldUp = Store.isActive("shield");
+  if (Store.isActive("extralife")) lives = MAX_LIVES + 1;
+  if (Store.isActive("boost")) speed = BASE_SPEED * 1.15;
 }
 
 function startGame() { initAudio(); resetGame(); showStory(0); }
@@ -437,6 +545,7 @@ function beginLevel() { setState(State.PLAY); }
 function advanceLevel() {
   if (levelIndex >= LEVELS.length - 1) {
     saveBest();
+    Store.addCoins(balls);
     SFX.win();
     winScoreEl.textContent = Math.floor(score);
     setState(State.WIN);
@@ -451,6 +560,12 @@ function advanceLevel() {
 
 function hitObstacle() {
   if (invuln > 0) return;
+  if (shieldUp) {
+    shieldUp = false; invuln = INVULN_TIME; shake = 0.25;
+    burst(duck.x + duck.w / 2, duck.y + duck.h / 2, "#6fa3c7", 16);
+    SFX.hit();
+    return;
+  }
   lives--;
   invuln = INVULN_TIME;
   shake = 0.35;
@@ -461,6 +576,7 @@ function hitObstacle() {
 
 function gameOver() {
   saveBest();
+  Store.addCoins(balls);
   finalScoreEl.textContent = Math.floor(score);
   setState(State.OVER);
 }
@@ -496,8 +612,66 @@ function setLang(l) {
   try { localStorage.setItem("dd_lang", l); } catch (e) {}
   applyLang();
 }
-langBtns.forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
+langBtns.forEach((b) => b.addEventListener("click", () => { setLang(b.dataset.lang); if (state === State.SHOP) renderShop(); }));
 applyLang();
+
+// ---- Shop UI ----
+const shopEl = document.getElementById("shop");
+const shopBtn = document.getElementById("shopBtn");
+const shopClose = document.getElementById("shopClose");
+const shopList = document.getElementById("shopList");
+const shopCoinsEl = document.getElementById("shopCoins");
+const shopTitleEl = document.getElementById("shopTitle");
+
+function swatchHTML(skin) {
+  let extra = "";
+  if (skin.hat) extra = '<span style="position:absolute;top:-4px;left:8px;font-size:14px;">🎩</span>';
+  if (skin.glasses) extra = '<span style="position:absolute;top:6px;left:6px;font-size:13px;">🕶️</span>';
+  if (skin.golden) extra = '<span style="position:absolute;top:4px;left:9px;font-size:14px;">✨</span>';
+  return '<div class="swatch" style="position:relative;background:' + skin.body + '">' + extra + '</div>';
+}
+
+function renderShop() {
+  shopTitleEl.textContent = ts("shop");
+  shopCoinsEl.textContent = "🪙 " + Store.coins;
+  shopClose.textContent = { de: "Zurück", en: "Back", es: "Volver", fr: "Retour" }[lang];
+  let html = '<div class="shopSection">' + ts("skins") + '</div>';
+  for (const s of SKINS) {
+    const owned = Store.has(s.id);
+    const equipped = Store.skin === s.id;
+    let btn;
+    if (equipped) btn = '<button class="act active" disabled>' + ts("equipped") + '</button>';
+    else if (owned) btn = '<button class="act equip" data-equip="' + s.id + '">' + ts("equip") + '</button>';
+    else if (Store.coins >= s.price) btn = '<button class="act buy" data-buyskin="' + s.id + '">🪙 ' + s.price + '</button>';
+    else btn = '<button class="act disabled" disabled>🪙 ' + s.price + '</button>';
+    html += '<div class="shopItem">' + swatchHTML(s) +
+      '<div class="info"><div class="name">' + s.name[lang] + '</div></div>' + btn + '</div>';
+  }
+  html += '<div class="shopSection">' + ts("power") + '</div>';
+  for (const p of POWERUPS) {
+    const owned = Store.has(p.id);
+    const active = Store.isActive(p.id);
+    let btn;
+    if (owned) btn = '<button class="act ' + (active ? "active" : "equip") + '" data-power="' + p.id + '">' + (active ? ts("on") : ts("off")) + '</button>';
+    else if (Store.coins >= p.price) btn = '<button class="act buy" data-buypower="' + p.id + '">🪙 ' + p.price + '</button>';
+    else btn = '<button class="act disabled" disabled>🪙 ' + p.price + '</button>';
+    html += '<div class="shopItem"><div class="swatch" style="background:#3a4250;display:flex;align-items:center;justify-content:center;">⚡</div>' +
+      '<div class="info"><div class="name">' + p.name[lang] + '</div><div class="desc">' + p.desc[lang] + '</div></div>' + btn + '</div>';
+  }
+  shopList.innerHTML = html;
+}
+
+shopList.addEventListener("click", (e) => {
+  const el = e.target.closest("button");
+  if (!el) return;
+  if (el.dataset.buyskin) { const s = SKINS.find((x) => x.id === el.dataset.buyskin); if (Store.buy(s)) { Store.equipSkin(s.id); SFX.coin(); } }
+  else if (el.dataset.equip) { Store.equipSkin(el.dataset.equip); }
+  else if (el.dataset.buypower) { const p = POWERUPS.find((x) => x.id === el.dataset.buypower); if (Store.buy(p)) { Store.togglePower(p.id); SFX.coin(); } }
+  else if (el.dataset.power) { Store.togglePower(el.dataset.power); }
+  renderShop();
+});
+shopBtn.addEventListener("click", () => { initAudio(); renderShop(); setState(State.SHOP); });
+shopClose.addEventListener("click", () => setState(State.MENU));
 
 // ---- Eingabe ----
 function requestJump() {
@@ -644,7 +818,7 @@ function update(dt) {
     return;
   }
 
-  score += dt * (speed / 36);
+  score += dt * (speed / 36) * scoreMult;
 
   // Timer
   if (duck.coyote > 0) duck.coyote -= dt;
@@ -699,9 +873,16 @@ function update(dt) {
     collectTimer = 0.8 + Math.random() * 1.0;
   }
   const hb = duckHitbox();
+  const dcx = duck.x + duck.w / 2, dcy = duck.y + duck.h / 2;
   for (const c of collectibles) {
     c.x -= speed * dt;
     c.bob += dt * 4;
+    // Muenz-Magnet: zieht nahe Baelle an
+    if (magnetOn && !c.taken) {
+      const dx = dcx - c.x, dy = dcy - c.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 200 && d > 1) { c.x += (dx / d) * 320 * dt; c.y += (dy / d) * 320 * dt; }
+    }
     if (!c.taken && aabb(hb.x, hb.y, hb.w, hb.h, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2)) {
       collectAt(c);
     }
@@ -809,10 +990,24 @@ function drawBackground() {
   ctx.fillRect(0, GROUND_Y, W, 4);
 }
 
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  r = Math.max(0, Math.min(255, Math.round(r * f)));
+  g = Math.max(0, Math.min(255, Math.round(g * f)));
+  b = Math.max(0, Math.min(255, Math.round(b * f)));
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
 function drawDuck() {
   const sliding = duck.sliding && duck.onGround;
   let bx = duck.x, by = duck.y, bw = duck.w, bh = duck.h;
   if (sliding) { bh = duck.h * 0.6; by = GROUND_Y - bh; bw = duck.w + 8; }
+
+  const skin = Store.currentSkin();
+  const bodyCol = skin.body;
+  const darkCol = shade(bodyCol, 0.85);
+  const wingCol = shade(bodyCol, 0.92);
 
   ctx.save();
   ctx.translate(bx, by);
@@ -823,13 +1018,26 @@ function drawDuck() {
   ctx.ellipse(bw * 0.5, GROUND_Y - by + 6, bw * 0.42, 7, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // Schild-Aura
+  if (shieldUp) {
+    ctx.strokeStyle = "rgba(111,163,199,0.8)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(bw * 0.5, bh * 0.5, bw * 0.7, bh * 0.8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   // Koerper
-  ctx.fillStyle = "#f2c14e";
+  ctx.fillStyle = bodyCol;
   roundRect(2, 6, bw - 4, bh - 6, 16);
   ctx.fill();
+  if (skin.golden) { // Glanz
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    roundRect(6, 9, bw * 0.4, bh * 0.3, 8); ctx.fill();
+  }
 
   // Schwanz
-  ctx.fillStyle = "#e3ad38";
+  ctx.fillStyle = darkCol;
   ctx.beginPath();
   ctx.moveTo(2, bh * 0.45);
   ctx.lineTo(-10, bh * 0.30);
@@ -838,23 +1046,37 @@ function drawDuck() {
   ctx.fill();
 
   // Fluegel
-  ctx.fillStyle = "#e6b33e";
+  ctx.fillStyle = wingCol;
   ctx.beginPath();
   ctx.ellipse(bw * 0.46, bh * 0.62, bw * 0.22, bh * 0.18, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Kopf (oben rechts)
   const headX = bw * 0.72, headY = bh * 0.30, headR = bw * 0.26;
-  ctx.fillStyle = "#f2c14e";
+  ctx.fillStyle = bodyCol;
   ctx.beginPath();
   ctx.arc(headX, headY, headR, 0, Math.PI * 2);
   ctx.fill();
 
-  // Auge
-  ctx.fillStyle = "#1d2330";
-  ctx.beginPath();
-  ctx.arc(headX + headR * 0.25, headY - headR * 0.15, 3.2, 0, Math.PI * 2);
-  ctx.fill();
+  // Brille
+  if (skin.glasses) {
+    ctx.fillStyle = "#1d2330";
+    ctx.fillRect(headX - headR * 0.1, headY - headR * 0.3, headR * 0.7, headR * 0.32);
+    ctx.fillRect(headX + headR * 0.65, headY - headR * 0.22, headR * 0.5, headR * 0.22);
+  } else {
+    // Auge
+    ctx.fillStyle = "#1d2330";
+    ctx.beginPath();
+    ctx.arc(headX + headR * 0.25, headY - headR * 0.15, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Hut
+  if (skin.hat) {
+    ctx.fillStyle = "#34506e";
+    ctx.fillRect(headX - headR * 0.6, headY - headR * 0.95, headR * 1.5, headR * 0.4);
+    ctx.fillRect(headX - headR * 0.3, headY - headR * 1.4, headR * 0.9, headR * 0.55);
+  }
 
   // Schnabel (orange)
   ctx.fillStyle = "#e8852b";
@@ -927,8 +1149,9 @@ function drawHUD() {
   ctx.fillText(t("best") + " " + best, W - 20, 58);
   ctx.fillText("⚽ " + balls + "   " + Math.floor(distance / 10) + " " + t("meters"), W - 20, 78);
 
-  // Herzen links
-  for (let i = 0; i < MAX_LIVES; i++) {
+  // Herzen links (inkl. evtl. Extra-Leben)
+  const maxHearts = Math.max(MAX_LIVES, lives);
+  for (let i = 0; i < maxHearts; i++) {
     drawHeart(28 + i * 30, 22, 18, i < lives);
   }
 
