@@ -971,21 +971,29 @@ function spawnObstacle() {
   const r = Math.random();
   let o;
   if (r < 0.42) {
-    // hohes Hindernis (Tor-Pfosten/Abwehr) - Doppelsprung-knapp
-    const h = 78 + Math.random() * 46;     // 78..124
-    o = { type: "high", w: 40 + Math.random() * 26, h, x: W + 40, y: GROUND_Y - h, passed: false };
+    // hohes Hindernis (Tor-Pfosten/Abwehr) - knapp ueber Sprunghoehe -> Timing zaehlt
+    const h = 84 + Math.random() * 40;     // 84..124 (max < Apex 129)
+    o = { type: "high", w: 46 + Math.random() * 28, h, x: W + 40, y: GROUND_Y - h, passed: false };
   } else if (r < 0.75) {
     // tiefe Bande (Hindernis oben -> drunter durchsliden)
     // gap < Stehhoehe (~48) erzwingt Slide, >= Slidehoehe (26) bleibt fair schaffbar
     const gap = 40;                        // freier Slide-Korridor am Boden
     const h = 150;
-    o = { type: "low", w: 60 + Math.random() * 30, h, x: W + 40, y: GROUND_Y - gap - h, passed: false };
+    o = { type: "low", w: 66 + Math.random() * 34, h, x: W + 40, y: GROUND_Y - gap - h, passed: false };
   } else {
-    // Huetchen-Reihe (niedrig, einfacher Sprung)
-    const h = 40 + Math.random() * 18;
-    o = { type: "cone", w: 36, h, x: W + 40, y: GROUND_Y - h, passed: false };
+    // Huetchen (niedrig, einfacher Sprung) - etwas groesser
+    const h = 46 + Math.random() * 22;     // 46..68
+    o = { type: "cone", w: 44, h, x: W + 40, y: GROUND_Y - h, passed: false };
   }
   obstacles.push(o);
+
+  // faire Kombo: nach hoch/Huetchen folgt selten ein zweites, knapp dahinter
+  // (man landet dazwischen -> nicht per einzelnem Doppelsprung loesbar)
+  if (o.type !== "low" && Math.random() < 0.28) {
+    const fh = 46 + Math.random() * 20;
+    const followGap = 150 + Math.random() * 40; // genug zum Landen + neu Abspringen
+    obstacles.push({ type: "cone", w: 44, h: fh, x: o.x + o.w + followGap, y: GROUND_Y - fh, passed: false });
+  }
 }
 
 function nextSpawnDelay() {
