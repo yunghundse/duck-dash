@@ -723,6 +723,7 @@ function resetGame() {
   if (Store.isActive("extralife")) G.lives = d.lives + 1;
   if (Store.isActive("boost")) G.speed = CONFIG.BASE_SPEED * 1.15;
   G.combo = 0; G.comboMult = 1; G.flash = 0; G.newHigh = false;
+  G.finale = false;
 }
 
 // Kombo: jeder gesammelte Ball erhoeht die Kette, alle 5 steigt der Multiplikator (max x5)
@@ -781,7 +782,7 @@ function nextSpawnDelay() {
   return ((1.15 / tt) + Math.random() * 0.55 / tt) * diff().gapMul;
 }
 function spawnCollectible() {
-  const trophy = Math.random() < 0.06;
+  const trophy = Math.random() < (G.finale ? 0.5 : 0.06);   // Finale: Pokal-Regen
   const heights = [70, 120, 180, 240];
   const yOff = heights[Math.floor(Math.random() * heights.length)];
   const size = trophy ? 30 : 22;
@@ -1266,7 +1267,7 @@ const PIXEL_ART = (() => {
     drawText(g, String(G.balls).padStart(2, "0"), 70, 66, {pixel:3, color:PALETTE.gold});
     drawText(g, "BEST " + String(G.best).padStart(6, "0"), 665, 80, {pixel:2, color:PALETTE.cloud});
 
-    const label = MODES[G.mode].endless ? (t("wave") + " " + (G.wave + 1)) : tCountry(currentTheme().key);
+    const label = G.finale ? "FINALE!" : (MODES[G.mode].endless ? (t("wave") + " " + (G.wave + 1)) : tCountry(currentTheme().key));
     const width = 210, x = Math.round((W - width) / 2), y = H - 36;
     panel(g, x - 8, y - 13, width + 16, 31);
     g.fillStyle = PALETTE.night; g.fillRect(x, y, width, 8);
@@ -1296,6 +1297,8 @@ function advanceLevel() {
   }
   if (G.levelIndex >= LEVELS.length - 1) { winGame(); return; }
   G.levelIndex++; G.levelDist = 0; G.score += 100; AUDIO.sfx.levelup();
+  // Letztes Land = grosses, gewaltfreies Finale: Pokal-Regen + schnellerer Sammeltakt
+  if (G.levelIndex === LEVELS.length - 1) { G.finale = true; G.collectTimer = 0.5; }
   SCENES.showStory(G.levelIndex);
 }
 function winGame() {
