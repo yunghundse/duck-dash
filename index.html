@@ -872,7 +872,17 @@ function tryConsumeJump() {
   }
 }
 // Tap/Enter ausserhalb von PLAY: kontextabhaengig bestaetigen
-function dispatchConfirm() {}
+// Tippen/Klick/Enter ausserhalb von PLAY schaltet kontextabhaengig weiter
+function dispatchConfirm() {
+  switch (SCENES.current) {
+    case State.STORY: beginLevel(); break;
+    case State.PAUSE: SCENES.go(State.PLAY); break;
+    case State.MENU:  startGame(); break;
+    case State.EGG:   if (typeof confettiEl !== "undefined" && confettiEl) confettiEl.innerHTML = ""; startGame(); break;
+    // GAMEOVER/WIN: bewusst nur ueber Buttons (Namens-Eingabe nicht ueberspringen)
+    default: break;
+  }
+}
 
 /* =========================================================================
    PIXEL_ART — gekapselte 8/16-Bit-Art-Ebene
@@ -1747,6 +1757,14 @@ canvas.addEventListener("pointermove", (e) => {
   if (e.clientY - touchStartY > 40) { INPUT.startSlide(); swiped = true; }
 });
 canvas.addEventListener("pointerup", () => { if (!swiped) INPUT.requestJump(); touchStartY = null; });
+
+// Tippen/Klick auf Story-, Pause- und Egg-Overlay schaltet weiter (Overlays liegen ueber dem Canvas)
+[storyEl, pauseEl, eggEl].forEach((el) => {
+  el.addEventListener("pointerup", (e) => {
+    if (e.target.closest("button, input")) return;   // Buttons/Eingaben normal behandeln
+    dispatchConfirm();
+  });
+});
 
 /* =========================================================================
    Game-Loop
