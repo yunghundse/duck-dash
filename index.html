@@ -37,6 +37,8 @@
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0,0,0,0.5);
     touch-action: none;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
   }
   /* Overlays */
   .overlay {
@@ -518,10 +520,26 @@ let completedLangs = SAVE.getJSON("dd_langsdone", []);
 let eggUnlocked = SAVE.get("dd_egg", "0") === "1";
 
 /* =========================================================================
-   Canvas
+   Canvas — Pixel-Art: intern niedrig aufloesen, nearest-neighbor hochskalieren
    ========================================================================= */
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas = document.getElementById("game");   // sichtbar, 960x540 Backing
+const screenCtx = canvas.getContext("2d");
+screenCtx.imageSmoothingEnabled = false;
+
+// Interne Render-Aufloesung (16:9). Spiel-Logik bleibt in W/H Koordinaten.
+const RES_W = 320, RES_H = 180;
+const buffer = document.createElement("canvas");
+buffer.width = RES_W; buffer.height = RES_H;
+const ctx = buffer.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+// Skaliert logische Koordinaten (960x540) in den Low-Res-Buffer (320x180).
+function applyPixelTransform() { ctx.setTransform(RES_W / W, 0, 0, RES_H / H, 0, 0); }
+// Blittet den Low-Res-Buffer formatfuellend hoch (chunky pixels).
+function present() {
+  screenCtx.imageSmoothingEnabled = false;
+  screenCtx.clearRect(0, 0, W, H);
+  screenCtx.drawImage(buffer, 0, 0, RES_W, RES_H, 0, 0, W, H);
+}
 
 /* =========================================================================
    ENTITIES: globaler Spielzustand + Spielobjekte
@@ -1317,7 +1335,9 @@ function frame(now) {
   if (dt > 0.05) dt = 0.05;
   if (!isFinite(dt) || dt < 0) dt = 0;
   SCENES.update(dt);
+  applyPixelTransform();
   SCENES.draw();
+  present();
   requestAnimationFrame(frame);
 }
 duck.reset();
