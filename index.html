@@ -235,6 +235,15 @@
     </div>
   </div>
 
+  <div id="pause" class="overlay hidden">
+    <h1 id="pauseTitle">Pause</h1>
+    <button id="resumeBtn" class="btn">Weiter</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+      <button id="pauseSettings" class="btn" style="background:#9aa6b5;box-shadow:4px 4px 0 #1a1f2b;">⚙️</button>
+      <button id="pauseMenu" class="btn" style="background:#c7b06f;box-shadow:4px 4px 0 #1a1f2b;">🏠</button>
+    </div>
+  </div>
+
   <div id="story" class="overlay hidden">
     <div id="storyFlag" class="flag"></div>
     <h1 id="storyCountry">Land</h1>
@@ -478,6 +487,10 @@ const SETT = {
 };
 function tset(k) { return SETT[lang][k]; }
 
+const PAUSET = {
+  de: { title: "Pause", resume: "Weiter" }, en: { title: "Paused", resume: "Resume" },
+  es: { title: "Pausa", resume: "Continuar" }, fr: { title: "Pause", resume: "Continuer" },
+};
 const BOARDT = {
   de: { title: "Bestenliste", empty: "Noch keine Einträge", back: "Zurück" },
   en: { title: "Leaderboard", empty: "No entries yet", back: "Back" },
@@ -1020,6 +1033,7 @@ const shopEl = document.getElementById("shop");
 const boardEl = document.getElementById("board");
 const eggEl = document.getElementById("egg");
 const settingsEl = document.getElementById("settings");
+const pauseEl = document.getElementById("pause");
 
 const startBtn = document.getElementById("startBtn");
 const retryBtn = document.getElementById("retryBtn");
@@ -1041,7 +1055,7 @@ const SCENES = {
     return {
       [State.MENU]: menuEl, [State.GAMEOVER]: overEl, [State.STORY]: storyEl,
       [State.WIN]: winEl, [State.SHOP]: shopEl, [State.BOARD]: boardEl,
-      [State.EGG]: eggEl, [State.SETTINGS]: settingsEl,
+      [State.EGG]: eggEl, [State.SETTINGS]: settingsEl, [State.PAUSE]: pauseEl,
     };
   },
   toggleOverlays() {
@@ -1140,6 +1154,12 @@ SCENES.defs[State.SHOP] = { enter() { renderShop(); } };
 SCENES.defs[State.BOARD] = {};
 SCENES.defs[State.EGG] = {};
 SCENES.defs[State.SETTINGS] = { enter() { renderSettings(); } };
+SCENES.defs[State.PAUSE] = { draw() { RENDER.world(); RENDER.hud(); } };
+
+function togglePause() {
+  if (SCENES.current === State.PLAY) SCENES.go(State.PAUSE);
+  else if (SCENES.current === State.PAUSE) SCENES.go(State.PLAY);
+}
 
 function startGame() { AUDIO.init(); resetGame(); SCENES.showStory(0); }
 function beginLevel() { SCENES.go(State.PLAY); }
@@ -1163,6 +1183,9 @@ function applyLang() {
   winEl.querySelector("h1").textContent = t("win");
   winEl.querySelector(".subtitle").textContent = t("winSub");
   langBtns.forEach((b) => b.classList.toggle("active", b.dataset.lang === lang));
+  const pt = PAUSET[lang];
+  document.getElementById("pauseTitle").textContent = pt.title;
+  document.getElementById("resumeBtn").textContent = pt.resume;
 }
 function setLang(l) {
   if (!I18N[l]) return;
@@ -1394,6 +1417,11 @@ function showEgg() {
 eggBtn.addEventListener("click", () => { confettiEl.innerHTML = ""; startGame(); });
 updateEggProgress();
 
+/* Pause-Buttons */
+document.getElementById("resumeBtn").addEventListener("click", () => SCENES.go(State.PLAY));
+document.getElementById("pauseMenu").addEventListener("click", () => SCENES.go(State.MENU));
+document.getElementById("pauseSettings").addEventListener("click", () => { settingsFrom = State.PAUSE; SCENES.go(State.SETTINGS); });
+
 /* Menue-Buttons */
 startBtn.addEventListener("click", startGame);
 retryBtn.addEventListener("click", startGame);
@@ -1414,6 +1442,9 @@ window.addEventListener("keydown", (e) => {
   } else if (k === "enter") {
     if (SCENES.current === State.MENU || SCENES.current === State.GAMEOVER || SCENES.current === State.WIN) startGame();
     else if (SCENES.current === State.STORY) beginLevel();
+    else if (SCENES.current === State.PAUSE) SCENES.go(State.PLAY);
+  } else if (k === "escape" || k === "p") {
+    togglePause();
   }
 });
 window.addEventListener("keyup", (e) => {
