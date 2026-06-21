@@ -562,6 +562,7 @@ function present() {
   screenCtx.imageSmoothingEnabled = false;
   screenCtx.clearRect(0, 0, W, H);
   screenCtx.drawImage(buffer, 0, 0, RES_W, RES_H, 0, 0, W, H);
+  FX.apply();
 }
 
 /* =========================================================================
@@ -1038,6 +1039,7 @@ const SCENES = {
     const prev = this.defs[this.current];
     if (prev && prev.exit) prev.exit();
     this.current = next;
+    if (typeof FX !== "undefined") FX.startTransition();
     this.toggleOverlays();
     const def = this.defs[next];
     if (def && def.enter) def.enter(payload);
@@ -1250,9 +1252,42 @@ setList.addEventListener("click", (e) => {
 settingsBtn.addEventListener("click", () => { AUDIO.init(); settingsFrom = SCENES.current; SCENES.go(State.SETTINGS); });
 setClose.addEventListener("click", () => SCENES.go(settingsFrom === State.SETTINGS ? State.MENU : settingsFrom));
 
-/* Platzhalter-Module (Vollausbau in spaeteren Schritten) */
+/* Platzhalter-Modul Musik (Vollausbau in Schritt 5) */
 const MUSIC = { on: SAVE.get("dd_music", "0") === "1", toggle() { this.on = !this.on; SAVE.set("dd_music", this.on ? "1" : "0"); } };
-const FX = { crt: SAVE.get("dd_crt", "1") === "1", toggleCRT() { this.crt = !this.crt; SAVE.set("dd_crt", this.crt ? "1" : "0"); } };
+
+/* FX: CRT-Look (Scanlines + Vignette) und Retro-Szenenuebergaenge (Fade) */
+const FX = {
+  crt: SAVE.get("dd_crt", "1") === "1",
+  toggleCRT() { this.crt = !this.crt; SAVE.set("dd_crt", this.crt ? "1" : "0"); },
+  _vignette: null,
+  trans: 0, transDur: 0.35,
+  startTransition() { this.trans = this.transDur; },
+  tick(dt) { if (this.trans > 0) this.trans -= dt; },
+  vignette() {
+    if (!this._vignette) {
+      const g = screenCtx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, "rgba(0,0,0,0.45)");
+      this._vignette = g;
+    }
+    return this._vignette;
+  },
+  // wird in present() nach dem Hochskalieren auf den sichtbaren Canvas gelegt
+  apply() {
+    if (this.crt) {
+      screenCtx.fillStyle = "rgba(0,0,0,0.14)";
+      for (let y = 0; y < H; y += 3) screenCtx.fillRect(0, y, W, 1);
+      screenCtx.fillStyle = "rgba(255,255,255,0.03)";
+      screenCtx.fillRect(0, 0, W, H * 0.5);
+      screenCtx.fillStyle = this.vignette();
+      screenCtx.fillRect(0, 0, W, H);
+    }
+    if (this.trans > 0) {
+      screenCtx.fillStyle = "rgba(8,9,14," + Math.max(0, this.trans / this.transDur) + ")";
+      screenCtx.fillRect(0, 0, W, H);
+    }
+  },
+};
 
 /* Bestenliste UI */
 const boardClose = document.getElementById("boardClose");
@@ -1358,6 +1393,7 @@ function frame(now) {
   if (dt > 0.05) dt = 0.05;
   if (!isFinite(dt) || dt < 0) dt = 0;
   SCENES.update(dt);
+  FX.tick(dt);
   applyPixelTransform();
   SCENES.draw();
   present();
