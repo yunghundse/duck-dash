@@ -223,6 +223,7 @@
 
   <div id="over" class="overlay hidden">
     <h1>Game Over</h1>
+    <div id="overHigh" class="big-score blink hidden" style="color:#7cc47f;font-size:clamp(16px,3vw,26px);">★ NEW HIGHSCORE ★</div>
     <div class="subtitle">Score</div>
     <div id="finalScore" class="big-score">0</div>
     <div id="overEntry" class="nameEntry">
@@ -254,6 +255,7 @@
   <div id="win" class="overlay hidden">
     <h1>🏆 Weltmeister!</h1>
     <div class="subtitle">Duck Dash gewonnen</div>
+    <div id="winHigh" class="big-score blink hidden" style="color:#7cc47f;font-size:clamp(16px,3vw,26px);">★ NEW HIGHSCORE ★</div>
     <div id="winScore" class="big-score">0</div>
     <div id="winEntry" class="nameEntry">
       <input id="winName" class="nameInput" maxlength="12" placeholder="Name">
@@ -491,6 +493,7 @@ const PAUSET = {
   de: { title: "Pause", resume: "Weiter" }, en: { title: "Paused", resume: "Resume" },
   es: { title: "Pausa", resume: "Continuar" }, fr: { title: "Pause", resume: "Continuer" },
 };
+const NEWHIGH = { de: "★ NEUER REKORD ★", en: "★ NEW HIGHSCORE ★", es: "★ NUEVO RÉCORD ★", fr: "★ NOUVEAU RECORD ★" };
 const BOARDT = {
   de: { title: "Bestenliste", empty: "Noch keine Einträge", back: "Zurück" },
   en: { title: "Leaderboard", empty: "No entries yet", back: "Back" },
@@ -608,6 +611,7 @@ const G = {
   levelIndex: 0, levelDist: 0, bgScroll: 0,
   best: SAVE.getInt("dd_best", 0),
   currentRunScore: 0,
+  combo: 0, comboMult: 1, flash: 0, newHigh: false,
 };
 
 function saveBest() {
@@ -627,7 +631,15 @@ function resetGame() {
   G.shieldUp = Store.isActive("shield");
   if (Store.isActive("extralife")) G.lives = CONFIG.MAX_LIVES + 1;
   if (Store.isActive("boost")) G.speed = CONFIG.BASE_SPEED * 1.15;
+  G.combo = 0; G.comboMult = 1; G.flash = 0; G.newHigh = false;
 }
+
+// Kombo: jeder gesammelte Ball erhoeht die Kette, alle 5 steigt der Multiplikator (max x5)
+function addCombo() {
+  G.combo++;
+  G.comboMult = Math.min(5, 1 + Math.floor(G.combo / 5));
+}
+function resetCombo() { G.combo = 0; G.comboMult = 1; }
 
 function burst(x, y, color, n) {
   for (let i = 0; i < n; i++) {
@@ -655,10 +667,18 @@ function spawnObstacle() {
     o = { type: "cone", w: 44, h, x: W + 40, y: GROUND_Y - h, passed: false };
   }
   G.obstacles.push(o);
-  if (o.type !== "low" && Math.random() < 0.28) {
+  // Muster werden mit Etappe abwechslungsreicher, bleiben aber fair schaffbar
+  const lvl = G.levelIndex;
+  const followChance = 0.24 + lvl * 0.03;          // spaeter etwas haeufiger
+  if (o.type !== "low" && Math.random() < followChance) {
     const fh = 46 + Math.random() * 20;
-    const followGap = 150 + Math.random() * 40;
+    const followGap = 150 + Math.random() * 40;     // genug zum Landen + neu Abspringen
     G.obstacles.push({ type: "cone", w: 44, h: fh, x: o.x + o.w + followGap, y: GROUND_Y - fh, passed: false });
+    // ab Etappe 3: gelegentlich ein drittes Huetchen (Treppen-Muster)
+    if (lvl >= 2 && Math.random() < 0.3) {
+      const th = 46 + Math.random() * 18;
+      G.obstacles.push({ type: "cone", w: 44, h: th, x: o.x + o.w + followGap * 2 + 44, y: GROUND_Y - th, passed: false });
+    }
   }
 }
 function nextSpawnDelay() {
@@ -678,8 +698,9 @@ function spawnCollectible() {
 }
 function collectAt(o) {
   o.taken = true;
-  if (o.type === "trophy") { G.score += 200; G.balls += 5; burst(o.x, o.y, PALETTE.gold, 22); AUDIO.sfx.trophy(); }
-  else { G.score += 5; G.balls += 1; burst(o.x, o.y, PALETTE.snow, 10); AUDIO.sfx.coin(); }
+  addCombo();
+  if (o.type === "trophy") { G.score += 200 * G.comboMult; G.balls += 5; burst(o.x, o.y, PALETTE.gold, 22); AUDIO.sfx.trophy(); }
+  else { G.score += 5 * G.comboMult; G.balls += 1; burst(o.x, o.y, PALETTE.snow, 10); AUDIO.sfx.coin(); }
 }
 function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
@@ -687,12 +708,13 @@ function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
 
 function hitObstacle() {
   if (G.invuln > 0) return;
+  resetCombo();
   if (G.shieldUp) {
-    G.shieldUp = false; G.invuln = CONFIG.INVULN_TIME; G.shake = 0.25;
+    G.shieldUp = false; G.invuln = CONFIG.INVULN_TIME; G.shake = 0.25; G.flash = 0.12;
     burst(duck.x + duck.w / 2, duck.y + duck.h / 2, PALETTE.azure, 16);
     AUDIO.sfx.hit(); return;
   }
-  G.lives--; G.invuln = CONFIG.INVULN_TIME; G.shake = 0.35;
+  G.lives--; G.invuln = CONFIG.INVULN_TIME; G.shake = 0.4; G.flash = 0.18;
   burst(duck.x + duck.w / 2, duck.y + duck.h / 2, "#d9b64a", 14);
   if (G.lives <= 0) { gameOver(); } else AUDIO.sfx.hit();
 }
@@ -811,6 +833,8 @@ const RENDER = {
     sky.addColorStop(0, lv.sky[0]); sky.addColorStop(1, lv.sky[1]);
     ctx.fillStyle = sky; ctx.fillRect(0, 0, W, GROUND_Y);
 
+    this.skyline(lv);
+
     const tribY = GROUND_Y - 150;
     const s1 = (G.bgScroll * 0.15) % 80;
     ctx.fillStyle = lv.accent; ctx.globalAlpha = 0.7;
@@ -840,6 +864,47 @@ const RENDER = {
     const s3 = (G.bgScroll * 1.0) % 160;
     for (let x = -s3; x < W; x += 160) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y + 6); ctx.lineTo(x, H); ctx.stroke(); }
     ctx.fillStyle = lv.accent; ctx.fillRect(0, GROUND_Y, W, 4);
+  },
+
+  // Pixel-Parallax-Skyline je Land (erkennbar verschiedene Stadien/Wahrzeichen)
+  skyline(lv) {
+    const baseY = GROUND_Y - 150;
+    const off = (G.bgScroll * 0.08) % 320;
+    const col = shade(lv.accent, 0.7);
+    ctx.fillStyle = col;
+    const k = lv.key;
+    // wiederholt ueber die Breite, parallax-versetzt
+    for (let bx = -off; bx < W + 320; bx += 320) {
+      if (k === "br") {
+        // Rio: zwei Bergkegel + kleine Christus-Statue
+        ctx.beginPath(); ctx.moveTo(bx + 30, baseY); ctx.lineTo(bx + 90, baseY - 70); ctx.lineTo(bx + 150, baseY); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(bx + 170, baseY); ctx.lineTo(bx + 220, baseY - 95); ctx.lineTo(bx + 270, baseY); ctx.closePath(); ctx.fill();
+        ctx.fillRect(bx + 216, baseY - 112, 6, 18); ctx.fillRect(bx + 206, baseY - 104, 26, 5);
+      } else if (k === "de") {
+        // Deutschland: Brandenburger-Tor-artige Saeulenreihe
+        ctx.fillRect(bx + 40, baseY - 64, 140, 64);
+        for (let i = 0; i < 6; i++) ctx.fillRect(bx + 50 + i * 24, baseY - 56, 10, 56);
+        ctx.fillRect(bx + 40, baseY - 78, 140, 14);
+      } else if (k === "jp") {
+        // Japan: Fuji + Pagode
+        ctx.beginPath(); ctx.moveTo(bx + 20, baseY); ctx.lineTo(bx + 100, baseY - 90); ctx.lineTo(bx + 180, baseY); ctx.closePath(); ctx.fill();
+        for (let i = 0; i < 3; i++) { const w = 60 - i * 14; ctx.fillRect(bx + 220 - w / 2 + 30, baseY - 30 - i * 26, w, 12); }
+        ctx.fillRect(bx + 246, baseY - 30, 8, 30);
+      } else if (k === "us") {
+        // USA: Wolkenkratzer-Reihe
+        const hs = [50, 90, 60, 110, 75, 95, 55];
+        for (let i = 0; i < hs.length; i++) ctx.fillRect(bx + 20 + i * 42, baseY - hs[i], 34, hs[i]);
+      } else if (k === "ar") {
+        // Argentinien: Obelisk + flache Skyline
+        ctx.fillRect(bx + 20, baseY - 40, 240, 40);
+        ctx.beginPath(); ctx.moveTo(bx + 150, baseY - 40); ctx.lineTo(bx + 140, baseY - 130); ctx.lineTo(bx + 160, baseY - 130); ctx.closePath(); ctx.fill();
+      } else {
+        // Finale: grosses Stadion-Rund mit Flutlicht
+        ctx.beginPath(); ctx.ellipse(bx + 150, baseY + 10, 130, 60, 0, Math.PI, 0); ctx.fill();
+        ctx.fillRect(bx + 40, baseY - 80, 8, 50); ctx.fillRect(bx + 28, baseY - 88, 32, 12);
+        ctx.fillRect(bx + 252, baseY - 80, 8, 50); ctx.fillRect(bx + 240, baseY - 88, 32, 12);
+      }
+    }
   },
 
   duck() {
@@ -959,6 +1024,12 @@ const RENDER = {
     ctx.fillText("⚽ " + G.balls + "   " + Math.floor(G.distance / 10) + " " + t("meters"), W - 20, 78);
     const maxHearts = Math.max(CONFIG.MAX_LIVES, G.lives);
     for (let i = 0; i < maxHearts; i++) this.heart(28 + i * 30, 22, 18, i < G.lives);
+    // Kombo-Multiplikator (Mitte unten), erst ab x2 sichtbar
+    if (G.comboMult > 1) {
+      ctx.fillStyle = PALETTE.gold; ctx.font = "700 24px Courier New, monospace"; ctx.textAlign = "center";
+      ctx.fillText("x" + G.comboMult + " KOMBO", W / 2, H - 16);
+      ctx.textAlign = "left";
+    }
     const lv = LEVELS[G.levelIndex] || LEVELS[0];
     const bw = 200, bx = (W - bw) / 2, by = 24;
     ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(bx, by, bw, 8);
@@ -981,6 +1052,11 @@ const RENDER = {
     this.particles();
     if (!(G.invuln > 0 && Math.floor(G.runTime * 12) % 2 === 0)) this.duck();
     ctx.restore();
+    // Treffer-Flash (Retro): kurzer heller Blitz ueber dem Bild
+    if (G.flash > 0) {
+      ctx.fillStyle = "rgba(255,255,255," + Math.min(0.6, G.flash * 3) + ")";
+      ctx.fillRect(0, 0, W, H);
+    }
   },
 };
 
@@ -989,6 +1065,8 @@ const RENDER = {
    ========================================================================= */
 function advanceLevel() {
   if (G.levelIndex >= LEVELS.length - 1) {
+    G.newHigh = Math.floor(G.score) > G.best;
+    const wh = document.getElementById("winHigh"); wh.textContent = NEWHIGH[lang]; wh.classList.toggle("hidden", !G.newHigh);
     saveBest(); Store.addCoins(G.balls); AUDIO.sfx.win();
     pendingEgg = markLangCompleted(lang);
     G.currentRunScore = Math.floor(G.score);
@@ -1000,6 +1078,8 @@ function advanceLevel() {
   SCENES.showStory(G.levelIndex);
 }
 function gameOver() {
+  G.newHigh = Math.floor(G.score) > G.best;
+  const oh = document.getElementById("overHigh"); oh.textContent = NEWHIGH[lang]; oh.classList.toggle("hidden", !G.newHigh);
   saveBest(); Store.addCoins(G.balls);
   G.currentRunScore = Math.floor(G.score);
   finalScoreEl.textContent = G.currentRunScore;
@@ -1095,12 +1175,13 @@ SCENES.defs[State.PLAY] = {
 
     if (G.levelDist >= CONFIG.LEVEL_GOAL) { advanceLevel(); return; }
 
-    G.score += dt * (G.speed / 36) * G.scoreMult;
+    G.score += dt * (G.speed / 36) * G.scoreMult * G.comboMult;
 
     if (duck.coyote > 0) duck.coyote -= dt;
     if (duck.buffer > 0) duck.buffer -= dt;
     if (G.invuln > 0) G.invuln -= dt;
     if (G.shake > 0) G.shake -= dt;
+    if (G.flash > 0) G.flash -= dt;
     if (duck.sliding) { duck.slideT -= dt; if (duck.slideT <= 0) endSlide(); }
 
     tryConsumeJump();
