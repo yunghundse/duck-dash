@@ -609,7 +609,6 @@ function present() {
   screenCtx.imageSmoothingEnabled = false;
   screenCtx.clearRect(0, 0, W, H);
   screenCtx.drawImage(buffer, 0, 0, RES_W, RES_H, 0, 0, W, H);
-  FX.apply();
 }
 
 /* =========================================================================
@@ -915,6 +914,110 @@ function roundRect(x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+/* =========================================================================
+   SPRITES + drawSprite — Pixel-Art-Blits (ersetzen die Vektor-Zeichnungen)
+   Jede Zeichenkette = eine Pixelzeile, jedes Zeichen = eine Palettenfarbe,
+   '.' = transparent. drawSprite skaliert das Raster auf (w x h).
+   ========================================================================= */
+const SPRITES = {
+  // Ente nach rechts; B=Koerper, D=Outline/dunkel, G=Fluegel, K=Schnabel, E=Auge, H=Glanz
+  duck: [
+    "..............DDD.",
+    ".............DBBBD",
+    "....DDDDD...DBBBBD",
+    "..DDBBBBBDD.DBBEBD",
+    ".DBHBBBBBBBDBBBBKK",
+    ".DBBBBBBBBBBBBBDKK",
+    "DBBBBBBBBBBBBBBD..",
+    "DBBBGGGGBBBBBBBD..",
+    "DBBGGGGGGBBBBBD...",
+    "DBBBGGGGGBBBBBD...",
+    ".DBBBBBBBBBBBD....",
+    "..DDBBBBBBBDD.....",
+    "....DD...DD.......",
+    "....D.....D.......",
+  ],
+  cone: [
+    "....KK....",
+    "...KKKK...",
+    "...KWWK...",
+    "..KKKKKK..",
+    "..KWWWWK..",
+    ".KKKKKKKK.",
+    ".KWWWWWWK.",
+    "KKKKKKKKKK",
+    "WWWWWWWWWW",
+    "DDDDDDDDDD",
+  ],
+  high: [
+    "DPPPPPPD",
+    "DPPPPPPD",
+    "DPPPPPPD",
+    "DQQQQQQD",
+    "DPPPPPPD",
+    "DPPPPPPD",
+    "DPPPPPPD",
+    "DQQQQQQD",
+    "DPPPPPPD",
+    "DPPPPPPD",
+  ],
+  low: [
+    "SSSSSSSSSSSSSSSS",
+    "SSSSSSSSSSSSSSSS",
+    "SLLLLLLLLLLLLLLS",
+    "SLLLLLLLLLLLLLLS",
+    "SSSSSSSSSSSSSSSS",
+    "LLLLLLLLLLLLLLLL",
+  ],
+  ball: [
+    "...WWWW...",
+    ".WWWWWWWW.",
+    ".WWWBBWWW.",
+    "WWWBBBBWWW",
+    "WWWBWWBWWW",
+    "WWWWWWWWWW",
+    "WBWWBBWWBW",
+    ".WWWWWWWW.",
+    ".WWWWWWWW.",
+    "...WWWW...",
+  ],
+  trophy: [
+    "KKKKKKKKKK",
+    "KKKKKKKKKK",
+    "OKKKKKKKKO",
+    ".OKKKKKKO.",
+    "..KKKKKK..",
+    "...KKKK...",
+    "....KK....",
+    "....KK....",
+    "...OOOO...",
+    "..OOOOOO..",
+  ],
+};
+const SPR_PAL = {
+  cone:   { K: "#d98a3d", W: "#eaddc7", D: "#8a5a2a" },
+  high:   { P: "#a85a4f", Q: "#8f4a40", D: "#7a3f37" },
+  low:    { S: PALETTE.steel, L: PALETTE.cloud },
+  ball:   { W: PALETTE.snow, B: PALETTE.slate },
+  trophy: { K: "#f0d061", O: "#b8922e" },
+};
+function drawSprite(rows, x, y, w, h, pal) {
+  let cols = 0;
+  for (const r of rows) if (r.length > cols) cols = r.length;
+  const cw = w / cols, chh = h / rows.length;
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    for (let c = 0; c < row.length; c++) {
+      const ch = row[c];
+      if (ch === "." || ch === " ") continue;
+      const col = pal[ch];
+      if (!col) continue;
+      ctx.fillStyle = col;
+      ctx.fillRect(x + c * cw, y + r * chh, cw + 0.6, chh + 0.6);
+    }
+  }
+}
+
 function roundRectAbs(x, y, w, h, r) { roundRect(x, y, w, h, r); }
 
 const RENDER = {
@@ -1030,20 +1133,17 @@ const RENDER = {
       ctx.strokeStyle = "rgba(111,163,199,0.8)"; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(bw * 0.5, bh * 0.5, bw * 0.7, bh * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
     }
-    ctx.fillStyle = bodyCol; roundRect(2, 6, bw - 4, bh - 6, 16); ctx.fill();
-    if (skin.golden) { ctx.fillStyle = "rgba(255,255,255,0.35)"; roundRect(6, 9, bw * 0.4, bh * 0.3, 8); ctx.fill(); }
-    ctx.fillStyle = darkCol;
-    ctx.beginPath(); ctx.moveTo(2, bh * 0.45); ctx.lineTo(-10, bh * 0.30); ctx.lineTo(2, bh * 0.62); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = wingCol;
-    ctx.beginPath(); ctx.ellipse(bw * 0.46, bh * 0.62, bw * 0.22, bh * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+    // Koerper/Kopf/Fluegel/Schnabel/Auge als Pixel-Sprite (Skin tint via Palette)
+    const duckPal = {
+      B: bodyCol, D: shade(bodyCol, 0.62), G: wingCol, K: PALETTE.orange,
+      E: "#1d2330", H: skin.golden ? "rgba(255,255,255,0.6)" : shade(bodyCol, 1.12),
+    };
+    drawSprite(SPRITES.duck, 0, 4, bw, bh - 2, duckPal);
     const headX = bw * 0.72, headY = bh * 0.30, headR = bw * 0.26;
-    ctx.fillStyle = bodyCol; ctx.beginPath(); ctx.arc(headX, headY, headR, 0, Math.PI * 2); ctx.fill();
     if (skin.glasses) {
       ctx.fillStyle = "#1d2330";
       ctx.fillRect(headX - headR * 0.1, headY - headR * 0.3, headR * 0.7, headR * 0.32);
       ctx.fillRect(headX + headR * 0.65, headY - headR * 0.22, headR * 0.5, headR * 0.22);
-    } else {
-      ctx.fillStyle = "#1d2330"; ctx.beginPath(); ctx.arc(headX + headR * 0.25, headY - headR * 0.15, 3.2, 0, Math.PI * 2); ctx.fill();
     }
     if (skin.hat) {
       ctx.fillStyle = "#34506e";
@@ -1058,49 +1158,20 @@ const RENDER = {
       ctx.lineTo(cx, cy - 3); ctx.lineTo(cx + cw / 4, cy + 5); ctx.lineTo(cx + cw / 2, cy); ctx.lineTo(cx + cw / 2, cy + 8);
       ctx.closePath(); ctx.fill();
     }
-    ctx.fillStyle = PALETTE.orange;
-    ctx.beginPath(); ctx.moveTo(headX + headR * 0.7, headY); ctx.lineTo(headX + headR * 1.5, headY + 4); ctx.lineTo(headX + headR * 0.7, headY + 11); ctx.closePath(); ctx.fill();
     ctx.restore();
   },
 
   obstacle(o) {
-    ctx.save();
-    if (o.type === "high") {
-      ctx.fillStyle = "#a85a4f"; roundRectAbs(o.x, o.y, o.w, o.h, 6); ctx.fill();
-      ctx.fillStyle = "#8f4a40"; ctx.fillRect(o.x, o.y + o.h * 0.4, o.w, 6);
-    } else if (o.type === "low") {
-      ctx.fillStyle = PALETTE.steel; roundRectAbs(o.x, o.y, o.w, o.h, 6); ctx.fill();
-      ctx.fillStyle = "#48557030"; ctx.fillRect(o.x, o.y, o.w, o.h);
-      ctx.fillStyle = PALETTE.cloud; ctx.fillRect(o.x + 4, o.y + o.h - 10, o.w - 8, 4);
-    } else {
-      ctx.fillStyle = "#d98a3d";
-      ctx.beginPath(); ctx.moveTo(o.x + o.w * 0.5, o.y); ctx.lineTo(o.x + o.w, o.y + o.h); ctx.lineTo(o.x, o.y + o.h); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = "#eaddc7"; ctx.fillRect(o.x, o.y + o.h - 6, o.w, 6);
-    }
-    ctx.restore();
+    if (o.type === "high") drawSprite(SPRITES.high, o.x, o.y, o.w, o.h, SPR_PAL.high);
+    else if (o.type === "low") drawSprite(SPRITES.low, o.x, o.y, o.w, o.h, SPR_PAL.low);
+    else drawSprite(SPRITES.cone, o.x, o.y, o.w, o.h, SPR_PAL.cone);
   },
 
   collectible(c) {
     const yy = c.y + Math.sin(c.bob) * 4;
-    ctx.save();
-    if (c.type === "trophy") {
-      ctx.fillStyle = "#f0d061"; ctx.strokeStyle = "#b8922e"; ctx.lineWidth = 2;
-      const s = c.size;
-      ctx.beginPath();
-      ctx.moveTo(c.x - s * 0.3, yy - s * 0.4); ctx.lineTo(c.x + s * 0.3, yy - s * 0.4);
-      ctx.lineTo(c.x + s * 0.18, yy + s * 0.05); ctx.lineTo(c.x - s * 0.18, yy + s * 0.05);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillRect(c.x - s * 0.06, yy + s * 0.05, s * 0.12, s * 0.18);
-      ctx.fillRect(c.x - s * 0.22, yy + s * 0.23, s * 0.44, s * 0.1);
-    } else {
-      ctx.fillStyle = PALETTE.snow; ctx.beginPath(); ctx.arc(c.x, yy, c.r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = PALETTE.slate; ctx.beginPath(); ctx.arc(c.x, yy, c.r * 0.32, 0, Math.PI * 2); ctx.fill();
-      for (let i = 0; i < 5; i++) {
-        const a = c.bob * 0.3 + i * (Math.PI * 2 / 5);
-        ctx.beginPath(); ctx.arc(c.x + Math.cos(a) * c.r * 0.62, yy + Math.sin(a) * c.r * 0.62, c.r * 0.16, 0, Math.PI * 2); ctx.fill();
-      }
-    }
-    ctx.restore();
+    const s = c.size, x = c.x - s / 2;
+    if (c.type === "trophy") drawSprite(SPRITES.trophy, x, yy - s * 0.6, s, s * 1.2, SPR_PAL.trophy);
+    else drawSprite(SPRITES.ball, x, yy - s / 2, s, s, SPR_PAL.ball);
   },
 
   particles() {
@@ -1112,45 +1183,46 @@ const RENDER = {
     ctx.globalAlpha = 1;
   },
 
-  heart(x, y, s, filled) {
-    ctx.save(); ctx.translate(x, y);
-    ctx.beginPath();
-    ctx.moveTo(0, s * 0.3);
-    ctx.bezierCurveTo(0, 0, -s * 0.5, 0, -s * 0.5, s * 0.35);
-    ctx.bezierCurveTo(-s * 0.5, s * 0.65, 0, s * 0.85, 0, s);
-    ctx.bezierCurveTo(0, s * 0.85, s * 0.5, s * 0.65, s * 0.5, s * 0.35);
-    ctx.bezierCurveTo(s * 0.5, 0, 0, 0, 0, s * 0.3);
-    ctx.closePath();
-    ctx.fillStyle = filled ? PALETTE.rose : "rgba(255,255,255,0.18)"; ctx.fill();
-    ctx.restore();
+  // Pixel-Herz scharf auf den Display-Canvas (g = screenCtx)
+  heart(g, x, y, s, filled) {
+    g.save(); g.translate(x, y);
+    g.beginPath();
+    g.moveTo(0, s * 0.3);
+    g.bezierCurveTo(0, 0, -s * 0.5, 0, -s * 0.5, s * 0.35);
+    g.bezierCurveTo(-s * 0.5, s * 0.65, 0, s * 0.85, 0, s);
+    g.bezierCurveTo(0, s * 0.85, s * 0.5, s * 0.65, s * 0.5, s * 0.35);
+    g.bezierCurveTo(s * 0.5, 0, 0, 0, 0, s * 0.3);
+    g.closePath();
+    g.fillStyle = filled ? PALETTE.rose : "rgba(255,255,255,0.18)"; g.fill();
+    g.restore();
   },
 
+  // HUD scharf auf den Display-Canvas (NICHT in den Low-Res-Buffer)
   hud() {
-    ctx.fillStyle = PALETTE.snow; ctx.font = "700 26px Courier New, monospace"; ctx.textAlign = "right";
-    ctx.fillText(String(Math.floor(G.score)).padStart(5, "0"), W - 20, 38);
-    ctx.font = "600 14px Courier New, monospace"; ctx.fillStyle = "#aeb8c6";
-    ctx.fillText(t("best") + " " + G.best, W - 20, 58);
-    ctx.fillText("⚽ " + G.balls + "   " + Math.floor(G.distance / 10) + " " + t("meters"), W - 20, 78);
+    const g = screenCtx;
+    g.fillStyle = PALETTE.snow; g.font = "700 26px Courier New, monospace"; g.textAlign = "right";
+    g.fillText(String(Math.floor(G.score)).padStart(5, "0"), W - 20, 38);
+    g.font = "600 14px Courier New, monospace"; g.fillStyle = "#aeb8c6";
+    g.fillText(t("best") + " " + G.best, W - 20, 58);
+    g.fillText("⚽ " + G.balls + "   " + Math.floor(G.distance / 10) + " " + t("meters"), W - 20, 78);
     const maxHearts = Math.max(CONFIG.MAX_LIVES, G.lives);
-    for (let i = 0; i < maxHearts; i++) this.heart(28 + i * 30, 22, 18, i < G.lives);
-    // Kombo-Multiplikator (Mitte unten), erst ab x2 sichtbar
+    for (let i = 0; i < maxHearts; i++) this.heart(g, 28 + i * 30, 22, 18, i < G.lives);
     if (G.comboMult > 1) {
-      ctx.fillStyle = PALETTE.gold; ctx.font = "700 24px Courier New, monospace"; ctx.textAlign = "center";
-      ctx.fillText("x" + G.comboMult + " KOMBO", W / 2, H - 16);
-      ctx.textAlign = "left";
+      g.fillStyle = PALETTE.gold; g.font = "700 24px Courier New, monospace"; g.textAlign = "center";
+      g.fillText("x" + G.comboMult + " KOMBO", W / 2, H - 16);
     }
     const lv = currentTheme();
     const bw = 200, bx = (W - bw) / 2, by = 24;
-    ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(bx, by, bw, 8);
-    ctx.fillStyle = lv.flag ? lv.flag[1] : PALETTE.gold; ctx.fillRect(bx, by, bw * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL), 8);
-    ctx.fillStyle = PALETTE.snow; ctx.font = "600 14px Courier New, monospace"; ctx.textAlign = "center";
+    g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(bx, by, bw, 8);
+    g.fillStyle = lv.flag ? lv.flag[1] : PALETTE.gold; g.fillRect(bx, by, bw * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL), 8);
+    g.fillStyle = PALETTE.snow; g.font = "600 14px Courier New, monospace"; g.textAlign = "center";
     const label = MODES[G.mode].endless ? (t("wave") + " " + (G.wave + 1)) : tCountry(lv.key);
-    ctx.fillText(label, W / 2, by - 6); ctx.textAlign = "left";
-    // Wellen-Banner kurz beim Wellenwechsel
+    g.fillText(label, W / 2, by - 6);
     if (MODES[G.mode].endless && G.waveBanner > 0) {
-      ctx.fillStyle = PALETTE.gold; ctx.font = "800 30px Courier New, monospace"; ctx.textAlign = "center";
-      ctx.fillText(t("wave").toUpperCase() + " " + (G.wave + 1), W / 2, H / 2 - 20); ctx.textAlign = "left";
+      g.fillStyle = PALETTE.gold; g.font = "800 40px Courier New, monospace";
+      g.fillText(t("wave").toUpperCase() + " " + (G.wave + 1), W / 2, H / 2 - 20);
     }
+    g.textAlign = "left";
   },
 
   // Welt zeichnen (Hintergrund + Objekte + Ente), mit Kamerawackeln
@@ -1364,7 +1436,7 @@ SCENES.defs[State.PLAY] = {
       for (const o of G.obstacles) { if (aabb(hb2.x, hb2.y, hb2.w, hb2.h, o.x, o.y, o.w, o.h)) { hitObstacle(); break; } }
     }
   },
-  draw() { RENDER.world(); RENDER.hud(); },
+  draw() { RENDER.world(); },
 };
 
 // STORY-Szene: zeigt Land, draw rendert die Welt im Hintergrund eingefroren
@@ -1376,7 +1448,7 @@ SCENES.defs[State.SHOP] = { enter() { renderShop(); } };
 SCENES.defs[State.BOARD] = {};
 SCENES.defs[State.EGG] = {};
 SCENES.defs[State.SETTINGS] = { enter() { renderSettings(); } };
-SCENES.defs[State.PAUSE] = { draw() { RENDER.world(); RENDER.hud(); } };
+SCENES.defs[State.PAUSE] = { draw() { RENDER.world(); } };
 
 function togglePause() {
   if (SCENES.current === State.PLAY) SCENES.go(State.PAUSE);
@@ -1725,6 +1797,9 @@ function frame(now) {
   applyPixelTransform();
   SCENES.draw();
   present();
+  // HUD scharf auf den Display-Canvas (volle Aufloesung), nur im Spiel/Pause
+  if (SCENES.current === State.PLAY || SCENES.current === State.PAUSE) RENDER.hud();
+  FX.apply();
   requestAnimationFrame(frame);
 }
 duck.reset();
