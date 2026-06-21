@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Duck Dash">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="./icon.svg">
+<link rel="apple-touch-icon" href="./assets/duck-hero.png">
 <style>
   /* Retro-Pixel-Look: monospace deckt ALLE Sonderzeichen (Umlaute + ES/FR-Akzente) ab,
      ist offline verfuegbar und braucht keine externe Webschrift. */
@@ -197,6 +197,11 @@
     color:#eef1f5; font-size:18px; cursor:pointer; box-shadow:2px 2px 0 #1a1f2b;
   }
   .hint { font-size: clamp(13px, 2.6vw, 18px); color:#b6c0cf; }
+  #heroImg {
+    width: clamp(96px, 22vw, 160px); height: auto; margin-bottom: 6px;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    filter: drop-shadow(3px 3px 0 rgba(0,0,0,0.5));
+  }
 </style>
 </head>
 <body>
@@ -213,6 +218,7 @@
   <button id="pauseHud" class="hidden" aria-label="Pause">⏸</button>
 
   <div id="menu" class="overlay">
+    <img id="heroImg" src="./assets/duck-hero.png" alt="Duck Dash" onerror="this.style.display='none'">
     <h1>Duck Dash</h1>
     <div id="mSub" class="subtitle">Die Kicker-Ente auf WM-Tour</div>
     <div id="langRow" style="display:flex;gap:8px;margin-top:16px;">
@@ -951,6 +957,13 @@ function dispatchConfirm() {
    ========================================================================= */
 const PIXEL_ART = (() => {
   const P = 3; // ein Sprite-Pixel entspricht genau einem Buffer-Pixel
+  // Optionales Retro-Hintergrundbild (Parallax). Faellt bei Fehler/Ladeproblem
+  // automatisch auf die prozedurale Canvas-Zeichnung zurueck (relativer Pfad).
+  const bgImg = new Image();
+  let bgReady = false;
+  bgImg.onload = () => { bgReady = true; };
+  bgImg.onerror = () => { bgReady = false; };
+  bgImg.src = "./assets/bg.png";
   const BRAND_EMBLEM = ["1m1", "mmm", "1m1"];
   const COLORS = Object.freeze({
     "1": PALETTE.ink, "2": PALETTE.night, "3": PALETTE.slate, "4": PALETTE.steel,
@@ -1157,33 +1170,47 @@ const PIXEL_ART = (() => {
       }
     }
   }
+  // Parallax-Hintergrundbild in die Himmel-/Skyline-Zone blitten (nearest-neighbor).
+  function drawParallaxBg(floor) {
+    const ar = bgImg.naturalWidth / bgImg.naturalHeight;
+    const dh = floor;                      // bis zum Spielfeldboden
+    const dw = Math.max(1, Math.ceil(dh * ar));
+    const off = Math.floor(G.bgScroll * 0.08) % dw;
+    for (let x = -off; x < RES_W + dw; x += dw) ctx.drawImage(bgImg, x * P, 0, dw * P, dh * P);
+  }
   function background() {
     const th = activeTheme(), floor = Math.floor(GROUND_Y / P);
-    lowRect(0, 0, RES_W, 26, th.sky[0]);
-    lowRect(0, 26, RES_W, 34, th.sky[1]);
-    lowRect(0, 60, RES_W, floor - 60, th.sky[2]);
-
-    if (th.stars) {
-      for (let i = 0; i < 20; i++) lowRect((i * 37 + 11) % RES_W, 6 + (i * 13) % 47, 1 + i % 2, 1, "7");
+    const useBg = bgReady && bgImg.naturalWidth > 0;
+    if (useBg) {
+      drawParallaxBg(floor);
     } else {
-      const clouds = Math.floor(G.bgScroll * 0.035 / P) % 92;
-      for (let x = -clouds; x < RES_W + 32; x += 92) drawSprite("cloud", x * P, (7 + ((x / 23) & 3) * 5) * P, { recolor:{"6":th.sky[1], "7":th.sky[2]} });
-    }
+      // --- Fallback: bisherige prozedurale Canvas-Zeichnung ---
+      lowRect(0, 0, RES_W, 26, th.sky[0]);
+      lowRect(0, 26, RES_W, 34, th.sky[1]);
+      lowRect(0, 60, RES_W, floor - 60, th.sky[2]);
 
-    const profile = PIXEL_TILES[th.tile], parallax = Math.floor(G.bgScroll * 0.09 / P) % 48;
-    for (let x = -parallax - 48; x < RES_W + 48; x += 48) drawProfile(profile, x, floor - profile.length - 42, {h:th.silhouette, w:th.window});
+      if (th.stars) {
+        for (let i = 0; i < 20; i++) lowRect((i * 37 + 11) % RES_W, 6 + (i * 13) % 47, 1 + i % 2, 1, "7");
+      } else {
+        const clouds = Math.floor(G.bgScroll * 0.035 / P) % 92;
+        for (let x = -clouds; x < RES_W + 32; x += 92) drawSprite("cloud", x * P, (7 + ((x / 23) & 3) * 5) * P, { recolor:{"6":th.sky[1], "7":th.sky[2]} });
+      }
 
-    // Zweite Parallax-Schicht: freundliche Stadiontribüne + Banner als Bitmap-Text.
-    const standY = floor - 31, crowd = Math.floor(G.bgScroll * 0.18 / P) % 13;
-    lowRect(0, standY, RES_W, 20, th.stand);
-    lowRect(0, standY + 2, RES_W, 2, "2");
-    for (let row = 0; row < 3; row++) for (let x = -crowd; x < RES_W; x += 6) {
-      lowRect(x, standY + 6 + row * 4 - (((x / 24) | 0) & 1), 2, 2, ["7", "a", "d", "f", "g"][Math.abs((x / 6 | 0) + row) % 5]);
+      const profile = PIXEL_TILES[th.tile], parallax = Math.floor(G.bgScroll * 0.09 / P) % 48;
+      for (let x = -parallax - 48; x < RES_W + 48; x += 48) drawProfile(profile, x, floor - profile.length - 42, {h:th.silhouette, w:th.window});
+
+      // Zweite Parallax-Schicht: freundliche Stadiontribüne + Banner als Bitmap-Text.
+      const standY = floor - 31, crowd = Math.floor(G.bgScroll * 0.18 / P) % 13;
+      lowRect(0, standY, RES_W, 20, th.stand);
+      lowRect(0, standY + 2, RES_W, 2, "2");
+      for (let row = 0; row < 3; row++) for (let x = -crowd; x < RES_W; x += 6) {
+        lowRect(x, standY + 6 + row * 4 - (((x / 24) | 0) & 1), 2, 2, ["7", "a", "d", "f", "g"][Math.abs((x / 6 | 0) + row) % 5]);
+      }
+      const bannerY = floor - 11, banner = MODES[G.mode].endless ? "DUCK" : "CUP";
+      lowRect(0, bannerY, RES_W, 8, "2");
+      const bannerOffset = Math.floor(G.bgScroll * 0.42 / P) % 64;
+      for (let x = -bannerOffset; x < RES_W + 64; x += 64) drawText(ctx, banner, x * P + 6, (bannerY + 1) * P, {pixel:P, color:color(th.accent)});
     }
-    const bannerY = floor - 11, banner = MODES[G.mode].endless ? "DUCK" : "CUP";
-    lowRect(0, bannerY, RES_W, 8, "2");
-    const bannerOffset = Math.floor(G.bgScroll * 0.42 / P) % 64;
-    for (let x = -bannerOffset; x < RES_W + 64; x += 64) drawText(ctx, banner, x * P + 6, (bannerY + 1) * P, {pixel:P, color:color(th.accent)});
 
     // Rasen aus klaren, flachen Pixelbändern — keine Farbverläufe.
     lowRect(0, floor, RES_W, RES_H - floor, "8");

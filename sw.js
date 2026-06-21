@@ -1,10 +1,13 @@
 // Duck Dash Service Worker - einfacher Offline-Cache
-const CACHE = "duck-dash-v3";
+const CACHE = "duck-dash-v4";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon.svg",
+  "./assets/bg.png",
+  "./assets/duck-hero.png",
+  "./assets/props-ref.png",
 ];
 
 self.addEventListener("install", (e) => {
