@@ -16,7 +16,7 @@ import select
 # --- Spielfeld ---
 WIDTH = 60
 GROUND_ROW = 10          # Zeilenindex des Bodens
-SKY_ROWS = GROUND_ROW    # spielbare Hoehe darueber
+SKY_ROWS = GROUND_ROW    # spielbare Höhe darüber
 DUCK_X = 6
 FRAME = 0.07             # Sekunden pro Frame
 
@@ -26,7 +26,7 @@ STAGE_LEN = 90           # Frames pro Etappe
 
 class Duck:
     def __init__(self):
-        self.y = 0.0       # Hoehe ueber dem Boden (0 = am Boden)
+        self.y = 0.0       # Höhe über dem Boden (0 = am Boden)
         self.vy = 0.0
         self.on_ground = True
         self.jumps = 0
@@ -71,7 +71,7 @@ class Game:
         self.won = False
 
     def spawn(self):
-        # deterministisch-pseudozufaellig ohne random-Import-Pflicht
+        # deterministisch-pseudozufällig ohne random-Import-Pflicht
         seed = (self.frame * 73 + 17) % 100
         kind = "o" if seed < 35 else "^"
         self.obstacles.append([WIDTH - 1, kind])
@@ -113,7 +113,7 @@ class Game:
                     else:
                         self.score += 10
                         continue
-                else:  # Ball einsammeln, wenn auf gleicher Hoehe-naehe
+                else:  # Ball einsammeln, wenn auf gleicher Höhe
                     self.balls += 1
                     self.score += 5
                     continue
@@ -132,12 +132,12 @@ class Game:
         grid = [[" "] * WIDTH for _ in range(GROUND_ROW + 1)]
         # Boden
         grid[GROUND_ROW] = ["="] * WIDTH
-        # Hindernisse / Baelle
+        # Hindernisse / Bälle
         for x, kind in self.obstacles:
             if kind == "^":
                 grid[GROUND_ROW - 1][x] = "^"
             else:
-                # Ball schwebt auf wechselnder Hoehe
+                # Ball schwebt auf wechselnder Höhe
                 by = GROUND_ROW - 1 - ((x % 3) + 1)
                 if 0 <= by < GROUND_ROW:
                     grid[by][x] = "o"

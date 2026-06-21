@@ -23,15 +23,35 @@ python3 -m http.server 8000   # dann http://localhost:8000
 
 ### Steuerung
 
-| Aktion    | Tastatur                | Touch / Maus     |
-|-----------|-------------------------|------------------|
-| Springen  | Leertaste / ↑ / W       | Tippen / Klick   |
-| Ducken    | ↓ / S                   | Wisch nach unten |
-| Pause     | Esc / P                 | –                |
+| Aktion    | Tastatur                | Touch / Maus              |
+|-----------|-------------------------|---------------------------|
+| Springen  | Leertaste / ↑ / W       | Tippen / großes Feld rechts |
+| Ducken/Slide | ↓ / S                | Wisch runter / Feld links halten |
+| Gleiten   | nochmal Springen in der Luft 🪶 | nochmal tippen     |
+| Pause     | Esc / P                 | ⏸-Button (auto bei Tab-Wechsel) |
 
 - **Doppelsprung** (genau einer), **Coyote-Time** und **Input-Buffer** für wendiges,
   sofort reagierendes Spielgefühl.
-- **3 Leben** (Herzen) mit kurzer Unverwundbarkeit nach einem Treffer.
+- Gewaltfreier Zusatz-Move: kurzes **Gleiten/Flattern** einmal pro Luftphase.
+- **3 Leben** (Easy: 5) mit kurzer Unverwundbarkeit nach einem Treffer.
+
+## Modi & Schwierigkeit
+
+- **♾️ Endlos (Standard)**: zeitloser, unendlicher Lauf mit steigenden **Wellen**
+  und neutralem Retro-Setting (Tag/Dämmerung/Nacht).
+- **🏆 WM-Tour (Feature)**: die 6 Länder-Etappen mit Story und großem Finale.
+- **🐣 Einfach / 🦆 Normal**: Einfach deckelt das Tempo, vergrößert Lücken, bringt
+  weniger Slide-Hindernisse, 5 Herzen und längere Unverwundbarkeit.
+
+## Kinderfreundlich
+
+- Einmalige, überspringbare **How-to-Anleitung** (in allen 4 Sprachen, jederzeit
+  aus den Einstellungen wiederholbar).
+- Große **On-Screen-Touch-Felder** (Springen rechts, Halten-zum-Sliden links);
+  Wisch-Gesten funktionieren weiterhin.
+- **Kindersichere Namen**: Preset-/Emoji-Namen per Tipp + einfacher Wortfilter
+  (Tippen ist optional).
+- **Auto-Pause** beim Tab-Wechsel, klarer Pause-Button, kontrastreiche Hinweise.
 
 ## Retro-Look
 
