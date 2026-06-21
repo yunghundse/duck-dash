@@ -345,7 +345,15 @@ const SAVE = {
     const n = parseInt(this.get(key, ""), 10);
     return isFinite(n) ? n : fallback;
   },
+  // Schema-Versionierung: erlaubt spaetere, saubere Migrationen ohne Datenverlust
+  SCHEMA: 2,
+  migrate() {
+    let v = this.getInt("dd_schema", 1);
+    // (kuenftige Migrationen: if (v < 3) {...})
+    if (v !== this.SCHEMA) this.set("dd_schema", this.SCHEMA);
+  },
 };
+SAVE.migrate();
 
 /* ---------- Zustaende ---------- */
 const State = {
@@ -540,7 +548,16 @@ const Store = {
     this.owned = SAVE.getJSON("dd_owned", ["classic"]);
     this.skin = SAVE.get("dd_skin", "classic");
     this.active = SAVE.getJSON("dd_active", []);
+    // Validierung gegen aktuelle Daten: verwaiste/ungueltige Ids ignorieren
+    if (!Array.isArray(this.owned)) this.owned = ["classic"];
+    if (!Array.isArray(this.active)) this.active = [];
+    const skinIds = SKINS.map((s) => s.id);
+    const powerIds = POWERUPS.map((p) => p.id);
+    this.owned = this.owned.filter((id) => skinIds.includes(id) || powerIds.includes(id));
+    this.active = this.active.filter((id) => powerIds.includes(id) && this.owned.includes(id));
     if (!this.owned.includes("classic")) this.owned.push("classic");
+    if (!skinIds.includes(this.skin) || !this.owned.includes(this.skin)) this.skin = "classic";
+    if (typeof this.coins !== "number" || !isFinite(this.coins) || this.coins < 0) this.coins = 0;
   },
   save() {
     SAVE.set("dd_coins", this.coins);
