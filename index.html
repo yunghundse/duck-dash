@@ -875,377 +875,343 @@ function tryConsumeJump() {
 function dispatchConfirm() {}
 
 /* =========================================================================
-   RENDER: Zeichnen (Pixel-Renderer-Ausbau in Schritt 2)
+   PIXEL_ART — gekapselte 8/16-Bit-Art-Ebene
+   Integration: world() läuft im 320×180-Buffer; hud() wird nach present()
+   auf dem Display-Canvas gezeichnet. drawSprite(name, x, y, opts) ist die
+   öffentliche Blit-API für weitere Szenen, Props und Skins.
    ========================================================================= */
-// robustes Hex-Parsing: liefert [r,g,b], faellt auf Mittelgrau zurueck
-function hexRGB(hex) {
-  if (typeof hex !== "string") return [128, 128, 128];
-  let h = hex.trim().replace(/^#/, "");
-  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return [128, 128, 128];
-  const n = parseInt(h, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-function toHex(r, g, b) {
-  const c = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
-  return "#" + c(r) + c(g) + c(b);
-}
-// shade(): gibt IMMER einen gueltigen Hex-Wert zurueck
-function shade(hex, f) {
-  const [r, g, b] = hexRGB(hex);
-  return toHex(r * f, g * f, b * f);
-}
-// drawBands(): banded Vertical-Fill zwischen zwei Farben (statt teurem Per-Frame-Gradient)
-function drawBands(x, y, w, h, c0, c1, steps) {
-  const a = hexRGB(c0), b = hexRGB(c1), n = Math.max(2, steps || 5);
-  const bh = Math.ceil(h / n);
-  for (let i = 0; i < n; i++) {
-    const f = i / (n - 1);
-    ctx.fillStyle = toHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
-    ctx.fillRect(x, y + i * bh, w, bh + 1);
-  }
-}
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-/* =========================================================================
-   SPRITES + drawSprite — Pixel-Art-Blits (ersetzen die Vektor-Zeichnungen)
-   Jede Zeichenkette = eine Pixelzeile, jedes Zeichen = eine Palettenfarbe,
-   '.' = transparent. drawSprite skaliert das Raster auf (w x h).
-   ========================================================================= */
-const SPRITES = {
-  // Ente nach rechts; B=Koerper, D=Outline/dunkel, G=Fluegel, K=Schnabel, E=Auge, H=Glanz
-  duck: [
-    "..............DDD.",
-    ".............DBBBD",
-    "....DDDDD...DBBBBD",
-    "..DDBBBBBDD.DBBEBD",
-    ".DBHBBBBBBBDBBBBKK",
-    ".DBBBBBBBBBBBBBDKK",
-    "DBBBBBBBBBBBBBBD..",
-    "DBBBGGGGBBBBBBBD..",
-    "DBBGGGGGGBBBBBD...",
-    "DBBBGGGGGBBBBBD...",
-    ".DBBBBBBBBBBBD....",
-    "..DDBBBBBBBDD.....",
-    "....DD...DD.......",
-    "....D.....D.......",
-  ],
-  cone: [
-    "....KK....",
-    "...KKKK...",
-    "...KWWK...",
-    "..KKKKKK..",
-    "..KWWWWK..",
-    ".KKKKKKKK.",
-    ".KWWWWWWK.",
-    "KKKKKKKKKK",
-    "WWWWWWWWWW",
-    "DDDDDDDDDD",
-  ],
-  high: [
-    "DPPPPPPD",
-    "DPPPPPPD",
-    "DPPPPPPD",
-    "DQQQQQQD",
-    "DPPPPPPD",
-    "DPPPPPPD",
-    "DPPPPPPD",
-    "DQQQQQQD",
-    "DPPPPPPD",
-    "DPPPPPPD",
-  ],
-  low: [
-    "SSSSSSSSSSSSSSSS",
-    "SSSSSSSSSSSSSSSS",
-    "SLLLLLLLLLLLLLLS",
-    "SLLLLLLLLLLLLLLS",
-    "SSSSSSSSSSSSSSSS",
-    "LLLLLLLLLLLLLLLL",
-  ],
-  ball: [
-    "...WWWW...",
-    ".WWWWWWWW.",
-    ".WWWBBWWW.",
-    "WWWBBBBWWW",
-    "WWWBWWBWWW",
-    "WWWWWWWWWW",
-    "WBWWBBWWBW",
-    ".WWWWWWWW.",
-    ".WWWWWWWW.",
-    "...WWWW...",
-  ],
-  trophy: [
-    "KKKKKKKKKK",
-    "KKKKKKKKKK",
-    "OKKKKKKKKO",
-    ".OKKKKKKO.",
-    "..KKKKKK..",
-    "...KKKK...",
-    "....KK....",
-    "....KK....",
-    "...OOOO...",
-    "..OOOOOO..",
-  ],
-};
-const SPR_PAL = {
-  cone:   { K: "#d98a3d", W: "#eaddc7", D: "#8a5a2a" },
-  high:   { P: "#a85a4f", Q: "#8f4a40", D: "#7a3f37" },
-  low:    { S: PALETTE.steel, L: PALETTE.cloud },
-  ball:   { W: PALETTE.snow, B: PALETTE.slate },
-  trophy: { K: "#f0d061", O: "#b8922e" },
-};
-function drawSprite(rows, x, y, w, h, pal) {
-  let cols = 0;
-  for (const r of rows) if (r.length > cols) cols = r.length;
-  const cw = w / cols, chh = h / rows.length;
-  for (let r = 0; r < rows.length; r++) {
-    const row = rows[r];
-    for (let c = 0; c < row.length; c++) {
-      const ch = row[c];
-      if (ch === "." || ch === " ") continue;
-      const col = pal[ch];
-      if (!col) continue;
-      ctx.fillStyle = col;
-      ctx.fillRect(x + c * cw, y + r * chh, cw + 0.6, chh + 0.6);
-    }
-  }
-}
-
-function roundRectAbs(x, y, w, h, r) { roundRect(x, y, w, h, r); }
-
-const RENDER = {
-  background() {
-    const lv = currentTheme();
-    // Himmel als Farbbaender (Retro-Dithering statt teurem Per-Frame-Gradient)
-    drawBands(0, 0, W, GROUND_Y, lv.sky[0], lv.sky[1], 6);
-    ctx.fillStyle = lv.sky[1]; ctx.fillRect(0, GROUND_Y - 2, W, 2);
-
-    this.skyline(lv);
-
-    const tribY = GROUND_Y - 150;
-    const s1 = (G.bgScroll * 0.15) % 80;
-    ctx.fillStyle = lv.accent; ctx.globalAlpha = 0.7;
-    ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y); ctx.lineTo(0, tribY + 40);
-    ctx.lineTo(W, tribY); ctx.lineTo(W, GROUND_Y); ctx.closePath(); ctx.fill();
-    ctx.globalAlpha = 0.5;
-    for (let row = 0; row < 3; row++) {
-      for (let x = -s1; x < W; x += 26) {
-        ctx.fillStyle = (x + row) % 3 === 0 ? PALETTE.cloud : (row % 2 ? PALETTE.amber : "#b89a86");
-        ctx.fillRect(x, tribY + 12 + row * 24 - (x / W) * 20, 7, 7);
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    const bandY = GROUND_Y - 46;
-    ctx.fillStyle = PALETTE.night; ctx.fillRect(0, bandY, W, 30);
-    const s2 = (G.bgScroll * 0.5) % 240;
-    const bannerTxt = MODES[G.mode].endless ? "DUCK DASH" : "WM 2026";
-    ctx.font = "700 18px Courier New, monospace"; ctx.textAlign = "left";
-    for (let x = -s2; x < W + 240; x += 240) { ctx.fillStyle = lv.flag[1]; ctx.fillText(bannerTxt, x + 20, bandY + 21); }
-
-    drawBands(0, GROUND_Y, W, H - GROUND_Y, lv.grass[0], lv.grass[1], 5);
-
-    ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 3;
-    const s3 = (G.bgScroll * 1.0) % 160;
-    for (let x = -s3; x < W; x += 160) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y + 6); ctx.lineTo(x, H); ctx.stroke(); }
-    ctx.fillStyle = lv.accent; ctx.fillRect(0, GROUND_Y, W, 4);
-  },
-
-  // Pixel-Parallax-Skyline je Land (erkennbar verschiedene Stadien/Wahrzeichen)
-  skyline(lv) {
-    const baseY = GROUND_Y - 150;
-    const off = (G.bgScroll * 0.08) % 320;
-    const col = shade(lv.accent, 0.7);
-    ctx.fillStyle = col;
-    const k = lv.key;
-    // wiederholt ueber die Breite, parallax-versetzt
-    for (let bx = -off; bx < W + 320; bx += 320) {
-      if (k === "br") {
-        // Rio: zwei Bergkegel + kleine Christus-Statue
-        ctx.beginPath(); ctx.moveTo(bx + 30, baseY); ctx.lineTo(bx + 90, baseY - 70); ctx.lineTo(bx + 150, baseY); ctx.closePath(); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(bx + 170, baseY); ctx.lineTo(bx + 220, baseY - 95); ctx.lineTo(bx + 270, baseY); ctx.closePath(); ctx.fill();
-        ctx.fillRect(bx + 216, baseY - 112, 6, 18); ctx.fillRect(bx + 206, baseY - 104, 26, 5);
-      } else if (k === "de") {
-        // Deutschland: Brandenburger-Tor-artige Saeulenreihe
-        ctx.fillRect(bx + 40, baseY - 64, 140, 64);
-        for (let i = 0; i < 6; i++) ctx.fillRect(bx + 50 + i * 24, baseY - 56, 10, 56);
-        ctx.fillRect(bx + 40, baseY - 78, 140, 14);
-      } else if (k === "jp") {
-        // Japan: Fuji + Pagode
-        ctx.beginPath(); ctx.moveTo(bx + 20, baseY); ctx.lineTo(bx + 100, baseY - 90); ctx.lineTo(bx + 180, baseY); ctx.closePath(); ctx.fill();
-        for (let i = 0; i < 3; i++) { const w = 60 - i * 14; ctx.fillRect(bx + 220 - w / 2 + 30, baseY - 30 - i * 26, w, 12); }
-        ctx.fillRect(bx + 246, baseY - 30, 8, 30);
-      } else if (k === "us") {
-        // USA: Wolkenkratzer-Reihe
-        const hs = [50, 90, 60, 110, 75, 95, 55];
-        for (let i = 0; i < hs.length; i++) ctx.fillRect(bx + 20 + i * 42, baseY - hs[i], 34, hs[i]);
-      } else if (k === "ar") {
-        // Argentinien: Obelisk + flache Skyline
-        ctx.fillRect(bx + 20, baseY - 40, 240, 40);
-        ctx.beginPath(); ctx.moveTo(bx + 150, baseY - 40); ctx.lineTo(bx + 140, baseY - 130); ctx.lineTo(bx + 160, baseY - 130); ctx.closePath(); ctx.fill();
-      } else if (k === "fin") {
-        // Finale: grosses Stadion-Rund mit Flutlicht
-        ctx.beginPath(); ctx.ellipse(bx + 150, baseY + 10, 130, 60, 0, Math.PI, 0); ctx.fill();
-        ctx.fillRect(bx + 40, baseY - 80, 8, 50); ctx.fillRect(bx + 28, baseY - 88, 32, 12);
-        ctx.fillRect(bx + 252, baseY - 80, 8, 50); ctx.fillRect(bx + 240, baseY - 88, 32, 12);
-      } else if (k === "hills") {
-        // Endlos/Tag: sanfte Huegel
-        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(bx + 60 + i * 110, baseY + 20, 90, 55, 0, Math.PI, 0); ctx.fill(); }
-      } else if (k === "city") {
-        // Endlos/Daemmerung: generische Skyline
-        const hs = [60, 100, 70, 120, 80, 95, 65, 110];
-        for (let i = 0; i < hs.length; i++) ctx.fillRect(bx + 10 + i * 40, baseY - hs[i], 32, hs[i]);
-      } else {
-        // Endlos/Nacht: Skyline mit beleuchteten Fenstern
-        const hs = [70, 110, 80, 130, 90, 100];
-        for (let i = 0; i < hs.length; i++) {
-          const bxx = bx + 14 + i * 52, hh = hs[i];
-          ctx.fillRect(bxx, baseY - hh, 40, hh);
-          ctx.save(); ctx.fillStyle = PALETTE.gold;
-          for (let wy = baseY - hh + 8; wy < baseY - 6; wy += 14)
-            for (let wx = bxx + 6; wx < bxx + 34; wx += 12)
-              if ((wx + wy) % 3 === 0) ctx.fillRect(wx, wy, 5, 6);
-          ctx.restore();
-        }
-      }
-    }
-  },
-
-  duck() {
-    const sliding = duck.sliding && duck.onGround;
-    let bx = duck.x, by = duck.y, bw = duck.w, bh = duck.h;
-    if (sliding) { bh = duck.h * 0.6; by = GROUND_Y - bh; bw = duck.w + 8; }
-    const skin = Store.currentSkin();
-    const bodyCol = skin.body, darkCol = shade(bodyCol, 0.85), wingCol = shade(bodyCol, 0.92);
-
-    ctx.save(); ctx.translate(bx, by);
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.beginPath(); ctx.ellipse(bw * 0.5, GROUND_Y - by + 6, bw * 0.42, 7, 0, 0, Math.PI * 2); ctx.fill();
-    if (G.shieldUp) {
-      ctx.strokeStyle = "rgba(111,163,199,0.8)"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.ellipse(bw * 0.5, bh * 0.5, bw * 0.7, bh * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
-    }
-    // Koerper/Kopf/Fluegel/Schnabel/Auge als Pixel-Sprite (Skin tint via Palette)
-    const duckPal = {
-      B: bodyCol, D: shade(bodyCol, 0.62), G: wingCol, K: PALETTE.orange,
-      E: "#1d2330", H: skin.golden ? "rgba(255,255,255,0.6)" : shade(bodyCol, 1.12),
+const PIXEL_ART = (() => {
+  const P = 3; // ein Sprite-Pixel entspricht genau einem Buffer-Pixel
+  const BRAND_EMBLEM = ["1m1", "mmm", "1m1"];
+  const COLORS = Object.freeze({
+    "1": PALETTE.ink, "2": PALETTE.night, "3": PALETTE.slate, "4": PALETTE.steel,
+    "5": PALETTE.sky, "6": PALETTE.cloud, "7": PALETTE.snow, "8": PALETTE.grass,
+    "9": PALETTE.grassD, "a": PALETTE.gold, "b": PALETTE.amber, "c": PALETTE.orange,
+    "d": PALETTE.red, "e": PALETTE.rose, "f": PALETTE.azure, "g": PALETTE.green,
+    h: PALETTE.slate, w: PALETTE.gold, j: PALETTE.gold, q: PALETTE.amber, m: BRAND.primary,
+  });
+  const color = (token) => COLORS[token] || token || PALETTE.ink;
+  const repeatRows = (rows, times) => rows.flatMap((row) => Array(times).fill(row));
+  function makeSprite(...frames) {
+    const w = Math.max(...frames.flat().map((row) => row.length));
+    const h = Math.max(...frames.map((rows) => rows.length));
+    return {
+      w, h,
+      frames: frames.map((rows) => rows.map((row) => row.padEnd(w, "0"))
+        .concat(Array(Math.max(0, h - rows.length)).fill("0".repeat(w)))),
     };
-    drawSprite(SPRITES.duck, 0, 4, bw, bh - 2, duckPal);
-    const headX = bw * 0.72, headY = bh * 0.30, headR = bw * 0.26;
-    if (skin.glasses) {
-      ctx.fillStyle = "#1d2330";
-      ctx.fillRect(headX - headR * 0.1, headY - headR * 0.3, headR * 0.7, headR * 0.32);
-      ctx.fillRect(headX + headR * 0.65, headY - headR * 0.22, headR * 0.5, headR * 0.22);
-    }
-    if (skin.hat) {
-      ctx.fillStyle = "#34506e";
-      ctx.fillRect(headX - headR * 0.6, headY - headR * 0.95, headR * 1.5, headR * 0.4);
-      ctx.fillRect(headX - headR * 0.3, headY - headR * 1.4, headR * 0.9, headR * 0.55);
-    }
-    if (skin.crown) {
-      ctx.fillStyle = PALETTE.gold;
-      const cx = headX, cy = headY - headR * 1.0, cw = headR * 1.2;
-      ctx.beginPath();
-      ctx.moveTo(cx - cw / 2, cy + 8); ctx.lineTo(cx - cw / 2, cy); ctx.lineTo(cx - cw / 4, cy + 5);
-      ctx.lineTo(cx, cy - 3); ctx.lineTo(cx + cw / 4, cy + 5); ctx.lineTo(cx + cw / 2, cy); ctx.lineTo(cx + cw / 2, cy + 8);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-  },
+  }
 
-  obstacle(o) {
-    if (o.type === "high") drawSprite(SPRITES.high, o.x, o.y, o.w, o.h, SPR_PAL.high);
-    else if (o.type === "low") drawSprite(SPRITES.low, o.x, o.y, o.w, o.h, SPR_PAL.low);
-    else drawSprite(SPRITES.cone, o.x, o.y, o.w, o.h, SPR_PAL.cone);
-  },
+  /* 0 ist transparent; 1–g referenzieren ausschließlich die feste PALETTE.
+     j/q werden für Trikot-Skins getauscht, m zeichnet das kleine Marken-D. */
+  const SPRITES = Object.freeze({
+    duck: makeSprite(
+      [
+        "0000000000000000000000", "0000000000000011110000", "00000000000001aaaa1000",
+        "00000000000001a1aa1c10", "00000000000011aaaa1000", "0000000001111111110000",
+        "0000000111jjjjjj110000", "0000001jjjjmjjjj100000", "0000011jjjjjjjjj100000",
+        "0000111jjjjqjjjj110000", "0011bbjjjjjjjjjj100000", "011bb1jjj1jj1jjj100000",
+        "0011jjjj1jj1jjjj100000", "00001111j1jj1jj1100000", "0000001a1a001a10000000",
+        "0000011a00011a11000000", "0000000000000000000000",
+      ],
+      [
+        "0000000000000000000000", "0000000000000011110000", "00000000000001aaaa1000",
+        "00000000000001a1aa1c10", "00000000000011aaaa1000", "0000000001111111110000",
+        "0000000111jjjjjj110000", "0000001jjjjmjjjj100000", "0000011jjjjjjjjj100000",
+        "0000111jjjjqjjjj110000", "0011bbjjjjjjjjjj100000", "011bb1jjjj1jj1jj100000",
+        "0011jjjjj1jj1jjj100000", "00001111jj1jj111000000", "0000001a001a1a10000000",
+        "0000001100111a11000000", "0000000000000000000000",
+      ],
+      [
+        "0000000000000000000000", "0000000000000011110000", "00000000000001aaaa1000",
+        "00000000000001a1aa1c10", "00000000000011aaaa1000", "0000000001111111110000",
+        "0000000111jjjjjj110000", "0000001jjjjmjjjj100000", "0000011jjjjjjjjj100000",
+        "0000111jjjjqjjjj110000", "0011bbjjjjjjjjjj100000", "011bb1jjj1jjj1jj100000",
+        "0011jjjj1jjjj1jj100000", "00001111j1jjj111000000", "0000001a1a1a1000000000",
+        "0000011a011a1100000000", "0000000000000000000000",
+      ],
+    ),
+    duckJump: makeSprite([
+      "0000000000000011110000", "00000000000001aaaa1000", "00000000000001a1aa1c10",
+      "00000000000011aaaa1000", "0000000001111111110000", "0000000111jjjjjj110000",
+      "0000001jjjjmjjjj100000", "0000011jjjjjjjjj100000", "0000111jjjjqjjjj110000",
+      "0011bbjjjjjjjjjj100000", "011bb1jjjjjjjjjj100000", "0011jjjjjj111111000000",
+      "0000111111aa1a100000000", "0000000000111a110000000", "0000000000000000000000",
+    ]),
+    duckDouble: makeSprite([
+      "0000000000000011110000", "00000000000001aaaa1000", "00000000000001a1aa1c10",
+      "00000000000011aaaa1000", "0000000001111111110000", "0000000111jjjjjj110000",
+      "0000001jjjjmjjjj100000", "0000011jjjjjjjjj100000", "0000111jjjjqjjjj110000",
+      "0011bbjjjjjjjjjj100000", "011bb1jjjjjjjjjj100000", "0011jjjjjj111111000000",
+      "000011111aa1a1100000000", "00000000111a11000000000", "0000000000000000000000",
+    ]),
+    duckSlide: makeSprite([
+      "000000000000000000000000", "000000000000000111100000", "000000000000011aaaa10000",
+      "00000000000001a1aa1c1000", "0000000000011aaaa100000", "000000011111111111000000",
+      "0000011jjjjjjjjjj110000", "000011jjjjmjjjjjjj10000", "00011jjjjjjjjjjjjj10000",
+      "0011bbjjjjqjjjjjjj110000", "011bb1jjjjjjjjjjj110000", "001111111111111111000000",
+      "0000001a1a001a1000000000", "0000011a00011a110000000", "000000000000000000000000",
+    ]),
+    cone: makeSprite(repeatRows([
+      "000000010000000", "0000001c1000000", "0000011cc100000", "000001ccc100000",
+      "000011c1cc10000", "00001cc1ccc1000", "0001ccccccc1000", "0001cc777cc1000",
+      "001ccccccccc100", "001ccccccccc100", "011111111111110",
+    ], 2)),
+    barrierHigh: makeSprite(repeatRows([
+      "111111111111111111111111", "1dddddddddddddddddddddd1", "1d77777777777777777777d1",
+      "1dddddddddddddddddddddd1", "1d11111111111111111111d1", "1d44444444444444444444d1",
+      "1d11111111111111111111d1", "1dddddddddddddddddddddd1", "1d77777777777777777777d1",
+      "1dddddddddddddddddddddd1", "111111111111111111111111",
+    ], 2)),
+    barrierLow: makeSprite(repeatRows([
+      "111111111111111111111111", "144444444444444444444441", "1d77777777777777777777d1",
+      "144444444444444444444441", "111111111111111111111111", "000000001dddddddd100000",
+      "000000001d444444d100000", "000000001d444444d100000", "000000001d444444d100000",
+      "000000001d444444d100000", "000000001111111111000000",
+    ], 3)),
+    ball: makeSprite([
+      "000011110000", "000177771000", "00177d777100", "0177ddd77100", "17d7d7d7d710",
+      "17ddddd7d710", "17d7d7d7d710", "0177ddd77100", "00177d777100", "000177771000", "000011110000",
+    ]),
+    trophy: makeSprite([
+      "00001111100000", "0001aaaaa10000", "001aa777aa1000", "01aa77777aa100", "01aa77777aa100",
+      "001aa777aa1000", "0001aaaaa10000", "000001aa100000", "000001aa100000", "000011aa110000",
+      "0001bbbbbb1000", "00011111111000",
+    ]),
+    coin: makeSprite([
+      "000011110000", "0001aaaa1000", "001abbba1000", "01ab777ba100", "01ab777ba100",
+      "001abbba1000", "0001aaaa1000", "000011110000",
+    ]),
+    heart: makeSprite(["0011001100", "011ee11ee0", "01eeeeeee0", "001eeee100", "0001ee1000", "0000110000"]),
+    heartEmpty: makeSprite(["0011001100", "0112211220", "0122222220", "0012221000", "0001210000", "0000110000"]),
+    shield: makeSprite([
+      "000001111111000000", "00011fffff11000000", "001f5fffff5f100000", "01f5f00000f5f1000",
+      "1f5f000000f5f1000", "01f5f00000f5f1000", "001f5fffff5f100000", "00011fffff11000000", "000001111111000000",
+    ]),
+    cap: makeSprite(["000000111111000000", "000011fffff1100000", "0001f11111f1000000", "001ffffffffff100000"]),
+    glasses: makeSprite(["000000000000000000", "000011110111100000", "00001fff1fff100000", "000011110111100000"]),
+    crown: makeSprite(["0001a001a001a00000", "001aa1aa1aa1aa000", "001aaaaaaaa1aa000", "0001bbbbbbba100000", "000011111111000000"]),
+    emblem: makeSprite(BRAND_EMBLEM),
+    cloud: makeSprite(["000000666600000000", "000066777766000000", "000677777776000000", "006777777777600000", "067777777777760000", "677777777777776000", "666666666666666000"]),
+    grassTuft: makeSprite(["000000000000", "000000800000", "000080880000", "000808880000", "008808888000"]),
+    flag: makeSprite(["0000001", "0000001", "0111111", "01d7f1", "01d7f1", "0111111", "0000001", "0000001", "0000001"]),
+  });
 
-  collectible(c) {
-    const yy = c.y + Math.sin(c.bob) * 4;
-    const s = c.size, x = c.x - s / 2;
-    if (c.type === "trophy") drawSprite(SPRITES.trophy, x, yy - s * 0.6, s, s * 1.2, SPR_PAL.trophy);
-    else drawSprite(SPRITES.ball, x, yy - s / 2, s, s, SPR_PAL.ball);
-  },
+  /* Austauschbare Parallax-Tile-Daten: zeitlose Normalwelt + WM-Stadionmotive. */
 
-  particles() {
+  // Die Silhouetten der Tiles werden mit diesen kompakten Pixelprofilen überlagert.
+  const PIXEL_TILES = Object.freeze({
+    hills:   ["0000000000000000hhhh000000000000000000000000", "00000000000000hhhhhhhh000000000000000000000000", "000000000000hhhhhhhhhhhh0000000000000000000000", "0000000000hhhhhhhhhhhhhhhh00000000000000hhh000", "00000000hhhhhhhhhhhhhhhhhhhh0000000000hhhhhhh0", "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"],
+    city:    ["0000hh000000hhh00000000hhhh000000hhh0000000hhh0", "0000hh000000hhh00000000hhhh000000hhh0000000hhh0", "0000hh000000hhh00000000hhhh000000hhh0000000hhh0", "0000hh0w000hhh0000w0000hhhh0w000hhh000w0000hhh0", "0000hh000000hhh00000000hhhh000000hhh0000000hhh0", "0000hh000000hhh00000000hhhh000000hhh0000000hhh0", "hhhhhh00000hhhhh000000hhhhhhh000hhhh000000hhh0", "hhhhhh0w000hhhhh000w00hhhhhhh0w00hhhh000w00hhh0", "hhhhhh00000hhhhh000000hhhhhhh000hhhh000000hhh0", "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"],
+    pagoda:  ["000000000000000000000000h000000000000000000000000", "00000000000000000000000hhh00000000000000000000000", "0000000000000000000000hhhhh0000000000000000000000", "000000000000000000000hhhhhhh000000000000000000000", "00000000000000000000hhhhhhhhh00000000000000000000", "0000000000000000000hhhwhwhhhh0000000000000000000", "000000000000000000hhhhhhhhhhh000000000000000000", "00000000000000000hhhhhhhhhhhhh00000000000000000", "00000000000000000000000hhh00000000000000000000000", "00000000000000000000000hhh00000000000000000000000", "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"],
+    stadium: ["000000000000000000000000000000000000000000000000", "000000000000000000000000000000000000000000000000", "000000000h0000000000000000000000000000000h000000", "000000000h000000000hhhhhhhhhhhhhhhh000000h000000", "00000000hhh00000hhhhhhhhhhhhhhhhhhhh0000hhh00000", "0000000hhwh000hhhhhhhhhhhhhhhhhhhhhhhh00hwh0000", "000000hhhhhh0hhhhhhhhhhhhhhhhhhhhhhhhhh0hhhh000", "0000hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh0000", "00hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh00", "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"],
+  });
+
+  const ART_THEMES = Object.freeze({
+    day:   { sky:["5", "6", "7"], tile:"hills",   silhouette:"9", window:"7", stand:"4", accent:"f" },
+    dusk:  { sky:["d", "3", "2"], tile:"city",    silhouette:"2", window:"a", stand:"3", accent:"a" },
+    night: { sky:["2", "3", "4"], tile:"city",    silhouette:"1", window:"a", stand:"2", accent:"f", stars:true },
+    br:    { sky:["5", "6", "7"], tile:"hills",   silhouette:"8", window:"a", stand:"g", accent:"a" },
+    de:    { sky:["4", "3", "6"], tile:"city",    silhouette:"2", window:"d", stand:"4", accent:"d" },
+    jp:    { sky:["3", "e", "6"], tile:"pagoda",  silhouette:"2", window:"e", stand:"d", accent:"e" },
+    us:    { sky:["4", "f", "6"], tile:"city",    silhouette:"3", window:"7", stand:"f", accent:"d" },
+    ar:    { sky:["5", "6", "7"], tile:"city",    silhouette:"4", window:"a", stand:"f", accent:"a" },
+    fin:   { sky:["2", "3", "4"], tile:"stadium", silhouette:"1", window:"a", stand:"a", accent:"a", stars:true },
+  });
+  const activeTheme = () => ART_THEMES[(currentTheme() || {}).key] || ART_THEMES.day;
+
+  function drawSprite(name, x, y, opts = {}) {
+    const data = SPRITES[name];
+    if (!data) return;
+    const target = opts.ctx || ctx, px = opts.pixel || P;
+    const frameIndex = ((Math.floor(opts.frame || 0) % data.frames.length) + data.frames.length) % data.frames.length;
+    const frame = data.frames[frameIndex], recolor = opts.recolor || {};
+    target.save();
+    target.imageSmoothingEnabled = false;
+    target.globalAlpha = opts.alpha == null ? 1 : opts.alpha;
+    target.translate(Math.round(x), Math.round(y));
+    if (opts.flipX || opts.flip) { target.translate(data.w * px, 0); target.scale(-1, 1); }
+    for (let yIndex = 0; yIndex < frame.length; yIndex++) {
+      for (let xIndex = 0; xIndex < frame[yIndex].length; xIndex++) {
+        const token = frame[yIndex][xIndex];
+        if (token === "0") continue;
+        target.fillStyle = color(recolor[token] || token);
+        target.fillRect(xIndex * px, yIndex * px, px, px);
+      }
+    }
+    target.restore();
+  }
+
+  /* Kleine Unicode-fähige Bitmap-Schrift: DE/ES/FR-Akzente sind echte Glyphen. */
+  const FONT = Object.freeze({
+    " ":["000","000","000","000","000"], "?":["111","001","010","000","010"], ".":["000","000","000","000","010"], "-":["000","000","111","000","000"], "×":["101","010","010","010","101"],
+    "0":["111","101","101","101","111"], "1":["010","110","010","010","111"], "2":["111","001","111","100","111"], "3":["111","001","111","001","111"], "4":["101","101","111","001","001"],
+    "5":["111","100","111","001","111"], "6":["111","100","111","101","111"], "7":["111","001","010","010","010"], "8":["111","101","111","101","111"], "9":["111","101","111","001","111"],
+    "A":["010","101","111","101","101"], "B":["110","101","110","101","110"], "C":["111","100","100","100","111"], "D":["110","101","101","101","110"], "E":["111","100","110","100","111"],
+    "F":["111","100","110","100","100"], "G":["111","100","101","101","111"], "H":["101","101","111","101","101"], "I":["111","010","010","010","111"], "J":["011","001","001","101","010"],
+    "K":["101","101","110","101","101"], "L":["100","100","100","100","111"], "M":["101","111","111","101","101"], "N":["101","111","111","111","101"], "O":["111","101","101","101","111"],
+    "P":["111","101","111","100","100"], "Q":["111","101","101","111","001"], "R":["111","101","111","110","101"], "S":["111","100","111","001","111"], "T":["111","010","010","010","010"],
+    "U":["101","101","101","101","111"], "V":["101","101","101","101","010"], "W":["101","101","111","111","101"], "X":["101","101","010","101","101"], "Y":["101","101","010","010","010"], "Z":["111","001","010","100","111"],
+    "Ä":["101","000","010","111","101"], "Ö":["101","000","111","101","111"], "Ü":["101","000","101","101","111"], "ẞ":["110","101","110","101","110"],
+    "É":["001","010","111","100","111"], "È":["100","010","111","100","111"], "Ê":["010","101","111","100","111"], "Ë":["101","000","111","100","111"],
+    "À":["100","010","010","111","101"], "Ç":["111","100","100","010","011"], "Ñ":["010","101","111","111","101"],
+    "Á":["001","010","010","111","101"], "Í":["001","010","111","010","111"], "Ó":["001","010","111","101","111"], "Ú":["001","010","101","101","111"],
+    "Î":["010","101","111","010","111"], "Ï":["101","000","111","010","111"], "Ô":["010","101","111","101","111"], "Ù":["100","010","101","101","111"], "Û":["010","101","101","101","111"],
+    "Ÿ":["101","000","101","010","010"], "Æ":["011","101","111","101","101"], "Œ":["111","101","100","101","111"], "¡":["010","000","010","010","010"], "¿":["010","000","010","001","010"],
+  });
+  function textWidth(text, px) {
+    return Array.from(String(text).toUpperCase()).reduce((sum, char) => sum + ((FONT[char] || FONT["?"])[0].length + 1) * px, 0) - px;
+  }
+  function drawText(target, text, x, y, opts = {}) {
+    const px = opts.pixel || 3, ink = opts.color || PALETTE.snow;
+    let cursor = Math.round(x);
+    target.save(); target.fillStyle = ink; target.imageSmoothingEnabled = false;
+    for (const rawChar of Array.from(String(text).toUpperCase())) {
+      const glyph = FONT[rawChar] || FONT["?"];
+      for (let gy = 0; gy < glyph.length; gy++) for (let gx = 0; gx < glyph[gy].length; gx++) {
+        if (glyph[gy][gx] === "1") target.fillRect(cursor + gx * px, Math.round(y) + gy * px, px, px);
+      }
+      cursor += (glyph[0].length + 1) * px;
+    }
+    target.restore();
+    return cursor;
+  }
+  function lowRect(x, y, w, h, fill) {
+    ctx.fillStyle = color(fill);
+    ctx.fillRect(Math.round(x * P), Math.round(y * P), Math.round(w * P), Math.round(h * P));
+  }
+  function drawProfile(profile, x, y, recolor) {
+    for (let row = 0; row < profile.length; row++) {
+      for (let col = 0; col < profile[row].length; col++) {
+        const token = profile[row][col];
+        if (token !== "0") lowRect(x + col, y + row, 1, 1, recolor[token] || token);
+      }
+    }
+  }
+  function background() {
+    const th = activeTheme(), floor = Math.floor(GROUND_Y / P);
+    lowRect(0, 0, RES_W, 26, th.sky[0]);
+    lowRect(0, 26, RES_W, 34, th.sky[1]);
+    lowRect(0, 60, RES_W, floor - 60, th.sky[2]);
+
+    if (th.stars) {
+      for (let i = 0; i < 20; i++) lowRect((i * 37 + 11) % RES_W, 6 + (i * 13) % 47, 1 + i % 2, 1, "7");
+    } else {
+      const clouds = Math.floor(G.bgScroll * 0.035 / P) % 92;
+      for (let x = -clouds; x < RES_W + 32; x += 92) drawSprite("cloud", x * P, (7 + ((x / 23) & 3) * 5) * P, { recolor:{"6":th.sky[1], "7":th.sky[2]} });
+    }
+
+    const profile = PIXEL_TILES[th.tile], parallax = Math.floor(G.bgScroll * 0.09 / P) % 48;
+    for (let x = -parallax - 48; x < RES_W + 48; x += 48) drawProfile(profile, x, floor - profile.length - 42, {h:th.silhouette, w:th.window});
+
+    // Zweite Parallax-Schicht: freundliche Stadiontribüne + Banner als Bitmap-Text.
+    const standY = floor - 31, crowd = Math.floor(G.bgScroll * 0.18 / P) % 13;
+    lowRect(0, standY, RES_W, 20, th.stand);
+    lowRect(0, standY + 2, RES_W, 2, "2");
+    for (let row = 0; row < 3; row++) for (let x = -crowd; x < RES_W; x += 6) {
+      lowRect(x, standY + 6 + row * 4 - (((x / 24) | 0) & 1), 2, 2, ["7", "a", "d", "f", "g"][Math.abs((x / 6 | 0) + row) % 5]);
+    }
+    const bannerY = floor - 11, banner = MODES[G.mode].endless ? "DUCK" : "CUP";
+    lowRect(0, bannerY, RES_W, 8, "2");
+    const bannerOffset = Math.floor(G.bgScroll * 0.42 / P) % 64;
+    for (let x = -bannerOffset; x < RES_W + 64; x += 64) drawText(ctx, banner, x * P + 6, (bannerY + 1) * P, {pixel:P, color:color(th.accent)});
+
+    // Rasen aus klaren, flachen Pixelbändern — keine Farbverläufe.
+    lowRect(0, floor, RES_W, RES_H - floor, "8");
+    lowRect(0, floor + 4, RES_W, 5, "9");
+    lowRect(0, floor + 15, RES_W, 3, "9");
+    const stripes = Math.floor(G.bgScroll / P) % 32;
+    for (let x = -stripes; x < RES_W + 32; x += 32) lowRect(x, floor, 2, RES_H - floor, "6");
+    for (let x = -Math.floor(G.bgScroll * 0.72 / P) % 24; x < RES_W + 24; x += 24) drawSprite("grassTuft", x * P, (floor + 20) * P, {recolor:{"8":"7"}});
+    lowRect(0, floor, RES_W, 1, "7");
+    for (let x = 40; x < RES_W; x += 92) drawSprite("flag", x * P, (floor - 24) * P, {recolor:{"d":th.accent, "f":th.window}});
+  }
+  function skinPixels(skin) {
+    const swap = {
+      classic:{j:"a", q:"b", m:"8"}, red:{j:"d", q:"2", m:"a"}, blue:{j:"f", q:"4", m:"7"},
+      green:{j:"g", q:"9", m:"a"}, hat:{j:"a", q:"b", m:"8"}, glasses:{j:"a", q:"b", m:"8"},
+      golden:{j:"a", q:"b", m:"7"}, goldenquack:{j:"a", q:"b", m:"7"},
+    };
+    return swap[skin.id] || swap.classic;
+  }
+  function duckSprite() {
+    const skin = Store.currentSkin(), sliding = duck.sliding && duck.onGround;
+    const name = sliding ? "duckSlide" : (!duck.onGround ? (duck.jumps > 1 ? "duckDouble" : "duckJump") : "duck");
+    const frame = name === "duck" ? Math.floor(G.runTime * 12) % 3 : 0;
+    const x = duck.x - 4, y = sliding ? GROUND_Y - duck.h * 0.62 - 4 : duck.y - 2;
+    ctx.fillStyle = PALETTE.night;
+    ctx.fillRect(Math.floor((duck.x + 8) / P) * P, Math.floor((GROUND_Y + 4) / P) * P, 45, 6);
+    if (G.shieldUp) drawSprite("shield", x - 5, y + 4, {alpha:0.74});
+    drawSprite(name, x, y, {frame, recolor:skinPixels(skin)});
+    drawSprite("emblem", x + 21, y + 25, {pixel:2, recolor:{"m":skinPixels(skin).m}});
+    if (skin.hat) drawSprite("cap", x + 31, y - 4);
+    if (skin.glasses) drawSprite("glasses", x + 34, y + 10);
+    if (skin.crown) drawSprite("crown", x + 30, y - 12);
+  }
+  function obstacle(o) {
+    if (o.type === "cone") drawSprite("cone", o.x + Math.round((o.w - 45) / 2), GROUND_Y - SPRITES.cone.h * P);
+    else if (o.type === "high") drawSprite("barrierHigh", o.x + Math.round((o.w - SPRITES.barrierHigh.w * P) / 2), o.y + Math.max(0, o.h - SPRITES.barrierHigh.h * P));
+    else drawSprite("barrierLow", o.x + Math.round((o.w - SPRITES.barrierLow.w * P) / 2), o.y);
+  }
+  function collectible(c) {
+    const y = c.y + Math.round(Math.sin(c.bob) * 5);
+    if (c.type === "trophy") drawSprite("trophy", c.x - 14, y - 14, {pixel:2});
+    else if (c.type === "coin") drawSprite("coin", c.x - 12, y - 12, {pixel:2});
+    else drawSprite("ball", c.x - 12, y - 12, {pixel:2});
+  }
+  function particles() {
     for (const p of G.particles) {
-      const a = Math.max(0, 1 - p.t / p.life);
-      ctx.globalAlpha = a; ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+      lowRect(Math.floor(p.x / P), Math.floor(p.y / P), Math.max(1, Math.ceil(p.r / P)), Math.max(1, Math.ceil(p.r / P)), p.color);
     }
     ctx.globalAlpha = 1;
-  },
-
-  // Pixel-Herz scharf auf den Display-Canvas (g = screenCtx)
-  heart(g, x, y, s, filled) {
-    g.save(); g.translate(x, y);
-    g.beginPath();
-    g.moveTo(0, s * 0.3);
-    g.bezierCurveTo(0, 0, -s * 0.5, 0, -s * 0.5, s * 0.35);
-    g.bezierCurveTo(-s * 0.5, s * 0.65, 0, s * 0.85, 0, s);
-    g.bezierCurveTo(0, s * 0.85, s * 0.5, s * 0.65, s * 0.5, s * 0.35);
-    g.bezierCurveTo(s * 0.5, 0, 0, 0, 0, s * 0.3);
-    g.closePath();
-    g.fillStyle = filled ? PALETTE.rose : "rgba(255,255,255,0.18)"; g.fill();
-    g.restore();
-  },
-
-  // HUD scharf auf den Display-Canvas (NICHT in den Low-Res-Buffer)
-  hud() {
-    const g = screenCtx;
-    g.fillStyle = PALETTE.snow; g.font = "700 26px Courier New, monospace"; g.textAlign = "right";
-    g.fillText(String(Math.floor(G.score)).padStart(5, "0"), W - 20, 38);
-    g.font = "600 14px Courier New, monospace"; g.fillStyle = "#aeb8c6";
-    g.fillText(t("best") + " " + G.best, W - 20, 58);
-    g.fillText("⚽ " + G.balls + "   " + Math.floor(G.distance / 10) + " " + t("meters"), W - 20, 78);
-    const maxHearts = Math.max(CONFIG.MAX_LIVES, G.lives);
-    for (let i = 0; i < maxHearts; i++) this.heart(g, 28 + i * 30, 22, 18, i < G.lives);
-    if (G.comboMult > 1) {
-      g.fillStyle = PALETTE.gold; g.font = "700 24px Courier New, monospace"; g.textAlign = "center";
-      g.fillText("x" + G.comboMult + " KOMBO", W / 2, H - 16);
-    }
-    const lv = currentTheme();
-    const bw = 200, bx = (W - bw) / 2, by = 24;
-    g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(bx, by, bw, 8);
-    g.fillStyle = lv.flag ? lv.flag[1] : PALETTE.gold; g.fillRect(bx, by, bw * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL), 8);
-    g.fillStyle = PALETTE.snow; g.font = "600 14px Courier New, monospace"; g.textAlign = "center";
-    const label = MODES[G.mode].endless ? (t("wave") + " " + (G.wave + 1)) : tCountry(lv.key);
-    g.fillText(label, W / 2, by - 6);
-    if (MODES[G.mode].endless && G.waveBanner > 0) {
-      g.fillStyle = PALETTE.gold; g.font = "800 40px Courier New, monospace";
-      g.fillText(t("wave").toUpperCase() + " " + (G.wave + 1), W / 2, H / 2 - 20);
-    }
-    g.textAlign = "left";
-  },
-
-  // Welt zeichnen (Hintergrund + Objekte + Ente), mit Kamerawackeln
-  world() {
+  }
+  function world() {
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     let ox = 0, oy = 0;
-    if (SCENES.current === State.PLAY) { ox = Math.sin(G.runTime * 1.7) * 2.2; oy = Math.cos(G.runTime * 2.3) * 1.8; }
-    if (G.shake > 0) { const m = G.shake * 18; ox += Math.sin(G.runTime * 90) * m; oy += Math.cos(G.runTime * 110) * m; }
+    if (SCENES.current === State.PLAY) { ox = Math.round(Math.sin(G.runTime * 1.7) * P); oy = Math.round(Math.cos(G.runTime * 2.3) * P); }
+    if (G.shake > 0) { const jolt = Math.ceil(G.shake * P * 4); ox += Math.sin(G.runTime * 90) > 0 ? jolt : -jolt; oy += Math.cos(G.runTime * 110) > 0 ? jolt : -jolt; }
     ctx.translate(ox, oy);
-    this.background();
-    for (const c of G.collectibles) this.collectible(c);
-    for (const o of G.obstacles) this.obstacle(o);
-    this.particles();
-    if (!(G.invuln > 0 && Math.floor(G.runTime * 12) % 2 === 0)) this.duck();
+    background();
+    for (const c of G.collectibles) collectible(c);
+    for (const o of G.obstacles) obstacle(o);
+    particles();
+    if (!(G.invuln > 0 && Math.floor(G.runTime * 12) % 2 === 0)) duckSprite();
     ctx.restore();
-    // Treffer-Flash (Retro): kurzer heller Blitz ueber dem Bild
-    if (G.flash > 0) {
-      ctx.fillStyle = "rgba(255,255,255," + Math.min(0.6, G.flash * 3) + ")";
-      ctx.fillRect(0, 0, W, H);
-    }
-  },
-};
+    if (G.flash > 0) { ctx.globalAlpha = Math.min(0.55, G.flash * 3); ctx.fillStyle = PALETTE.snow; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
+  function panel(target, x, y, w, h) {
+    target.fillStyle = PALETTE.ink; target.fillRect(x, y, w, h);
+    target.fillStyle = PALETTE.slate; target.fillRect(x + 3, y + 3, w - 6, h - 6);
+    target.fillStyle = PALETTE.cloud; target.fillRect(x + 6, y + 6, w - 12, 3);
+  }
+  function hud() {
+    const g = screenCtx, score = String(Math.floor(G.score)).padStart(6, "0");
+    g.save(); g.imageSmoothingEnabled = false;
+    panel(g, 650, 15, 292, 78);
+    drawText(g, "SCORE", 665, 29, {pixel:3, color:PALETTE.gold});
+    drawText(g, score, 934 - textWidth(score, 4), 52, {pixel:4, color:PALETTE.snow});
+    panel(g, 16, 15, 202, 78);
+    for (let i = 0, n = Math.max(CONFIG.MAX_LIVES, G.lives); i < n; i++) drawSprite(i < G.lives ? "heart" : "heartEmpty", 28 + i * 34, 29, {ctx:g, pixel:3});
+    drawSprite("coin", 28, 63, {ctx:g, pixel:3});
+    drawText(g, String(G.balls).padStart(2, "0"), 70, 66, {pixel:3, color:PALETTE.gold});
+    drawText(g, "BEST " + String(G.best).padStart(6, "0"), 665, 80, {pixel:2, color:PALETTE.cloud});
+
+    const label = MODES[G.mode].endless ? (t("wave") + " " + (G.wave + 1)) : tCountry(currentTheme().key);
+    const width = 210, x = Math.round((W - width) / 2), y = H - 36;
+    panel(g, x - 8, y - 13, width + 16, 31);
+    g.fillStyle = PALETTE.night; g.fillRect(x, y, width, 8);
+    g.fillStyle = color(activeTheme().accent); g.fillRect(x, y, Math.max(2, Math.floor(width * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL))), 8);
+    drawText(g, label, Math.round((W - textWidth(label, 2)) / 2), y - 10, {pixel:2, color:PALETTE.snow});
+    if (G.comboMult > 1) drawText(g, "×" + G.comboMult, 445, 29, {pixel:4, color:PALETTE.gold});
+    g.restore();
+  }
+  return { drawSprite, drawText, world, hud, SPRITES, PIXEL_TILES, BRAND_EMBLEM };
+})();
+
+const drawSprite = PIXEL_ART.drawSprite;
+const RENDER = Object.freeze({ world: PIXEL_ART.world, hud: PIXEL_ART.hud });
 
 /* =========================================================================
    Gameplay-Schritte: Etappe / Game Over / Sieg
@@ -1253,7 +1219,6 @@ const RENDER = {
 function advanceLevel() {
   const mode = MODES[G.mode];
   if (mode.endless) {
-    // Endlos: naechste Welle, neues Theme, weiterspielen (kein Story-Stopp)
     G.wave++;
     G.levelIndex = G.wave % mode.themes.length;
     G.levelDist = 0; G.score += 50;
@@ -1261,12 +1226,10 @@ function advanceLevel() {
     AUDIO.sfx.levelup();
     return;
   }
-  // WM-Tour: Story zwischen Laendern, echtes Finale am Ende
   if (G.levelIndex >= LEVELS.length - 1) { winGame(); return; }
   G.levelIndex++; G.levelDist = 0; G.score += 100; AUDIO.sfx.levelup();
   SCENES.showStory(G.levelIndex);
 }
-
 function winGame() {
   G.newHigh = Math.floor(G.score) > G.best;
   const wh = document.getElementById("winHigh"); wh.textContent = NEWHIGH[lang]; wh.classList.toggle("hidden", !G.newHigh);
@@ -1651,28 +1614,29 @@ if (MUSIC.on) { window.addEventListener("pointerdown", () => MUSIC.start(), { on
 const FX = {
   crt: SAVE.get("dd_crt", "1") === "1",
   toggleCRT() { this.crt = !this.crt; SAVE.set("dd_crt", this.crt ? "1" : "0"); },
-  _vignette: null,
   trans: 0, transDur: 0.35,
   startTransition() { this.trans = this.transDur; },
   tick(dt) { if (this.trans > 0) this.trans -= dt; },
-  vignette() {
-    if (!this._vignette) {
-      const g = screenCtx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
-      g.addColorStop(0, "rgba(0,0,0,0)");
-      g.addColorStop(1, "rgba(0,0,0,0.45)");
-      this._vignette = g;
-    }
-    return this._vignette;
-  },
-  // wird in present() nach dem Hochskalieren auf den sichtbaren Canvas gelegt
+  // Nach dem Hochskalieren: dezentes Leuchten, Scanlines, gestufte Vignette.
+  // Keine Gradients; nur wenige Rechtecke pro Frame, daher mobil günstig.
   apply() {
     if (this.crt) {
-      screenCtx.fillStyle = "rgba(0,0,0,0.14)";
+      screenCtx.save();
+      screenCtx.globalCompositeOperation = "screen";
+      screenCtx.globalAlpha = 0.055;
+      screenCtx.filter = "blur(1px)";
+      screenCtx.drawImage(buffer, 0, 0, RES_W, RES_H, 0, 0, W, H);
+      screenCtx.restore();
+      screenCtx.fillStyle = "rgba(0,0,0,0.13)";
       for (let y = 0; y < H; y += 3) screenCtx.fillRect(0, y, W, 1);
-      screenCtx.fillStyle = "rgba(255,255,255,0.03)";
-      screenCtx.fillRect(0, 0, W, H * 0.5);
-      screenCtx.fillStyle = this.vignette();
-      screenCtx.fillRect(0, 0, W, H);
+      for (let i = 0; i < 6; i++) {
+        const edge = i * 12, alpha = 0.018 + i * 0.012;
+        screenCtx.fillStyle = "rgba(0,0,0," + alpha + ")";
+        screenCtx.fillRect(edge, edge, W - edge * 2, 12);
+        screenCtx.fillRect(edge, H - edge - 12, W - edge * 2, 12);
+        screenCtx.fillRect(edge, edge, 12, H - edge * 2);
+        screenCtx.fillRect(W - edge - 12, edge, 12, H - edge * 2);
+      }
     }
     if (this.trans > 0) {
       screenCtx.fillStyle = "rgba(8,9,14," + Math.max(0, this.trans / this.transDur) + ")";
@@ -1797,9 +1761,9 @@ function frame(now) {
   applyPixelTransform();
   SCENES.draw();
   present();
+  FX.apply();
   // HUD scharf auf den Display-Canvas (volle Aufloesung), nur im Spiel/Pause
   if (SCENES.current === State.PLAY || SCENES.current === State.PAUSE) RENDER.hud();
-  FX.apply();
   requestAnimationFrame(frame);
 }
 duck.reset();
