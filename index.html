@@ -189,6 +189,8 @@
       <button class="langBtn" data-lang="es">🇪🇸 ES</button>
       <button class="langBtn" data-lang="fr">🇫🇷 FR</button>
     </div>
+    <div id="modeRow" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center;"></div>
+    <div id="diffRow" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center;"></div>
     <div id="pressStart" class="blink">▶ PRESS START</div>
     <button id="startBtn" class="btn">Spiel starten</button>
     <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap;justify-content:center;">
@@ -308,25 +310,20 @@ const CONFIG = {
 const W = CONFIG.W, H = CONFIG.H;
 const GROUND_Y = H - CONFIG.GROUND_OFFSET;
 
-/* ---------- PALETTE: feste Retro-Farbpalette (16 benannte Farben) ---------- */
-const PALETTE = {
-  ink:    "#1a1f2b",   // dunkelster Ton / Outline
-  night:  "#222732",   // Bande/Schatten
-  slate:  "#3a4250",   // Mittelton
-  steel:  "#5d6b8a",   // Hindernis blau
-  sky:    "#6f917f",   // Himmel hell
-  cloud:  "#cdd5e0",   // hell / Wolken
-  snow:   "#eef1f5",   // weiss
-  grass:  "#5f8f5a",   // Rasen hell
-  grassD: "#487045",   // Rasen dunkel
-  gold:   "#f4d35e",   // Akzent gold
-  amber:  "#e0b97a",   // gold gedaempft
-  orange: "#e8852b",   // Schnabel/Huetchen
-  red:    "#c75450",   // rot
-  rose:   "#d96a6a",   // Herz
-  azure:  "#6fa3c7",   // blau Akzent
-  green:  "#7cc47f",   // gruen UI
-};
+/* ---------- PALETTE: feste Retro-Farbpalette (genau 16 Farben) ----------
+   Markenrollen: Primär = Spielfeldgrün, Sekundär = Stadionblau,
+   Akzent = Pokalgold. Wenn finale Marken-Hexwerte vorliegen, nur die drei
+   BRAND-Werte und die zugehörigen PALETTE-Einträge austauschen – die Sprites
+   bleiben palette-indiziert. */
+const BRAND = Object.freeze({
+  primary: "#5d8a54", secondary: "#5e87b7", accent: "#f1c75b",
+});
+const PALETTE = Object.freeze({
+  ink:    "#1b1f2a", night:  "#2c3548", slate: "#59657b", steel: "#7188a3",
+  sky:    "#8daeb8", cloud:  "#c8d7d8", snow:  "#f7f0dc", grass: "#5d8a54",
+  grassD: "#3f6648", gold:   "#f1c75b", amber: "#c99a45", orange:"#e8893d",
+  red:    "#bf5c62", rose:   "#df7c81", azure: "#5e87b7", green: "#7bbf79",
+});
 
 /* ---------- SAVE: gekapselter localStorage-Zugriff ---------- */
 const SAVE = {
@@ -373,6 +370,40 @@ const LEVELS = [
     sky: ["#3a3550", "#6b5f7a"], grass: ["#5f8f5a", "#487045"], accent: "#7a6a3a" },
 ];
 
+/* ---------- Modi (daten-getrieben) ----------
+   'normal' = Hauptspiel: zeitloser Endlos-Run mit Wellen, neutrales Setting.
+   'wm'     = Feature/Saison: Laender-Etappen + Story. */
+const NORMAL_THEMES = [
+  { key: "day",   flag: ["#5f8f5a", "#9fc0d4", "#4a6e8a"], sky: ["#5b7fa6", "#9fc0d4"], grass: ["#5f8f5a", "#487045"], accent: "#4a6e8a", sl: "hills" },
+  { key: "dusk",  flag: ["#caa07a", "#7a5a6a", "#6b4f73"], sky: ["#6b4f73", "#caa07a"], grass: ["#6a7e54", "#4f6440"], accent: "#7a5a6a", sl: "city" },
+  { key: "night", flag: ["#46506b", "#2a2f4a", "#3a4570"], sky: ["#2a2f4a", "#46506b"], grass: ["#3f5f48", "#2f4838"], accent: "#3a4570", sl: "night" },
+];
+const MODES = {
+  normal: {
+    id: "normal", emoji: "♾️", endless: true, hasStory: false,
+    label: { de: "Endlos", en: "Endless", es: "Sin fin", fr: "Sans fin" },
+    desc:  { de: "Unendlicher Lauf", en: "Endless run", es: "Carrera sin fin", fr: "Course sans fin" },
+    themes: NORMAL_THEMES,
+  },
+  wm: {
+    id: "wm", emoji: "🏆", endless: false, hasStory: true,
+    label: { de: "WM-Tour", en: "World Cup", es: "Mundial", fr: "Mondial" },
+    desc:  { de: "6 Länder + Story", en: "6 countries + story", es: "6 países + historia", fr: "6 pays + histoire" },
+    themes: LEVELS,
+  },
+};
+function modeThemes() { return MODES[G.mode].themes; }
+function currentTheme() { const a = modeThemes(); return a[G.levelIndex % a.length] || a[0]; }
+
+/* ---------- Schwierigkeit (Easy/Normal) ---------- */
+const DIFFS = {
+  easy:   { id: "easy",   emoji: "🐣", label: { de: "Einfach", en: "Easy", es: "Fácil", fr: "Facile" },
+            speedMax: 480, gapMul: 1.35, slideChance: 0.18, lives: 5, invuln: 2.0 },
+  normal: { id: "normal", emoji: "🦆", label: { de: "Normal", en: "Normal", es: "Normal", fr: "Normal" },
+            speedMax: CONFIG.SPEED_MAX, gapMul: 1.0, slideChance: 0.33, lives: CONFIG.MAX_LIVES, invuln: CONFIG.INVULN_TIME },
+};
+function diff() { return DIFFS[G.difficulty] || DIFFS.normal; }
+
 /* ---------- Mehrsprachigkeit ---------- */
 const I18N = {
   de: {
@@ -380,7 +411,7 @@ const I18N = {
     subtitle: "Die Kicker-Ente auf WM-Tour",
     start: "Spiel starten", retry: "Nochmal", go: "Los!",
     hintCtrl: "Springen: Leertaste / ↑ / W / Tipp · Ducken: ↓ / S / Wisch runter",
-    gameover: "Game Over", scoreLabel: "Punkte", best: "Best", meters: "m",
+    gameover: "Game Over", scoreLabel: "Punkte", best: "Best", meters: "m", wave: "Welle", modeLabel: "Modus", diffLabel: "Schwierigkeit",
     win: "🏆 Weltmeister!", winSub: "Duck Dash gewonnen",
     countries: { br: "Brasilien", de: "Deutschland", jp: "Japan", us: "USA", ar: "Argentinien", fin: "WM-Finale" },
     stories: {
@@ -397,7 +428,7 @@ const I18N = {
     subtitle: "The Rubber Duck on World Cup Tour",
     start: "Start Game", retry: "Again", go: "Go!",
     hintCtrl: "Jump: Space / ↑ / W / Tap · Duck: ↓ / S / Swipe down",
-    gameover: "Game Over", scoreLabel: "Score", best: "Best", meters: "m",
+    gameover: "Game Over", scoreLabel: "Score", best: "Best", meters: "m", wave: "Wave", modeLabel: "Mode", diffLabel: "Difficulty",
     win: "🏆 World Champion!", winSub: "Duck Dash won",
     countries: { br: "Brazil", de: "Germany", jp: "Japan", us: "USA", ar: "Argentina", fin: "World Cup Final" },
     stories: {
@@ -414,7 +445,7 @@ const I18N = {
     subtitle: "El pato de goma en gira mundialista",
     start: "Jugar", retry: "Otra vez", go: "¡Vamos!",
     hintCtrl: "Saltar: Espacio / ↑ / W / Toca · Agacharse: ↓ / S / Desliza abajo",
-    gameover: "Fin del juego", scoreLabel: "Puntos", best: "Mejor", meters: "m",
+    gameover: "Fin del juego", scoreLabel: "Puntos", best: "Mejor", meters: "m", wave: "Oleada", modeLabel: "Modo", diffLabel: "Dificultad",
     win: "🏆 ¡Campeón del mundo!", winSub: "Duck Dash ganado",
     countries: { br: "Brasil", de: "Alemania", jp: "Japón", us: "EE.UU.", ar: "Argentina", fin: "Final del Mundial" },
     stories: {
@@ -431,7 +462,7 @@ const I18N = {
     subtitle: "Le canard en plastique en tournée Mondial",
     start: "Jouer", retry: "Encore", go: "Allez !",
     hintCtrl: "Sauter : Espace / ↑ / W / Tape · S'accroupir : ↓ / S / Glisse vers le bas",
-    gameover: "Partie terminée", scoreLabel: "Score", best: "Record", meters: "m",
+    gameover: "Partie terminée", scoreLabel: "Score", best: "Record", meters: "m", wave: "Vague", modeLabel: "Mode", diffLabel: "Difficulté",
     win: "🏆 Champion du monde !", winSub: "Duck Dash gagné",
     countries: { br: "Brésil", de: "Allemagne", jp: "Japon", us: "USA", ar: "Argentine", fin: "Finale du Mondial" },
     stories: {
@@ -612,6 +643,10 @@ const G = {
   best: SAVE.getInt("dd_best", 0),
   currentRunScore: 0,
   combo: 0, comboMult: 1, flash: 0, newHigh: false,
+  mode: (SAVE.get("dd_mode", "normal") === "wm") ? "wm" : "normal",
+  difficulty: (SAVE.get("dd_diff", "normal") === "easy") ? "easy" : "normal",
+  wave: 0, waveBanner: 0,
+  glide: 0, glideUsed: false, nearMiss: false,
 };
 
 function saveBest() {
@@ -619,17 +654,19 @@ function saveBest() {
 }
 
 function resetGame() {
+  const d = diff();
   duck.reset();
   G.speed = CONFIG.BASE_SPEED;
   G.distance = 0; G.score = 0;
   G.obstacles = []; G.collectibles = []; G.particles = [];
   G.collectTimer = 1.0; G.spawnTimer = 0.8; G.runTime = 0;
-  G.lives = CONFIG.MAX_LIVES; G.invuln = 0; G.balls = 0; G.shake = 0;
+  G.lives = d.lives; G.invuln = 0; G.balls = 0; G.shake = 0;
   G.levelIndex = 0; G.levelDist = 0; G.bgScroll = 0;
+  G.wave = 0; G.waveBanner = 0; G.glide = 0; G.glideUsed = false; G.nearMiss = false;
   G.scoreMult = Store.isActive("double") ? 2 : 1;
   G.magnetOn = Store.isActive("magnet");
   G.shieldUp = Store.isActive("shield");
-  if (Store.isActive("extralife")) G.lives = CONFIG.MAX_LIVES + 1;
+  if (Store.isActive("extralife")) G.lives = d.lives + 1;
   if (Store.isActive("boost")) G.speed = CONFIG.BASE_SPEED * 1.15;
   G.combo = 0; G.comboMult = 1; G.flash = 0; G.newHigh = false;
 }
@@ -652,38 +689,42 @@ function burst(x, y, color, n) {
   }
 }
 
-/* Hindernisse */
+/* Hindernisse — daten-getrieben ueber Schwierigkeit + Welle/Etappe */
 function spawnObstacle() {
+  const d = diff();
+  const gm = d.gapMul;
+  // Wellen-/Etappen-Index (in beiden Modi) treibt Vielfalt
+  const lvl = MODES[G.mode].endless ? G.wave : G.levelIndex;
   const r = Math.random();
+  const highEnd = 0.42;
+  const lowEnd = highEnd + d.slideChance;   // weniger Slide-Hindernisse im Easy-Modus
   let o;
-  if (r < 0.42) {
+  if (r < highEnd) {
     const h = 84 + Math.random() * 40;
-    o = { type: "high", w: 46 + Math.random() * 28, h, x: W + 40, y: GROUND_Y - h, passed: false };
-  } else if (r < 0.75) {
+    o = { type: "high", w: 46 + Math.random() * 28, h, x: W + 40, y: GROUND_Y - h, passed: false, near: false };
+  } else if (r < lowEnd) {
     const gap = 40, h = 150;
-    o = { type: "low", w: 66 + Math.random() * 34, h, x: W + 40, y: GROUND_Y - gap - h, passed: false };
+    o = { type: "low", w: 66 + Math.random() * 34, h, x: W + 40, y: GROUND_Y - gap - h, passed: false, near: false };
   } else {
     const h = 46 + Math.random() * 22;
-    o = { type: "cone", w: 44, h, x: W + 40, y: GROUND_Y - h, passed: false };
+    o = { type: "cone", w: 44, h, x: W + 40, y: GROUND_Y - h, passed: false, near: false };
   }
   G.obstacles.push(o);
-  // Muster werden mit Etappe abwechslungsreicher, bleiben aber fair schaffbar
-  const lvl = G.levelIndex;
-  const followChance = 0.24 + lvl * 0.03;          // spaeter etwas haeufiger
+  // Muster werden mit Welle/Etappe abwechslungsreicher, bleiben aber fair schaffbar
+  const followChance = 0.24 + lvl * 0.03;
   if (o.type !== "low" && Math.random() < followChance) {
     const fh = 46 + Math.random() * 20;
-    const followGap = 150 + Math.random() * 40;     // genug zum Landen + neu Abspringen
-    G.obstacles.push({ type: "cone", w: 44, h: fh, x: o.x + o.w + followGap, y: GROUND_Y - fh, passed: false });
-    // ab Etappe 3: gelegentlich ein drittes Huetchen (Treppen-Muster)
+    const followGap = (150 + Math.random() * 40) * gm;   // genug zum Landen + neu Abspringen
+    G.obstacles.push({ type: "cone", w: 44, h: fh, x: o.x + o.w + followGap, y: GROUND_Y - fh, passed: false, near: false });
     if (lvl >= 2 && Math.random() < 0.3) {
       const th = 46 + Math.random() * 18;
-      G.obstacles.push({ type: "cone", w: 44, h: th, x: o.x + o.w + followGap * 2 + 44, y: GROUND_Y - th, passed: false });
+      G.obstacles.push({ type: "cone", w: 44, h: th, x: o.x + o.w + followGap * 2 + 44, y: GROUND_Y - th, passed: false, near: false });
     }
   }
 }
 function nextSpawnDelay() {
   const tt = G.speed / CONFIG.BASE_SPEED;
-  return (1.15 / tt) + Math.random() * 0.55 / tt;
+  return ((1.15 / tt) + Math.random() * 0.55 / tt) * diff().gapMul;
 }
 function spawnCollectible() {
   const trophy = Math.random() < 0.06;
@@ -704,6 +745,36 @@ function collectAt(o) {
 }
 function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+// Near-Miss-Bonus: knapp an einem Hindernis vorbei (ohne Treffer) gibt Extrapunkte
+function checkNearMiss() {
+  const hb = duck.hitbox();
+  for (const o of G.obstacles) {
+    if (o.near || o.x + o.w > duck.x) continue;          // erst zaehlen, wenn vorbei
+    // war es knapp? kleiner vertikaler Abstand zur Hindernis-Kante
+    const margin = 18;
+    const close = (o.type === "low")
+      ? (hb.y < o.y + o.h + margin)                       // dicht unter der Bande durch
+      : (hb.y + hb.h > o.y - margin);                     // dicht ueber dem Hindernis
+    o.near = true;
+    if (close && G.invuln <= 0) {
+      G.score += 15 * G.comboMult; G.nearMiss = true;
+      burst(duck.x + duck.w, duck.y + duck.h / 2, PALETTE.gold, 4);
+      AUDIO.tone(1568, 0.05, "square", 0.06);
+    }
+  }
+}
+
+// Gewaltfreier Zusatz-Move: kurzes Gleiten/Flattern (einmal pro Luftphase)
+function startGlide() {
+  if (SCENES.current !== State.PLAY) return;
+  if (!duck.onGround && !G.glideUsed) {
+    G.glide = 0.45; G.glideUsed = true;
+    if (duck.vy > 120) duck.vy = 120;                     // bremst den Fall sanft ab
+    burst(duck.x + duck.w * 0.3, duck.y + duck.h, PALETTE.cloud, 5);
+    AUDIO.tone(880, 0.08, "triangle", 0.07, 1100);
+  }
 }
 
 function hitObstacle() {
@@ -807,13 +878,33 @@ function dispatchConfirm() {}
 /* =========================================================================
    RENDER: Zeichnen (Pixel-Renderer-Ausbau in Schritt 2)
    ========================================================================= */
+// robustes Hex-Parsing: liefert [r,g,b], faellt auf Mittelgrau zurueck
+function hexRGB(hex) {
+  if (typeof hex !== "string") return [128, 128, 128];
+  let h = hex.trim().replace(/^#/, "");
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return [128, 128, 128];
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function toHex(r, g, b) {
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+  return "#" + c(r) + c(g) + c(b);
+}
+// shade(): gibt IMMER einen gueltigen Hex-Wert zurueck
 function shade(hex, f) {
-  const n = parseInt(hex.slice(1), 16);
-  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  r = Math.max(0, Math.min(255, Math.round(r * f)));
-  g = Math.max(0, Math.min(255, Math.round(g * f)));
-  b = Math.max(0, Math.min(255, Math.round(b * f)));
-  return "rgb(" + r + "," + g + "," + b + ")";
+  const [r, g, b] = hexRGB(hex);
+  return toHex(r * f, g * f, b * f);
+}
+// drawBands(): banded Vertical-Fill zwischen zwei Farben (statt teurem Per-Frame-Gradient)
+function drawBands(x, y, w, h, c0, c1, steps) {
+  const a = hexRGB(c0), b = hexRGB(c1), n = Math.max(2, steps || 5);
+  const bh = Math.ceil(h / n);
+  for (let i = 0; i < n; i++) {
+    const f = i / (n - 1);
+    ctx.fillStyle = toHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
+    ctx.fillRect(x, y + i * bh, w, bh + 1);
+  }
 }
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
@@ -828,10 +919,10 @@ function roundRectAbs(x, y, w, h, r) { roundRect(x, y, w, h, r); }
 
 const RENDER = {
   background() {
-    const lv = LEVELS[G.levelIndex] || LEVELS[0];
-    const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-    sky.addColorStop(0, lv.sky[0]); sky.addColorStop(1, lv.sky[1]);
-    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, GROUND_Y);
+    const lv = currentTheme();
+    // Himmel als Farbbaender (Retro-Dithering statt teurem Per-Frame-Gradient)
+    drawBands(0, 0, W, GROUND_Y, lv.sky[0], lv.sky[1], 6);
+    ctx.fillStyle = lv.sky[1]; ctx.fillRect(0, GROUND_Y - 2, W, 2);
 
     this.skyline(lv);
 
@@ -853,12 +944,11 @@ const RENDER = {
     const bandY = GROUND_Y - 46;
     ctx.fillStyle = PALETTE.night; ctx.fillRect(0, bandY, W, 30);
     const s2 = (G.bgScroll * 0.5) % 240;
+    const bannerTxt = MODES[G.mode].endless ? "DUCK DASH" : "WM 2026";
     ctx.font = "700 18px Courier New, monospace"; ctx.textAlign = "left";
-    for (let x = -s2; x < W + 240; x += 240) { ctx.fillStyle = lv.flag[1]; ctx.fillText("WM 2026", x + 20, bandY + 21); }
+    for (let x = -s2; x < W + 240; x += 240) { ctx.fillStyle = lv.flag[1]; ctx.fillText(bannerTxt, x + 20, bandY + 21); }
 
-    const grass = ctx.createLinearGradient(0, GROUND_Y, 0, H);
-    grass.addColorStop(0, lv.grass[0]); grass.addColorStop(1, lv.grass[1]);
-    ctx.fillStyle = grass; ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    drawBands(0, GROUND_Y, W, H - GROUND_Y, lv.grass[0], lv.grass[1], 5);
 
     ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 3;
     const s3 = (G.bgScroll * 1.0) % 160;
@@ -898,11 +988,30 @@ const RENDER = {
         // Argentinien: Obelisk + flache Skyline
         ctx.fillRect(bx + 20, baseY - 40, 240, 40);
         ctx.beginPath(); ctx.moveTo(bx + 150, baseY - 40); ctx.lineTo(bx + 140, baseY - 130); ctx.lineTo(bx + 160, baseY - 130); ctx.closePath(); ctx.fill();
-      } else {
+      } else if (k === "fin") {
         // Finale: grosses Stadion-Rund mit Flutlicht
         ctx.beginPath(); ctx.ellipse(bx + 150, baseY + 10, 130, 60, 0, Math.PI, 0); ctx.fill();
         ctx.fillRect(bx + 40, baseY - 80, 8, 50); ctx.fillRect(bx + 28, baseY - 88, 32, 12);
         ctx.fillRect(bx + 252, baseY - 80, 8, 50); ctx.fillRect(bx + 240, baseY - 88, 32, 12);
+      } else if (k === "hills") {
+        // Endlos/Tag: sanfte Huegel
+        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(bx + 60 + i * 110, baseY + 20, 90, 55, 0, Math.PI, 0); ctx.fill(); }
+      } else if (k === "city") {
+        // Endlos/Daemmerung: generische Skyline
+        const hs = [60, 100, 70, 120, 80, 95, 65, 110];
+        for (let i = 0; i < hs.length; i++) ctx.fillRect(bx + 10 + i * 40, baseY - hs[i], 32, hs[i]);
+      } else {
+        // Endlos/Nacht: Skyline mit beleuchteten Fenstern
+        const hs = [70, 110, 80, 130, 90, 100];
+        for (let i = 0; i < hs.length; i++) {
+          const bxx = bx + 14 + i * 52, hh = hs[i];
+          ctx.fillRect(bxx, baseY - hh, 40, hh);
+          ctx.save(); ctx.fillStyle = PALETTE.gold;
+          for (let wy = baseY - hh + 8; wy < baseY - 6; wy += 14)
+            for (let wx = bxx + 6; wx < bxx + 34; wx += 12)
+              if ((wx + wy) % 3 === 0) ctx.fillRect(wx, wy, 5, 6);
+          ctx.restore();
+        }
       }
     }
   },
@@ -1030,12 +1139,18 @@ const RENDER = {
       ctx.fillText("x" + G.comboMult + " KOMBO", W / 2, H - 16);
       ctx.textAlign = "left";
     }
-    const lv = LEVELS[G.levelIndex] || LEVELS[0];
+    const lv = currentTheme();
     const bw = 200, bx = (W - bw) / 2, by = 24;
     ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(bx, by, bw, 8);
-    ctx.fillStyle = lv.flag[1]; ctx.fillRect(bx, by, bw * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL), 8);
+    ctx.fillStyle = lv.flag ? lv.flag[1] : PALETTE.gold; ctx.fillRect(bx, by, bw * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL), 8);
     ctx.fillStyle = PALETTE.snow; ctx.font = "600 14px Courier New, monospace"; ctx.textAlign = "center";
-    ctx.fillText(tCountry(lv.key), W / 2, by - 6); ctx.textAlign = "left";
+    const label = MODES[G.mode].endless ? (t("wave") + " " + (G.wave + 1)) : tCountry(lv.key);
+    ctx.fillText(label, W / 2, by - 6); ctx.textAlign = "left";
+    // Wellen-Banner kurz beim Wellenwechsel
+    if (MODES[G.mode].endless && G.waveBanner > 0) {
+      ctx.fillStyle = PALETTE.gold; ctx.font = "800 30px Courier New, monospace"; ctx.textAlign = "center";
+      ctx.fillText(t("wave").toUpperCase() + " " + (G.wave + 1), W / 2, H / 2 - 20); ctx.textAlign = "left";
+    }
   },
 
   // Welt zeichnen (Hintergrund + Objekte + Ente), mit Kamerawackeln
@@ -1064,18 +1179,31 @@ const RENDER = {
    Gameplay-Schritte: Etappe / Game Over / Sieg
    ========================================================================= */
 function advanceLevel() {
-  if (G.levelIndex >= LEVELS.length - 1) {
-    G.newHigh = Math.floor(G.score) > G.best;
-    const wh = document.getElementById("winHigh"); wh.textContent = NEWHIGH[lang]; wh.classList.toggle("hidden", !G.newHigh);
-    saveBest(); Store.addCoins(G.balls); AUDIO.sfx.win();
-    pendingEgg = markLangCompleted(lang);
-    G.currentRunScore = Math.floor(G.score);
-    winScoreEl.textContent = G.currentRunScore;
-    winEntry.style.display = "flex"; winName.value = defaultName(); lastSavedTs = null;
-    SCENES.go(State.WIN); return;
+  const mode = MODES[G.mode];
+  if (mode.endless) {
+    // Endlos: naechste Welle, neues Theme, weiterspielen (kein Story-Stopp)
+    G.wave++;
+    G.levelIndex = G.wave % mode.themes.length;
+    G.levelDist = 0; G.score += 50;
+    G.waveBanner = 1.8;
+    AUDIO.sfx.levelup();
+    return;
   }
+  // WM-Tour: Story zwischen Laendern, echtes Finale am Ende
+  if (G.levelIndex >= LEVELS.length - 1) { winGame(); return; }
   G.levelIndex++; G.levelDist = 0; G.score += 100; AUDIO.sfx.levelup();
   SCENES.showStory(G.levelIndex);
+}
+
+function winGame() {
+  G.newHigh = Math.floor(G.score) > G.best;
+  const wh = document.getElementById("winHigh"); wh.textContent = NEWHIGH[lang]; wh.classList.toggle("hidden", !G.newHigh);
+  saveBest(); Store.addCoins(G.balls); AUDIO.sfx.win();
+  pendingEgg = markLangCompleted(lang);
+  G.currentRunScore = Math.floor(G.score);
+  winScoreEl.textContent = G.currentRunScore;
+  winEntry.style.display = "flex"; winName.value = defaultName(); lastSavedTs = null;
+  SCENES.go(State.WIN);
 }
 function gameOver() {
   G.newHigh = Math.floor(G.score) > G.best;
@@ -1168,10 +1296,15 @@ const SCENES = {
 // PLAY-Szene: die eigentliche Spielschleife
 SCENES.defs[State.PLAY] = {
   update(dt) {
+    const d = diff();
     G.runTime += dt;
     G.distance += G.speed * dt; G.levelDist += G.speed * dt; G.bgScroll += G.speed * dt;
-    G.speed = CONFIG.BASE_SPEED + G.runTime * CONFIG.SPEED_RAMP * 6;
-    if (G.speed > CONFIG.SPEED_MAX) G.speed = CONFIG.SPEED_MAX;
+    // Tempo-Burst: kurzer Schub am Wellen-/Etappenanfang (mechanische Abwechslung)
+    const burstBoost = G.waveBanner > 0 ? 80 : 0;
+    G.speed = CONFIG.BASE_SPEED + G.runTime * CONFIG.SPEED_RAMP * 6 + burstBoost;
+    if (G.speed > d.speedMax) G.speed = d.speedMax;
+
+    if (G.waveBanner > 0) G.waveBanner -= dt;
 
     if (G.levelDist >= CONFIG.LEVEL_GOAL) { advanceLevel(); return; }
 
@@ -1182,24 +1315,32 @@ SCENES.defs[State.PLAY] = {
     if (G.invuln > 0) G.invuln -= dt;
     if (G.shake > 0) G.shake -= dt;
     if (G.flash > 0) G.flash -= dt;
+    if (G.glide > 0) G.glide -= dt;
     if (duck.sliding) { duck.slideT -= dt; if (duck.slideT <= 0) endSlide(); }
 
     tryConsumeJump();
 
     const wasGround = duck.onGround;
-    duck.vy += CONFIG.GRAVITY * dt;
+    // Gleiten/Flattern: sanft fallen, solange Glide aktiv und Ente faellt
+    const grav = (G.glide > 0 && duck.vy > 0) ? CONFIG.GRAVITY * 0.28 : CONFIG.GRAVITY;
+    duck.vy += grav * dt;
     if (duck.vy > CONFIG.MAX_FALL) duck.vy = CONFIG.MAX_FALL;
     duck.y += duck.vy * dt;
     const floor = GROUND_Y - duck.h;
     if (duck.y >= floor) {
-      duck.y = floor; if (!wasGround) duck.jumps = 0; duck.onGround = true; duck.vy = 0;
+      duck.y = floor; if (!wasGround) { duck.jumps = 0; G.glideUsed = false; } duck.onGround = true; duck.vy = 0;
     } else { if (wasGround) duck.coyote = CONFIG.COYOTE_TIME; duck.onGround = false; }
 
     G.spawnTimer -= dt;
     if (G.spawnTimer <= 0) { spawnObstacle(); G.spawnTimer = nextSpawnDelay(); }
 
-    for (const o of G.obstacles) { o.x -= G.speed * dt; if (!o.passed && o.x + o.w < duck.x) { o.passed = true; G.score += 10; } }
+    for (const o of G.obstacles) {
+      o.x -= G.speed * dt;
+      if (!o.passed && o.x + o.w < duck.x) { o.passed = true; G.score += 10; }
+    }
     G.obstacles = G.obstacles.filter((o) => o.x + o.w > -20);
+
+    checkNearMiss();
 
     G.collectTimer -= dt;
     if (G.collectTimer <= 0) { spawnCollectible(); G.collectTimer = 0.8 + Math.random() * 1.0; }
@@ -1242,8 +1383,37 @@ function togglePause() {
   else if (SCENES.current === State.PAUSE) SCENES.go(State.PLAY);
 }
 
-function startGame() { AUDIO.init(); resetGame(); SCENES.showStory(0); }
+function startGame() {
+  AUDIO.init(); resetGame();
+  if (MODES[G.mode].hasStory) SCENES.showStory(0);
+  else SCENES.go(State.PLAY);     // Endlos: direkt los, keine Story
+}
 function beginLevel() { SCENES.go(State.PLAY); }
+
+/* Modus- und Schwierigkeits-Auswahl im Menue (daten-getrieben) */
+const modeRow = document.getElementById("modeRow");
+const diffRow = document.getElementById("diffRow");
+function renderModeSelect() {
+  modeRow.innerHTML = "";
+  ["normal", "wm"].forEach((id) => {
+    const m = MODES[id];
+    const b = document.createElement("button");
+    b.className = "langBtn" + (G.mode === id ? " active" : "");
+    b.textContent = m.emoji + " " + m.label[lang];
+    b.title = m.desc[lang];
+    b.addEventListener("click", () => { G.mode = id; SAVE.set("dd_mode", id); renderModeSelect(); applyLang(); });
+    modeRow.appendChild(b);
+  });
+  diffRow.innerHTML = "";
+  ["easy", "normal"].forEach((id) => {
+    const dd = DIFFS[id];
+    const b = document.createElement("button");
+    b.className = "langBtn" + (G.difficulty === id ? " active" : "");
+    b.textContent = dd.emoji + " " + dd.label[lang];
+    b.addEventListener("click", () => { G.difficulty = id; SAVE.set("dd_diff", id); renderModeSelect(); });
+    diffRow.appendChild(b);
+  });
+}
 
 /* =========================================================================
    UI-Verdrahtung: Sprache, Shop, Settings, Bestenliste, Easter Egg
@@ -1253,8 +1423,10 @@ const mHintEl = document.getElementById("mHint");
 const langBtns = Array.from(document.querySelectorAll(".langBtn"));
 function applyLang() {
   document.documentElement.lang = lang;
-  mSubEl.textContent = t("subtitle");
+  const m = MODES[G.mode];
+  mSubEl.textContent = m.emoji + " " + m.label[lang] + " — " + m.desc[lang];
   mHintEl.textContent = t("hintCtrl");
+  renderModeSelect();
   startBtn.textContent = t("start");
   retryBtn.textContent = t("retry");
   winBtn.textContent = t("retry");
