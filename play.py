@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Duck Dash - Terminal-Version (ASCII Endless Runner).
 
-Gewaltfreier Mini-Runner: die Gummiente "Q" laeuft ueber WM-Etappen,
-springt ueber Hindernisse "^" und sammelt Baelle "o". Boden "=".
+Gewaltfreier Mini-Runner: die Gummiente "Q" läuft über WM-Etappen,
+springt über Hindernisse "^" und sammelt Bälle "o". Boden "=".
 
 Steuerung:  Leertaste / W = springen   ·   Q = beenden
-Nur Python-3-Standardbibliothek. Ohne TTY laeuft eine kurze Auto-Demo.
+Nur Python-3-Standardbibliothek. Ohne TTY läuft eine kurze Auto-Demo.
 """
 
 import os
@@ -146,18 +146,38 @@ class Game:
         grid[r][DUCK_X] = "Q"
 
         hearts = "<3 " * self.lives
-        head = " Duck Dash  |  {:<12} {}/6  |  {}|  Score {}  Baelle {}".format(
-            COUNTRIES[self.stage], self.stage + 1, hearts, self.score, self.balls)
-        lines = [head, "+" + "-" * WIDTH + "+"]
+        bar_done = int((self.stage_frame / STAGE_LEN) * 10)
+        bar = "#" * bar_done + "." * (10 - bar_done)
+        head = " DUCK DASH  |  {:<12} {}/6 [{}]".format(
+            COUNTRIES[self.stage], self.stage + 1, bar)
+        stats = "  {:<14}|  Score {:>5}   Bälle {:>3}".format(hearts, self.score, self.balls)
+        lines = [head, " " + stats, "+" + "=" * WIDTH + "+"]
         for row in grid:
             lines.append("|" + "".join(row) + "|")
-        lines.append("+" + "-" * WIDTH + "+")
-        lines.append(" Leertaste/W = springen   Q = beenden")
+        lines.append("+" + "=" * WIDTH + "+")
+        lines.append("  Leertaste/W = springen    Q = beenden")
         return "\n".join(lines)
 
 
 def clear():
     sys.stdout.write("\033[H\033[J")
+
+
+BANNER = r"""
+  ____  _   _  ___ _  __  ___   _   ___ _  _
+ |    \| | | |/ __| |/ / |   \ /_\ / __| || |
+ | |) | |_| | (__|   <  | |) / _ \\__ \ __ |
+ |____/ \___/ \___|_|\_\ |___/_/ \_\___/_||_|
+        ~ Retro WM-Tour der Kicker-Ente ~
+"""
+
+
+def print_banner():
+    sys.stdout.write("\033[2J\033[H")
+    print(BANNER)
+    print("        Q = Ente   ^ = Hindernis   o = Ball")
+    print()
+    time.sleep(1.2)
 
 
 def run_interactive():
@@ -166,6 +186,7 @@ def run_interactive():
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     game = Game()
+    print_banner()
     try:
         tty.setcbreak(fd)
         sys.stdout.write("\033[2J")
@@ -192,6 +213,7 @@ def run_interactive():
 
 def run_demo(max_frames=240):
     game = Game(auto=True)
+    print_banner()
     print("Keine interaktive TTY erkannt - kurze Auto-Demo:\n")
     while game.alive and game.frame < max_frames:
         game.step(game.auto_jump())
@@ -207,9 +229,9 @@ def print_result(game):
     if game.won:
         print("WELTMEISTER! Du hast alle Etappen geschafft. Score:", game.score)
     elif game.lives <= 0:
-        print("Game Over. Score:", game.score, " Baelle:", game.balls)
+        print("Game Over. Score:", game.score, " Bälle:", game.balls)
     else:
-        print("Demo beendet. Score:", game.score, " Baelle:", game.balls)
+        print("Demo beendet. Score:", game.score, " Bälle:", game.balls)
 
 
 def main():
