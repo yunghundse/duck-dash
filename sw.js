@@ -1,5 +1,5 @@
 // Duck Dash Service Worker - einfacher Offline-Cache
-const CACHE = "duck-dash-v1";
+const CACHE = "duck-dash-v2";
 const ASSETS = [
   "./",
   "./index.html",
