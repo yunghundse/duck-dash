@@ -13,14 +13,22 @@
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icon.svg">
 <style>
+  /* Retro-Pixel-Look: monospace deckt ALLE Sonderzeichen (Umlaute + ES/FR-Akzente) ab,
+     ist offline verfuegbar und braucht keine externe Webschrift. */
+  :root {
+    --pix: "Courier New", "DejaVu Sans Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: 100%; height: 100%;
     background: #1a1f2b;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--pix);
+    font-weight: 700;
+    letter-spacing: 1px;
     overflow: hidden;
     -webkit-user-select: none; user-select: none;
     -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: none;
   }
   #stage {
     position: absolute;
@@ -51,11 +59,20 @@
   }
   .hidden { display: none !important; }
   h1 {
-    font-size: clamp(28px, 7vw, 64px);
+    font-size: clamp(24px, 6vw, 52px);
     font-weight: 800;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
     color: #f4d35e;
-    text-shadow: 0 3px 0 rgba(0,0,0,0.25);
+    /* gestufter Pixel-Schatten statt weichem Schlagschatten */
+    text-shadow: 2px 0 0 #1a1f2b, -2px 0 0 #1a1f2b, 0 2px 0 #1a1f2b,
+                 0 4px 0 #b8922e, 4px 4px 0 rgba(0,0,0,0.4);
+  }
+  .blink { animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #pressStart {
+    margin-top: 10px; color: #7cc47f; font-size: clamp(12px, 2.4vw, 18px);
+    text-transform: uppercase; letter-spacing: 3px;
   }
   .subtitle {
     font-size: clamp(13px, 2.6vw, 22px);
@@ -71,18 +88,22 @@
   }
   .btn {
     margin-top: clamp(20px, 4vh, 40px);
-    padding: 14px 32px;
-    font-size: clamp(15px, 2.8vw, 22px);
-    font-weight: 700;
+    padding: 13px 28px;
+    font-family: var(--pix);
+    font-size: clamp(14px, 2.6vw, 20px);
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
     color: #1a1f2b;
     background: #7cc47f;
-    border: none;
-    border-radius: 999px;
+    border: 3px solid #1a1f2b;        /* harter Pixel-Rahmen */
+    border-radius: 0;                 /* eckig = retro */
     cursor: pointer;
-    box-shadow: 0 5px 0 #5a9d5d;
-    transition: transform .08s, box-shadow .08s;
+    box-shadow: 4px 4px 0 #1a1f2b, inset -3px -3px 0 rgba(0,0,0,0.25), inset 3px 3px 0 rgba(255,255,255,0.25);
+    transition: transform .06s, box-shadow .06s;
+    image-rendering: pixelated;
   }
-  .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #5a9d5d; }
+  .btn:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #1a1f2b, inset -3px -3px 0 rgba(0,0,0,0.25); }
   .hint {
     font-size: clamp(11px, 2.2vw, 15px);
     margin-top: 16px;
@@ -104,7 +125,7 @@
     color: #eef1f5;
     background: rgba(255,255,255,0.10);
     border: 2px solid transparent;
-    border-radius: 10px;
+    border-radius: 0;
     cursor: pointer;
   }
   .langBtn.active { border-color: #f4d35e; background: rgba(244,211,94,0.15); }
@@ -118,8 +139,9 @@
   .shopItem .name { font-weight:700; font-size:15px; }
   .shopItem .desc { font-size:12px; color:#9aa6b5; }
   .shopItem .act {
-    padding:8px 16px; border:none; border-radius:999px;
-    font-weight:700; font-size:14px; cursor:pointer; min-width:88px;
+    padding:8px 16px; border:2px solid #1a1f2b; border-radius:0;
+    font-family:var(--pix); font-weight:800; font-size:13px; text-transform:uppercase;
+    cursor:pointer; min-width:88px; box-shadow:2px 2px 0 #1a1f2b;
   }
   .act.buy { background:#7cc47f; color:#1a1f2b; }
   .act.equip { background:#6fa3c7; color:#1a1f2b; }
@@ -167,6 +189,7 @@
       <button class="langBtn" data-lang="es">🇪🇸 ES</button>
       <button class="langBtn" data-lang="fr">🇫🇷 FR</button>
     </div>
+    <div id="pressStart" class="blink">▶ PRESS START</div>
     <button id="startBtn" class="btn">Spiel starten</button>
     <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap;justify-content:center;">
       <button id="shopBtn" class="btn" style="margin-top:0;background:#e0b97a;box-shadow:0 5px 0 #b8945a;font-size:16px;padding:10px 22px;">🛒 Shop</button>
@@ -779,7 +802,7 @@ const RENDER = {
     const bandY = GROUND_Y - 46;
     ctx.fillStyle = PALETTE.night; ctx.fillRect(0, bandY, W, 30);
     const s2 = (G.bgScroll * 0.5) % 240;
-    ctx.font = "700 18px -apple-system, sans-serif"; ctx.textAlign = "left";
+    ctx.font = "700 18px Courier New, monospace"; ctx.textAlign = "left";
     for (let x = -s2; x < W + 240; x += 240) { ctx.fillStyle = lv.flag[1]; ctx.fillText("WM 2026", x + 20, bandY + 21); }
 
     const grass = ctx.createLinearGradient(0, GROUND_Y, 0, H);
@@ -902,9 +925,9 @@ const RENDER = {
   },
 
   hud() {
-    ctx.fillStyle = PALETTE.snow; ctx.font = "700 26px -apple-system, sans-serif"; ctx.textAlign = "right";
+    ctx.fillStyle = PALETTE.snow; ctx.font = "700 26px Courier New, monospace"; ctx.textAlign = "right";
     ctx.fillText(String(Math.floor(G.score)).padStart(5, "0"), W - 20, 38);
-    ctx.font = "600 14px -apple-system, sans-serif"; ctx.fillStyle = "#aeb8c6";
+    ctx.font = "600 14px Courier New, monospace"; ctx.fillStyle = "#aeb8c6";
     ctx.fillText(t("best") + " " + G.best, W - 20, 58);
     ctx.fillText("⚽ " + G.balls + "   " + Math.floor(G.distance / 10) + " " + t("meters"), W - 20, 78);
     const maxHearts = Math.max(CONFIG.MAX_LIVES, G.lives);
@@ -913,7 +936,7 @@ const RENDER = {
     const bw = 200, bx = (W - bw) / 2, by = 24;
     ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(bx, by, bw, 8);
     ctx.fillStyle = lv.flag[1]; ctx.fillRect(bx, by, bw * Math.min(1, G.levelDist / CONFIG.LEVEL_GOAL), 8);
-    ctx.fillStyle = PALETTE.snow; ctx.font = "600 14px -apple-system, sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = PALETTE.snow; ctx.font = "600 14px Courier New, monospace"; ctx.textAlign = "center";
     ctx.fillText(tCountry(lv.key), W / 2, by - 6); ctx.textAlign = "left";
   },
 
