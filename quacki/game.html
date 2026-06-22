@@ -1214,17 +1214,18 @@ function drawRubberDuck(X,Y,opts){opts=opts||{};const air=opts.air,flap=opts.fla
   // Wing-Curl
   px(X+3,Y+8,5,3,DK);px(X+3,Y+8,5,1,HL);
   if(flap){px(X+2,Y+7+flap,5,3,DK);}
-  // Kopf (Bump)
-  px(X+6,Y,7,6,BD);px(X+5,Y+1,9,5,BD);px(X+6,Y,7,1,HL);
-  // Auge
-  px(X+10,Y+2,2,2,C.eye);
+  // Kopf (Bump) - mit Idle-Atmen (bob)
+  const hb=opts.bob||0;
+  px(X+6,Y+hb,7,6,BD);px(X+5,Y+hb+1,9,5,BD);px(X+6,Y+hb,7,1,HL);
+  // Auge (blinzeln)
+  if(opts.blink)px(X+10,Y+hb+3,2,1,C.eye); else px(X+10,Y+hb+2,2,2,C.eye);
   // Schnabel (vorne, breit/abgerundet)
-  px(X+12,Y+3,4,2,C.beak);px(X+12,Y+5,3,1,"#d96a1e");
+  px(X+12,Y+hb+3,4,2,C.beak);px(X+12,Y+hb+5,3,1,"#d96a1e");
   // Hut/Krone/Tiara je nach Skin
-  if(sk.hat==="tophat"){px(X+5,Y-4,8,4,"#1b1b2a");px(X+4,Y-1,10,2,"#1b1b2a");px(X+5,Y-2,8,1,"#e23b6a");}
-  else if(sk.hat==="crown"){px(X+5,Y-4,8,3,"#ffd23f");px(X+5,Y-6,2,3,"#ffd23f");px(X+8,Y-7,2,4,"#ffd23f");px(X+11,Y-6,2,3,"#ffd23f");}
-  else if(sk.hat==="tiara"){px(X+6,Y-3,7,2,"#ffd23f");px(X+9,Y-5,2,3,"#ffd23f");px(X+9,Y-4,1,1,"#ff5a8a");}
-  if(sk.shine){const s=(performance.now()/120|0)%2;px(X+3+s,Y+6,1,1,"#fff");px(X+9,Y+1,1,1,"#fff");}
+  if(sk.hat==="tophat"){px(X+5,Y+hb-4,8,4,"#1b1b2a");px(X+4,Y+hb-1,10,2,"#1b1b2a");px(X+5,Y+hb-2,8,1,"#e23b6a");}
+  else if(sk.hat==="crown"){px(X+5,Y+hb-4,8,3,"#ffd23f");px(X+5,Y+hb-6,2,3,"#ffd23f");px(X+8,Y+hb-7,2,4,"#ffd23f");px(X+11,Y+hb-6,2,3,"#ffd23f");}
+  else if(sk.hat==="tiara"){px(X+6,Y+hb-3,7,2,"#ffd23f");px(X+9,Y+hb-5,2,3,"#ffd23f");px(X+9,Y+hb-4,1,1,"#ff5a8a");}
+  if(sk.shine){const s=(performance.now()/120|0)%2;px(X+3+s,Y+6,1,1,"#fff");px(X+9,Y+hb+1,1,1,"#fff");}
   // angedeutete Fuesschen nur am Boden
   if(!air&&step!==undefined){px(X+3+step,Y+13,3,1,C.beak);px(X+7-step,Y+13,3,1,C.beak);}
 }
@@ -1257,9 +1258,13 @@ function drawDuck(){const d=duck;if(d.blink>0&&Math.floor(d.blink*16)%2===0)retu
   if(d.mounted){px(X-3,Y+10,d.w+6,5,"#5fbf4a");px(X-3,Y+14,3,2,"#3a8f2f");px(X+d.w,Y+14,3,2,"#3a8f2f");px(X+d.w+1,Y+8,4,4,"#5fbf4a");px(X+d.w+3,Y+9,1,1,C.eye);}
   const air=!d.onGround,step=air?0:(Math.sin(d.runT)>0?1:-1);
   const flap=(air&&keys.jump&&(d.flutterT>0||d.feather))?(Math.abs(Math.sin(performance.now()/40))*2|0):0;
+  // Idle-Animation: leichtes Atmen + gelegentliches Blinzeln im Stand
+  const idle=!air&&Math.abs(d.vx)<8;
+  const bob=idle?(Math.sin(performance.now()/520)>0?-1:0):0;
+  const blink=idle&&(performance.now()%2600)<130;
   // Feder-Umhang (Glide-Anzeige) hinten
   if(d.feather){px(X-4,Y+4,4,9,"#ffffff");px(X-5,Y+7,3,5,"#e24b6a");}
-  drawRubberDuck(X,Y,{air,flap,step});
+  drawRubberDuck(X,Y,{air,flap,step,bob,blink});
   // Pilz-Schild-Schimmer
   if(d.big){px(X+1,Y+5,1,1,"#fff");px(X+9,Y+1,1,1,"#fff");}
   ctx.restore();}
