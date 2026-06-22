@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const HTML = join(__dir, "..", "index.html");
+const HTML = join(__dir, "..", "game.html");
 
 let failed = 0;
 function ok(name) { console.log("  \x1b[32mPASS\x1b[0m " + name); }

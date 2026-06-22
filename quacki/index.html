@@ -2,900 +2,158 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>Quacki — Die Entenrettung</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Duck Dash — Die Entenrettung</title>
+<meta name="description" content="Duck Dash – Die Entenrettung: ein gewaltfreies Retro-Jump'n'Run. Hilf Quacki, die goldene Gummiente Goldi aus dem Quakschloss zu retten. 6 Welten, kinderfreundlich." />
 <link rel="manifest" href="./manifest.json" />
 <meta name="theme-color" content="#0b1020" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
 <link rel="icon" type="image/png" href="./icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  /* ----- Retro-Palette & Tokens (leicht umstylbar) ----- */
+  :root{
+    --bg:#0b1020; --bg2:#121a31; --panel:#0f1830; --panel2:#16223f;
+    --ink:#eaf2ff; --ink-dim:#9fb0cc; --gold:#ffd23f; --gold-dk:#b06b00;
+    --accent:#4ec03a; --line:rgba(255,255,255,.10); --shadow:rgba(0,0,0,.55);
+    --w1:#4ec03a; --w2:#3fb0d8; --w3:#7fb0e8; --w4:#e0b46a; --w5:#9bb4d8; --w6:#7a5a9a;
+    --maxw:960px; --pad:clamp(16px,4vw,40px);
+    --font:'Press Start 2P',monospace;
+  }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;background:#0b1020;overflow:hidden;font-family:"Courier New",monospace;color:#fff;}
-  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
-  #cv{image-rendering:pixelated;image-rendering:crisp-edges;width:min(100vw,177.7vh);height:auto;
-    background:#5c94fc;display:block;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55);}
-  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:22px;}
-  .dim{background:rgba(9,16,30,.72);}
-  .hidden{display:none!important;}
-  h1{font-family:'Press Start 2P',monospace;font-size:clamp(18px,5vw,40px);line-height:1.25;letter-spacing:1px;color:#ffd23f;text-shadow:3px 3px 0 #b06b00,5px 5px 0 #000;}
-  h2{font-family:'Press Start 2P',monospace;font-size:clamp(13px,3.6vw,22px);line-height:1.35;color:#ffd23f;text-shadow:2px 2px 0 #000;}
-  .sub{font-size:clamp(12px,2.4vw,16px);opacity:.96;max-width:540px;line-height:1.6;letter-spacing:1px;}
-  .sub2{font-size:clamp(9px,1.9vw,12px);opacity:.82;letter-spacing:1px;line-height:1.8;}
-  .panel{background:rgba(10,16,30,.82);border:3px solid #ffd23f;box-shadow:6px 6px 0 #000, inset 0 0 0 2px #0b1020;padding:18px 22px;max-width:560px;}
-  .blink{font-family:'Press Start 2P',monospace;animation:bl 1s steps(2,start) infinite;font-size:clamp(11px,2.4vw,16px);color:#fff;}
-  @keyframes bl{50%{opacity:0;}}
-  .btn{cursor:pointer;border:3px solid #23180a;border-radius:0;font-family:'Press Start 2P',monospace;font-size:clamp(10px,2vw,14px);
-    padding:12px 18px;color:#23180a;background:#ffd23f;box-shadow:4px 4px 0 #000;text-transform:uppercase;}
-  .btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #000;}
-  #pad{position:absolute;inset:0;pointer-events:none;}
-  .tb{position:absolute;bottom:18px;width:92px;height:92px;border-radius:50%;background:rgba(255,255,255,.18);
-    border:3px solid rgba(255,255,255,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:38px;color:#fff;
-    pointer-events:auto;user-select:none;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.35);}
-  .tb .lbl{font-family:'Press Start 2P',monospace;font-size:8px;line-height:1;margin-top:3px;letter-spacing:1px;}
-  .tb:active{transform:scale(.92);}
-  #bLeft{left:16px;} #bRight{left:120px;} #bJump{right:20px;background:rgba(255,210,63,.34);border-color:#ffd23f;}
-  @media (hover:hover){#pad{display:none;}}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.7;
+    background-image:radial-gradient(circle at 50% -10%,#1b294e 0%,var(--bg) 60%);
+    image-rendering:pixelated;}
+  img{image-rendering:pixelated;}
+  a{color:var(--gold);text-decoration:none;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad);}
+  .pixel{font-family:var(--font);}
+  .dim{color:var(--ink-dim);}
+
+  /* ----- Scanline-Overlay (CRT-Anmutung) ----- */
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+    background:repeating-linear-gradient(to bottom,rgba(0,0,0,.10) 0 1px,transparent 1px 3px);
+    mix-blend-mode:multiply;opacity:.5;}
+
+  /* ----- Buttons ----- */
+  .btn{display:inline-block;cursor:pointer;font-family:var(--font);font-size:clamp(11px,2.6vw,16px);
+    color:#23180a;background:var(--gold);border:3px solid #23180a;box-shadow:5px 5px 0 #000;
+    padding:16px 26px;text-transform:uppercase;letter-spacing:1px;transition:transform .05s,box-shadow .05s;}
+  .btn:hover{filter:brightness(1.05);}
+  .btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 #000;}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);box-shadow:none;}
+
+  /* ----- Hero ----- */
+  header.hero{position:relative;text-align:center;padding:clamp(40px,9vw,90px) 0 clamp(30px,6vw,60px);overflow:hidden;}
+  .hero h1{font-size:clamp(34px,11vw,84px);line-height:1.05;letter-spacing:2px;color:var(--gold);
+    text-shadow:4px 4px 0 var(--gold-dk),7px 7px 0 #000;}
+  .hero .sub{margin-top:14px;font-size:clamp(11px,2.8vw,18px);color:var(--ink);}
+  .hero .claim{margin-top:10px;font-size:clamp(8px,2vw,11px);color:var(--ink-dim);letter-spacing:1px;}
+  .hero .mascot{width:clamp(120px,32vw,200px);height:auto;margin:clamp(18px,4vw,28px) auto clamp(20px,5vw,34px);
+    display:block;filter:drop-shadow(0 12px 0 rgba(0,0,0,.25));animation:bob 1.6s steps(2,end) infinite;}
+  @keyframes bob{50%{transform:translateY(-6px);}}
+  .hero .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:6px;}
+
+  /* ----- Sektionen ----- */
+  section{padding:clamp(34px,7vw,64px) 0;border-top:2px solid var(--line);}
+  h2{font-size:clamp(15px,4vw,26px);color:var(--gold);letter-spacing:1px;
+    text-shadow:2px 2px 0 #000;margin-bottom:18px;}
+  .lead{font-size:clamp(10px,2.4vw,13px);color:var(--ink);max-width:62ch;}
+  .lead + .lead{margin-top:14px;}
+
+  /* ----- Welten-Karten ----- */
+  .worlds{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:8px;}
+  .card{position:relative;background:var(--panel);border:3px solid #000;box-shadow:5px 5px 0 #000;
+    padding:16px 14px;overflow:hidden;}
+  .card .num{font-size:10px;color:#0b1020;background:var(--wc,var(--accent));display:inline-block;
+    padding:4px 7px;border:2px solid #000;}
+  .card h3{font-size:clamp(9px,2.2vw,12px);margin:12px 0 8px;color:var(--ink);line-height:1.5;}
+  .card p{font-size:9px;color:var(--ink-dim);line-height:1.7;}
+  .card .strip{position:absolute;left:0;top:0;width:8px;height:100%;background:var(--wc,var(--accent));}
+  .card .ico{position:absolute;right:8px;top:10px;width:26px;height:26px;opacity:.9;}
+
+  /* ----- Steuerung ----- */
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:8px;}
+  .keyrow{display:flex;align-items:center;gap:12px;background:var(--panel2);border:2px solid var(--line);padding:12px 14px;}
+  .key{flex:0 0 auto;min-width:34px;height:34px;display:grid;place-items:center;background:#0b1020;
+    border:2px solid var(--ink-dim);box-shadow:0 3px 0 #000;font-size:12px;color:var(--ink);padding:0 8px;}
+  .keyrow span{font-size:9px;color:var(--ink-dim);line-height:1.6;}
+
+  footer{padding:30px 0 50px;border-top:2px solid var(--line);text-align:center;}
+  footer p{font-size:8px;color:var(--ink-dim);line-height:2;}
 </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="cv" width="384" height="224"></canvas>
-  <div id="pad">
-    <div class="tb" id="bLeft">◀<span class="lbl">LINKS</span></div>
-    <div class="tb" id="bRight">▶<span class="lbl">RECHTS</span></div>
-    <div class="tb" id="bJump">▲<span class="lbl">SPRINGEN</span></div>
-  </div>
 
-  <div id="scTitle" class="screen">
-    <h1>DUCK<br>DASH</h1>
-    <div class="sub" style="color:#cdd5e0">DIE ENTENRETTUNG &nbsp;·&nbsp; 6 WELTEN</div>
-    <div class="blink" id="startHint">- PRESS START -</div>
-    <div class="sub2">LEERTASTE / TIPPEN ZUM STARTEN</div>
-    <div class="sub2">&#9664; &#9654; LAUFEN &nbsp; &#9650; SPRINGEN &nbsp; &#9650; HALTEN = GLEITEN</div>
-    <div class="sub2">M = TON &nbsp;·&nbsp; C = CRT &nbsp;·&nbsp; O = EINSTELLUNGEN</div>
-    <button class="btn" id="btnSettings" style="margin-top:6px">Einstellungen</button>
-  </div>
+  <header class="hero">
+    <div class="wrap">
+      <h1>DUCK<br>DASH</h1>
+      <div class="sub">Die Entenrettung</div>
+      <img class="mascot" src="./icon-512.png" width="200" height="200" alt="Quacki, die kleine gelbe Pixel-Ente" />
+      <div class="cta">
+        <a class="btn" href="./game.html">▶ Spielen</a>
+        <a class="btn ghost" href="#welten">Welten ansehen</a>
+      </div>
+      <div class="claim">6 Welten · Gewaltfrei · Kinderfreundlich · Retro-Pixel</div>
+    </div>
+  </header>
 
-  <div id="scStory" class="screen dim hidden">
-    <div id="storyEmoji"></div>
-    <h2 id="storyTitle">—</h2>
-    <div class="sub" id="storyText">—</div>
-    <button class="btn" id="storyBtn">Weiter ▶</button>
-  </div>
+  <section id="story">
+    <div class="wrap">
+      <h2>Die Geschichte</h2>
+      <p class="lead">In der ruhigen Quack-Bucht lebten Quacki und Goldi, die goldene Gummiente, in Frieden.</p>
+      <p class="lead">Doch in einer stürmischen Nacht stürmte der Baron von Quak mit seiner Schergen-Bande heran und verschleppte Goldi in sein fernes Quakschloss!</p>
+      <p class="lead">Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich Quacki auf — mutig, klein und unaufhaltsam. Niemand wird verletzt: Gegner werden einfach übersprungen oder weggehüpft.</p>
+    </div>
+  </section>
 
-  <div id="scOver" class="screen dim hidden">
-    <h1>Game Over</h1>
-    <div class="sub" id="overText">—</div>
-    <button class="btn" id="btnRetry">Nochmal</button>
-  </div>
-</div>
+  <section id="welten">
+    <div class="wrap">
+      <h2>Sechs Welten</h2>
+      <div class="worlds">
+        <div class="card" style="--wc:var(--w1)"><span class="strip"></span><span class="num">Welt 1</span><h3>Sonnenwiese</h3><p>Grüne Hügel und ein sanfter Start für jede kleine Ente.</p></div>
+        <div class="card" style="--wc:var(--w2)"><span class="strip"></span><span class="num">Welt 2</span><h3>Seifenblasen-Bucht</h3><p>Glitzerndes Wasser und die Blasen-Fallen der Blubber-Ente.</p></div>
+        <div class="card" style="--wc:var(--w3)"><span class="strip"></span><span class="num">Welt 3</span><h3>Frostzipfel</h3><p>Glatte Pfade und Schneebälle der frostigen Wächterin.</p></div>
+        <div class="card" style="--wc:var(--w4)"><span class="strip"></span><span class="num">Welt 4</span><h3>Wüstenei</h3><p>Heißer Sand, fiese Kakteen und wirbelnder Staub.</p></div>
+        <div class="card" style="--wc:var(--w5)"><span class="strip"></span><span class="num">Welt 5</span><h3>Wolkenburg</h3><p>Hoch über den Wolken pfeift der Wind der Sturm-Ente.</p></div>
+        <div class="card" style="--wc:var(--w6)"><span class="strip"></span><span class="num">Welt 6</span><h3>Quakschloss</h3><p>Das dunkle Finale — und das letzte Hüpf-Duell mit dem Baron.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="steuerung">
+    <div class="wrap">
+      <h2>Steuerung</h2>
+      <p class="lead dim">Am Computer mit Tastatur, am Handy mit großen Tasten auf dem Bildschirm.</p>
+      <div class="controls">
+        <div class="keyrow"><span class="key">◀ ▶</span><span>Laufen — nach links und rechts</span></div>
+        <div class="keyrow"><span class="key">▲</span><span>Springen — Leertaste oder hoch</span></div>
+        <div class="keyrow"><span class="key">▲</span><span>Halten in der Luft = sanft gleiten</span></div>
+        <div class="keyrow"><span class="key">M</span><span>Ton an / aus</span></div>
+        <div class="keyrow"><span class="key">C</span><span>CRT-Filter an / aus</span></div>
+        <div class="keyrow"><span class="key">O</span><span>Einstellungen öffnen</span></div>
+      </div>
+      <div class="cta" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
+        <a class="btn" href="./game.html">▶ Jetzt spielen</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <p>DUCK DASH — Die Entenrettung</p>
+      <p class="dim">Ein eigenständiges Retro-Jump'n'Run. Alle Figuren, Grafiken und Musik sind original.</p>
+    </div>
+  </footer>
 
 <script>
-"use strict";
-/* ===================================================================
-   QUACKI — Die Entenrettung. Retro-Jump'n'Run (Mario-Stil), 1 Datei.
-   Story: Baron von Quak hat Goldi entführt. Quacki rettet sie durch
-   4 Welten mit je einem Boss (rivalisierende Gummienten). Gewaltfrei:
-   Gegner/Bosse werden nur übersprungen oder weggehüpft.
-   =================================================================== */
-
-const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
-ctx.imageSmoothingEnabled=false;
-const VW=384, VH=224, TILE=16;
-
-/* ---------- Palette ---------- */
-const C={ dirt:"#c75c1c",dirtDk:"#8a3e10",grass:"#4ec03a",grassDk:"#2f8f24",
-  brick:"#c0641c",brickDk:"#7d3d10",qb:"#f0a81c",qbDk:"#a86a00",used:"#9a7b46",
-  pipe:"#1fa81f",pipeDk:"#0f6f10",pipeHi:"#7be07b",coin:"#ffd23f",coinDk:"#c9920f",
-  duck:"#ffd23f",duckDk:"#e0ad28",beak:"#ff8c42",eye:"#1b1b1b",cloud:"#ffffff",
-  foe:"#b05a2a",foeDk:"#7d3d18",star:"#ffe96b",flag:"#e23b3b",pole:"#d8d8d8" };
-
-/* ---------- Welten + Story ---------- */
-const HERO="Quacki", PRIN="Goldi", VILLAIN="Baron von Quak";
-const WORLDS=[
- { name:"Welt 1 · Sonnenwiese",
-   story:"Baron von Quak hat Goldi, die goldene Gummiente, entführt! "+HERO+" watschelt mutig los über die Sonnenwiese.",
-   sky:["#5c94fc","#9bc0ff"], hill:"#3ec24a", hillDk:"#2f8f24", ground:"#c75c1c", grass:"#4ec03a",
-   boss:{name:"Hibbel, die Hüpf-Ente", color:"#e36b6b", story:"Hibbel hüpft wild herum und versperrt den Weg. Spring ihr 3× auf den Kopf!"},
-   level:[
-     "                                                            ",
-     "                                                            ",
-     "                       o o o                                ",
-     "            ?          = = =                          *     ",
-     "                                            o o             ",
-     "       o o          ?      ?               = = =       |    ",
-     "      = = =                                            |    ",
-     "  @            E             H        E       o        |    ",
-     "             #####        ######    #####   #####     ###   ",
-     "##########  ##############        ################    ###   ",
-     "##########  ##############     ###################    ###   ",
-     "##########  ##############     ###################    ###   ",
-     "############################################################",
-     "############################################################",
-   ]},
- { name:"Welt 2 · Seifenblasen-Bucht",
-   story:"Am glitzernden Wasser spannt Blubber-Ente ihre Seifenblasen-Fallen. "+HERO+" lässt sich nicht aufhalten.",
-   sky:["#2ea6cf","#bdeefb"], hill:"#e8c98a", hillDk:"#caa463", ground:"#caa05a", grass:"#e3c87a",
-   boss:{name:"Blubber-Ente", color:"#5cc8e0", story:"Blubber wirft Seifenblasen. Weich ihnen aus und hüpf 3× drauf!"},
-   level:[
-     "                                                                ",
-     "                          o o o                                 ",
-     "             ?    =   ?    = = =          o o                   ",
-     "       o o                              = = =        *          ",
-     "      = = =       H          o o            H              |    ",
-     "                #####       = = =        P             o   |    ",
-     "  @      o o            H        P   P    P       = = =    |    ",
-     "        = = =   P     #####  P   P   P    P            E   |    ",
-     "             ## P    ##  P   P   P   P    ##   ##  #####   ##   ",
-     "######    ###  P  ## ##  ###############  ##   ##########       ",
-     "#####   #####  P  ## ###################  #############        ",
-     "#####  ######  P  ## ###################  #############        ",
-     "################################################################",
-     "################################################################",
-   ]},
- { name:"Welt 3 · Frostzipfel",
-   story:"Im eisigen Frostzipfel ist der Boden glatt und Frost-Ente friert den Pfad ein. Warm anziehen, "+HERO+"!",
-   sky:["#8fb8e8","#e8f4ff"], hill:"#dff0ff", hillDk:"#a9c8e8", ground:"#bfe0ff", grass:"#eaf6ff",
-   boss:{name:"Frost-Ente", color:"#bfe0ff", story:"Frost-Ente rutscht und wirft Schneebälle. 3 Sprünge auf den Kopf!"},
-   level:[
-     "                                                                ",
-     "               o o o            * o o                           ",
-     "       ?       = = =     ?      = = =          o o              ",
-     "                                            = = = =        |   ",
-     "      o o         H        H          o o         H        |   ",
-     "     = = =      #####    ####       = = =        ###       |   ",
-     "  @         H          ####     E          ####       E    |   ",
-     "         #####       ####    ####     ####     ####  #####  #  ",
-     "######        ####                ####                        ",
-     "#####   ##########       ##############      ###############   ",
-     "#####  ###########    #################      ###############   ",
-     "#####  ###########    #################      ###############   ",
-     "################################################################",
-     "################################################################",
-   ]},
- { name:"Welt 4 · Wüstenei",
-   story:"Heißer Sand und fiese Kakteen — Sand-Ente wirbelt Staub auf. Bleib in Bewegung, "+HERO+"!",
-   sky:["#e8a64c","#ffe6b0"], hill:"#caa05a", hillDk:"#a87d3a", ground:"#e0b46a", grass:"#caa05a",
-   boss:{name:"Sand-Ente", color:"#d9b25a", story:"Sand-Ente schleudert Staubblasen. Weich aus und hüpf 3× auf den Kopf!"},
-   level:[
-     "                                                            ",
-     "                     o o o                                  ",
-     "        ?            = = =            o o          *        ",
-     "                                     = = =                  ",
-     "      o o      H            E              H               |",
-     "     = = =   #####       ?         o o    ####             |",
-     "  @       H        E            = = =          E   o o     |",
-     "       #####    #####   ###   #####    ###   ####  ####   ##",
-     "######       ##              ##           ##            ## ",
-     "#####   #########    ##########    ###########   ######### ",
-     "#####  ##########    ##########    ###########  ########## ",
-     "#####  ##########    ##########    ###########  ########## ",
-     "############################################################",
-     "############################################################",
-   ]},
- { name:"Welt 5 · Wolkenburg",
-   story:"Hoch über den Wolken pfeift der Wind. Sturm-Ente fegt über die Plattformen — halt dich gut fest!",
-   sky:["#7fb0e8","#dff0ff"], hill:"#cfe0f5", hillDk:"#a9c4e0", ground:"#dfe9f5", grass:"#eef6ff",
-   boss:{name:"Sturm-Ente", color:"#bcd0ee", story:"Sturm-Ente wirbelt durch die Luft. Timing ist alles — 3× auf den Kopf!"},
-   level:[
-     "                          o o o                             ",
-     "             ?            = = =                       *     ",
-     "        o o        H              o o          H            ",
-     "       ===        ===           = = =        ===          | ",
-     "                          E              E                | ",
-     "   @     ===          ===     ===          ===     o o    | ",
-     "                 H                    H                   ##",
-     "      ===     ===     ===   ===     ===     ===   = = =    ",
-     "  ===                                                 ###  ",
-     "######      ####        ######       ####       #########  ",
-     "#####   #########    ##########    ###########  ########## ",
-     "#####  ##########    ##########    ###########  ########## ",
-     "############################################################",
-     "############################################################",
-   ]},
- { name:"Welt 6 · Quakschloss",
-   story:"Im dunklen Quakschloss thront "+VILLAIN+" mit der gefangenen Goldi. Die letzte Etappe, "+HERO+"!",
-   sky:["#3a2a4a","#6a4f7a"], hill:"#5a3f6a", hillDk:"#3f2c4a", ground:"#6b5870", grass:"#8a6f9a",
-   boss:{name:VILLAIN, color:"#7a5a9a", story:"Der Baron selbst! Weich seinen Angriffen aus und hüpf 3× auf den Kopf — dann ist Goldi frei!"},
-   level:[
-     "                                                                ",
-     "            o o            ? ? ?          o o                   ",
-     "      ?     = =      H      = = =     H    = =        *         ",
-     "                                                          |    ",
-     "    o o          =====        E      =====       o o      |    ",
-     "   = = =     H        H              H       H  = = =      |    ",
-     "  @      ===      E       =====   E      ===        E      |    ",
-     "      ##     ##  ###  ##     ##  ###  ##    ##  ##  ####   ##   ",
-     "#####    ##                                              ##    ",
-     "####  ##########    ###########     ###########   #########    ",
-     "####  ###########  ############     ###########  ##########    ",
-     "####  ###########  ############     ###########  ##########    ",
-     "################################################################",
-     "################################################################",
-   ]},
-];
-
-/* ---------- Level-Pack: zweite (kurze) Level je Welt ----------
-   Boden (unterste 2 Reihen) ist durchgehend -> kein Pit, kinder-
-   sicher und garantiert begehbar. Breite/Hoehe daten-getrieben. */
-const L2=[
- [ // Welt 1 · Sonnenwiese
-   "                                              ",
-   "              o o o                           ",
-   "      ?       = = =            o o            ",
-   "                              = = =       *   ",
-   "   o o                                        ",
-   "  = = =       E          H           o o      ",
-   "@        o          ?           o         |   ",
-   "      ###       ###       ####       ###      ",
-   "                                              ",
-   "      E              H            E           ",
-   "   ####       #####       #####       ####    ",
-   "##################################################",
-   "##################################################",
- ],
- [ // Welt 2 · Seifenblasen-Bucht
-   "                                                  ",
-   "          o o o            ? ? ?                  ",
-   "          = = =                          o o      ",
-   "    ?                ?                  = = =   *  ",
-   "         H        o o        H                    ",
-   "  o o          = = =                H        o    ",
-   "@= = =    H              ? ?            ?      |   ",
-   "      ##      ###    P    ###    P   ###    ##     ",
-   "             ##     ##   ##     ##  ##             ",
-   "      E           H            E          H        ",
-   "   ####    #####     #####    #####    ####        ",
-   "##################################################",
-   "##################################################",
- ],
- [ // Welt 3 · Frostzipfel
-   "                                                  ",
-   "     o o o         *          o o o               ",
-   "     = = =                    = = =               ",
-   "  ?           ? ?       H              o o      |  ",
-   "        o o           = = =          = = =     ##  ",
-   "  H    = = =     H              H            o     ",
-   "@         E              E              E          ",
-   "    ####      ####    ####     ####    ####   ###  ",
-   "                                                  ",
-   "      H          H            H          H         ",
-   "   #####     #####     #####     #####     ###     ",
-   "##################################################",
-   "##################################################",
- ],
- [ // Welt 4 · Wuestenei
-   "                                                  ",
-   "         o o o                     o o            ",
-   "  ?      = = =        ? ?          = = =       *   ",
-   "                                                  ",
-   "   o o          H        E             H      |    ",
-   "  = = =    E         ###       o o          ##    ",
-   "@      H        ?          E  = = =    E           ",
-   "    ###     ###      ###       ###     ###    ##   ",
-   "                                                  ",
-   "       E          H           E          H        ",
-   "   ####     #####     #####     #####     ####     ",
-   "##################################################",
-   "##################################################",
- ],
- [ // Welt 5 · Wolkenburg
-   "          o o o                  o o o            ",
-   "          = = =      *           = = =            ",
-   "   ?              H           H              |    ",
-   "      ===       ===        ===       ===    ##    ",
-   "  o o       E          E          E       o o     ",
-   "@= = =    ===     ===      ===     ===   = = =     ",
-   "      H            H            H           H      ",
-   "   ===     ===   ===     ===   ===     ===  ===    ",
-   "                                                  ",
-   "      ####     #####     #####     #####    ###    ",
-   "   #####    #####    #####    #####    #####       ",
-   "##################################################",
-   "##################################################",
- ],
- [ // Welt 6 · Quakschloss
-   "                                                  ",
-   "      o o      ? ? ?         o o      ? ?          ",
-   "      = =      = = =         = =      = = =     *  ",
-   "  ?        H          E          H          |     ",
-   "     ===       =====       =====      ===   ##     ",
-   "  o o    H        E    H        E    H    o o      ",
-   "@= = =       E         =====        E        E     ",
-   "    ##    ##   ###   ##    ##   ###   ##   ###     ",
-   "                                                  ",
-   "      E       H        E       H        E         ",
-   "   ####    #####    #####    #####    #####   ###  ",
-   "##################################################",
-   "##################################################",
- ],
-];
-WORLDS.forEach((w,i)=>{ w.levels=[w.level, L2[i]]; });
-
-/* ---------- Waechter-Enten-Banter (Story-Tiefe, gewaltfrei) ----------
-   Jeder Boss ist eine Waechter-Ente des Barons. Kurzer Wortwechsel vor
-   dem Huepf-Duell. Welt 6 = dramatisches Finale mit dem Baron. */
-const BANTER=[
- [ "Halt! Niemand watschelt hier vorbei!", "Ich bin Hibbel, schnellste Huepf-Ente weit und breit. Fang mich doch!" ],
- [ "Pscht... hoerst du die Blasen platzen?", "Blubber laesst keine kleine Ente durch. Pass auf meine Seifenblasen auf!" ],
- [ "Brrr! Hier ist alles spiegelglatt.", "Frost-Ente friert jeden Weg ein. Komm doch naeher, wenn du dich traust!" ],
- [ "Heisser Sand, kleine Ente!", "Sand-Ente wirbelt Staub, dass dir Hoeren und Sehen vergeht. Kehr lieber um!" ],
- [ "Festhalten! Der Wind nimmt zu!", "Sturm-Ente fegt alles von den Wolken. Dich gleich mit!" ],
- [ "So weit bist du also gekommen, "+HERO+".", "Ich, "+VILLAIN+", habe sechs Welten zwischen dich und "+PRIN+" gelegt — und doch stehst du hier.", "Genug geplaudert. Ein letztes Huepf-Duell entscheidet alles!" ],
-];
-WORLDS.forEach((w,i)=>{ w.boss.banter=BANTER[i]; });
-
-/* ---------- Weltkarte (Overworld) — Layout & Theme als Daten ----------
-   Gewundener Pfad ueber breite Karte; Kamera folgt der Ente. Alles hier
-   anpassbar, ohne die Render-Logik zu beruehren. */
-const MAP={
-  marginX:70,      // Rand links/rechts in Map-Pixeln
-  sectionW:130,    // Abstand zwischen zwei Welt-Knoten
-  baseY:150,       // Pfad-Grundhoehe
-  ampY:30,         // Schwankung des Pfads
-  nodeR:11,        // Knoten-Radius
-};
-// Welt-Theme fuer die Karte (Boden-/Akzentfarben + Icon-Typ, kein Emoji)
-const MAPTHEME=[
-  {ground:"#4ec03a",groundDk:"#2f8f24",accent:"#7be07b",icon:"flower"}, // Wiese
-  {ground:"#3fb0d8",groundDk:"#2a85a8",accent:"#bdeefb",icon:"wave"},   // Bucht
-  {ground:"#dff0ff",groundDk:"#a9c8e8",accent:"#ffffff",icon:"ice"},    // Eis
-  {ground:"#e0b46a",groundDk:"#b8893f",accent:"#fff0c0",icon:"cactus"}, // Wueste
-  {ground:"#cfe0f5",groundDk:"#a9c4e0",accent:"#ffffff",icon:"cloud"},  // Wolken
-  {ground:"#6b5870",groundDk:"#3f2c4a",accent:"#b78fd8",icon:"castle"}, // Schloss
-];
-// Knotenpositionen auf der Karte (winding)
-const MAPNODES=WORLDS.map((w,i)=>({ x:MAP.marginX+i*MAP.sectionW, y:MAP.baseY+Math.sin(i*1.15)*MAP.ampY }));
-const MAPW=MAP.marginX*2+(WORLDS.length-1)*MAP.sectionW; // Gesamtbreite der Karte
-function shortName(i){return WORLDS[i].name.split("·").pop().trim();} // "Welt 4 · Wüstenei" -> "Wüstenei"
-// Overworld-Animationszustand
-let owCam=0, owDuckX=MAPNODES[0].x, owDuckY=MAPNODES[0].y, owWalk=0, owLastSel=0;
-
-/* ---------- Level build ---------- */
-function buildLevel(def){
-  const rows=def.slice(); let W=0; for(const r of rows) W=Math.max(W,r.length);
-  const grid=rows.map(r=>r.padEnd(W," ").split("")); const H=grid.length;
-  const coins=[],foes=[],powers=[],dragons=[],mounts=[]; let spawn={x:2*TILE,y:2*TILE},flag=null,checkpoint=null;
-  for(let ty=0;ty<H;ty++)for(let tx=0;tx<W;tx++){const ch=grid[ty][tx];
-    if(ch==="o"){coins.push({x:tx*TILE+8,y:ty*TILE+8,got:false,t:Math.random()*6});grid[ty][tx]=" ";}
-    else if(ch==="E"){foes.push(makeFoe(tx*TILE+1,ty*TILE,"walk"));grid[ty][tx]=" ";}
-    else if(ch==="H"){foes.push(makeFoe(tx*TILE+1,ty*TILE,"hop"));grid[ty][tx]=" ";}
-    else if(ch==="*"){powers.push({x:tx*TILE+8,y:ty*TILE+8,got:false,t:0,type:"star"});grid[ty][tx]=" ";}
-    else if(ch==="@"){spawn={x:tx*TILE,y:ty*TILE};grid[ty][tx]=" ";}
-    else if(ch==="|"){ if(!flag) flag={x:tx*TILE,y:ty*TILE}; }
+  /* PWA: Service Worker registrieren (nur ueber http/https) */
+  if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+    addEventListener("load",function(){ navigator.serviceWorker.register("./sw.js").catch(function(){}); });
   }
-  const surfaceY=(tx)=>{for(let ty=0;ty<H;ty++){if(isSolidCh(grid[ty][tx])&&(ty===0||!isSolidCh(grid[ty-1][tx])))return ty;}return -1;};
-  [0.16,0.33,0.5,0.67,0.84].forEach(fr=>{const tx=Math.floor(W*fr);const sy=surfaceY(tx);if(sy>2)dragons.push({x:tx*TILE+8,y:(sy-3)*TILE+8,got:false,t:Math.random()*6});});
-  { const tx=Math.floor(W*0.42); const sy=surfaceY(tx); if(sy>1) checkpoint={x:tx*TILE,y:(sy-2)*TILE,taken:false}; }
-  { const tx=Math.floor(W*0.25); const sy=surfaceY(tx); if(sy>2) powers.push({x:tx*TILE+8,y:(sy-2)*TILE+8,got:false,t:0,type:"mush"}); }
-  { const tx=Math.floor(W*0.6); const sy=surfaceY(tx); if(sy>2) powers.push({x:tx*TILE+8,y:(sy-2)*TILE+8,got:false,t:0,type:"feather"}); }
-  { const tx=Math.floor(W*0.38); const sy=surfaceY(tx); if(sy>1) mounts.push({x:tx*TILE,y:(sy-1)*TILE,taken:false,t:0}); }
-  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins,foes,powers,dragons,mounts,spawn,flag,checkpoint,boss:false};
-}
-function buildArena(){
-  const W=26,H=14; const grid=[];
-  for(let y=0;y<H;y++){let row=[];for(let x=0;x<W;x++){
-    let ch=" "; if(y>=H-2) ch="#"; else if(x===0||x===W-1) ch="#"; row.push(ch);} grid.push(row);}
-  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:2*TILE,y:(H-4)*TILE},flag:null,checkpoint:null,boss:true};
-}
-function isSolidCh(ch){return ch==="#"||ch==="="||ch==="?"||ch==="P"||ch==="Q";}
-function solidAt(tx,ty){ if(tx<0||tx>=L.W) return true; if(ty<0||ty>=L.H) return false; return isSolidCh(L.grid[ty][tx]); }
-
-/* ---------- Entities ---------- */
-function makeFoe(x,y,kind){const ef=(typeof SET!=="undefined"&&SET.easy)?0.66:1;return {x,y,w:14,h:13,vx:(kind==="hop"?-16:-24)*ef,vy:0,alive:true,poof:0,kind:kind||"walk",hopT:Math.random(),t:Math.random()*6,hitWall:false};}
-const duck={x:0,y:0,w:12,h:14,vx:0,vy:0,onGround:false,face:1,coyote:0,buffer:0,jumpHeld:false,flutterT:0,runT:0,blink:0,star:0,big:false,feather:false,mounted:false};
-let boss=null; const bubbles=[]; const pops=[]; const parts=[];
-/* kleine Partikel-Bursts (Juice) */
-function burst(x,y,col,n,spd){ for(let i=0;i<n;i++){const a=Math.random()*6.283,s=(0.4+Math.random())*(spd||60);
-  parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-28,life:0.35+Math.random()*0.3,t:0,col,sz:Math.random()<0.5?2:1});} }
-
-/* ---------- State ---------- */
-const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7,SETTINGS:8};
-let state=ST.TITLE, L=null, worldIdx=0, lives=3, coinsGot=0, score=0, unlocked=0, mapSel=0;
-let subSel=0, curLevelIdx=0;
-// worldProgress[w] = naechster spielbarer Knoten (0..levels.length=Boss). =levels.length+1 -> Welt fertig.
-const worldProgress=WORLDS.map(()=>0);
-let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, musicT=0, musicI=0;
-let setSel=0, prevScreenState=ST.TITLE, howtoShown=false;
-let curWorld=WORLDS[0];
-
-/* ---------- Audio ---------- */
-let AC=null;
-/* ---------- Einstellungen (persistiert via localStorage) ---------- */
-const SET={sfx:true,music:true,crt:true,easy:false};
-function loadSettings(){ try{ const r=localStorage.getItem("quacki_settings"); if(r){const o=JSON.parse(r); if(typeof o.sfx==="boolean")SET.sfx=o.sfx; if(typeof o.music==="boolean")SET.music=o.music; if(typeof o.crt==="boolean")SET.crt=o.crt; if(typeof o.easy==="boolean")SET.easy=o.easy;} }catch(e){} }
-function saveSettings(){ try{ localStorage.setItem("quacki_settings",JSON.stringify(SET)); }catch(e){} }
-loadSettings();
-function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
-function blip(f,d,t,v,to){if(!SET.sfx)return;const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();
-  o.type=t||"square";o.frequency.setValueAtTime(f,a.currentTime);if(to)o.frequency.exponentialRampToValueAtTime(Math.max(40,to),a.currentTime+d);
-  g.gain.setValueAtTime(v||0.06,a.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+d);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+d);}
-const SFX={jump(){blip(420,0.15,"square",0.06,760);},flap(){blip(520,0.06,"sine",0.03);},
-  coin(){blip(988,0.07,"square",0.05);setTimeout(()=>blip(1319,0.1,"square",0.05),55);},
-  star(){[660,880,1175,1568].forEach((f,i)=>setTimeout(()=>blip(f,0.1,"square",0.05),i*70));},
-  stomp(){blip(300,0.12,"square",0.06,120);},bump(){blip(170,0.12,"square",0.05,90);},
-  hurt(){blip(330,0.3,"sawtooth",0.07,90);},bubble(){blip(240,0.18,"sine",0.04,520);},
-  clear(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.14,"triangle",0.06),i*110));},
-  win(){[523,659,784,1047,1319,1047,1319,1568].forEach((f,i)=>setTimeout(()=>blip(f,0.16,"triangle",0.07),i*140));},
-  over(){[392,294,247,165].forEach((f,i)=>setTimeout(()=>blip(f,0.22,"triangle",0.07),i*150));}};
-const MELODY=[523,659,784,659,587,698,880,0,523,659,784,1047,988,784,659,0];
-function musicTick(dt){ if(!SET.music||!AC)return; musicT-=dt; if(musicT<=0){ const f=MELODY[musicI%MELODY.length]; musicI++; musicT=0.19;
-  if(f>0){ const a=AC,o=a.createOscillator(),g=a.createGain(); o.type="square"; o.frequency.value=f; g.gain.setValueAtTime(0.022,a.currentTime); g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.17); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime+0.17); } } }
-
-/* ---------- Input ---------- */
-const keys={left:false,right:false,jump:false};
-addEventListener("keydown",e=>{
-  if(["ArrowLeft","KeyA"].includes(e.code))keys.left=true;
-  else if(["ArrowRight","KeyD"].includes(e.code))keys.right=true;
-  else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=true;pressJump();e.preventDefault();}
-  else if(e.code==="Enter"){screenConfirm();}
-  else if(e.code==="KeyM"){const on=!(SET.sfx&&SET.music);SET.sfx=on;SET.music=on;saveSettings();}
-  else if(e.code==="KeyC"){SET.crt=!SET.crt;saveSettings();}
-  else if(e.code==="KeyO"&&(state===ST.TITLE||state===ST.OVERWORLD||state===ST.SUBMAP)){openSettings();}
-  if(state===ST.TITLE&&(e.code==="Space"||e.code==="Enter"))startGame();
-  if(state===ST.OVERWORLD){ if(["ArrowLeft","KeyA"].includes(e.code))mapSel=Math.max(0,mapSel-1); else if(["ArrowRight","KeyD"].includes(e.code))mapSel=Math.min(unlocked,mapSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedWorld(); }
-  else if(state===ST.SUBMAP){ if(["ArrowLeft","KeyA"].includes(e.code))subSel=Math.max(0,subSel-1); else if(["ArrowRight","KeyD"].includes(e.code))subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedNode(); else if(["ArrowDown","KeyS","Escape","Backspace"].includes(e.code))enterOverworld(); }
-  else if(state===ST.SETTINGS){ if(["ArrowUp","KeyW"].includes(e.code))setSel=(setSel+4)%5; else if(["ArrowDown","KeyS"].includes(e.code))setSel=(setSel+1)%5; else if(["ArrowLeft","ArrowRight","KeyA","KeyD"].includes(e.code))settingsToggle(); else if(["Space","Enter"].includes(e.code))settingsActivate(); else if(["Escape","Backspace"].includes(e.code))closeSettings(); }
-});
-addEventListener("keyup",e=>{
-  if(["ArrowLeft","KeyA"].includes(e.code))keys.left=false;
-  else if(["ArrowRight","KeyD"].includes(e.code))keys.right=false;
-  else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=false;duck.jumpHeld=false;}
-});
-function bindBtn(id,on,off){const el=document.getElementById(id);
-  el.addEventListener("pointerdown",e=>{e.preventDefault();on();});
-  ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off&&off();}));}
-bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else if(state===ST.SETTINGS)setSel=(setSel+4)%5; else keys.left=true; },()=>keys.left=false);
-bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(state===ST.SETTINGS)setSel=(setSel+1)%5; else keys.right=true; },()=>keys.right=false);
-bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} if(state===ST.SETTINGS){settingsActivate();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
-function evToCanvas(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(VW/r.width),y:(e.clientY-r.top)*(VH/r.height)};}
-cv.addEventListener("pointerdown",e=>{
-  if(state===ST.TITLE){startGame();return;}
-  if(state===ST.OVERWORLD){ const p=evToCanvas(e),mx=p.x+owCam; let best=-1,bd=1e9;
-    for(let i=0;i<=unlocked;i++){const n=MAPNODES[i],d=Math.hypot(mx-n.x,p.y-n.y);if(d<MAP.nodeR+8&&d<bd){bd=d;best=i;}}
-    if(best>=0){ if(best===mapSel)enterSelectedWorld(); else mapSel=best; } }
-});
-function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
-function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)startGame(); }
-
-/* ---------- Cutscenes ---------- */
-const el=id=>document.getElementById(id);
-function showScreen(id){["scTitle","scStory","scOver"].forEach(s=>el(s).classList.add("hidden"));if(id)el(id).classList.remove("hidden");}
-function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||"Weiter ▶";storyNext=next;state=ST.STORY;showScreen("scStory");}
-function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
-el("storyBtn").addEventListener("click",storyAdvance);
-/* Spielt mehrere Cutscene-Beats nacheinander, dann done().
-   beats: [{t:Titel, x:Text, btn?:Buttontext}] */
-function dialogSeq(beats,done){ let i=0; const next=()=>{ if(i>=beats.length){ if(done)done(); return; }
-  const b=beats[i++]; const last=(i>=beats.length); cutscene("",b.t,b.x,b.btn||(last?"Weiter ▶":"Weiter ▶"),next); }; next(); }
-
-/* ---------- Flow ---------- */
-function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=SET.easy?5:3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
-  for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0;
-  cutscene("","Die Entführung","In der ruhigen Quack-Bucht lebten "+HERO+" und "+PRIN+", die goldene Gummiente, in Frieden. Doch in einer stürmischen Nacht stürmte "+VILLAIN+" mit seiner Schergen-Bande heran und verschleppte "+PRIN+" in sein fernes Quakschloss! Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich "+HERO+" auf — mutig, klein und unaufhaltsam.","WEITER",()=>enterOverworld()); }
-function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null);
-  owDuckX=MAPNODES[mapSel].x; owDuckY=MAPNODES[mapSel].y; owLastSel=mapSel; owWalk=0;
-  owCam=Math.max(0,Math.min(MAPW-VW,owDuckX-VW/2)); }
-function nodeCount(w){ return WORLDS[w].levels.length+1; } // Level + Boss
-function maxSelNode(w){ return Math.min(worldProgress[w], nodeCount(w)-1); }
-function enterSelectedWorld(){ if(state!==ST.OVERWORLD)return; enterSubmap(mapSel); }
-function enterSubmap(w){ worldIdx=w; curWorld=WORLDS[w]; subSel=maxSelNode(w); state=ST.SUBMAP; showScreen(null); }
-function enterSelectedNode(){ if(state!==ST.SUBMAP)return; const w=worldIdx, li=subSel, levels=WORLDS[w].levels.length;
-  if(li<levels){ beginLevel(w,li); } else { startBossIntro(); } }
-function beginLevel(w,li){ worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
-  const intro = li===0 ? curWorld.story : (curWorld.name+" · Abschnitt "+(li+1)+". "+HERO+" watschelt weiter!");
-  const beats=[];
-  if(!howtoShown){ howtoShown=true; beats.push(
-    {t:"So spielst du",x:"Mit den Pfeiltasten (oder den grossen Tasten unten links) laeuft "+HERO+". Pfeil nach oben oder Leertaste laesst ihn springen."},
-    {t:"Gleiten & Muenzen",x:"Sprung in der Luft gedrueckt halten = sanft gleiten. Sammle Muenzen ein und huepfe Gegnern einfach oben auf den Kopf — niemand wird verletzt!"}
-  ); }
-  beats.push({t:curWorld.name+" · Level "+(li+1),x:intro,btn:"Start ▶"});
-  dialogSeq(beats,()=>loadPlatform(w,li)); }
-function loadPlatform(w,li){ if(li===undefined)li=curLevelIdx; worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
-  L=buildLevel(WORLDS[w].levels[li]); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0;parts.length=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); }
-function startBossIntro(){ const b=curWorld.boss;
-  const beats=(b.banter||[]).map(line=>({t:b.name,x:line}));
-  beats.push({t:b.name,x:b.story,btn:"Kampf! ▶"});
-  dialogSeq(beats,startBoss); }
-function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0;parts.length=0; camX=0; bossWonT=0;
-  const b=curWorld.boss; const tb=(SET.easy?2.4:1.9)-worldIdx*0.13; // spaetere Welten werfen schneller, Easy entschaerft
-  boss={x:18*TILE,y:(L.H-4)*TILE,w:22,h:20,vx:-40*(SET.easy?0.8:1),vy:0,hp:3,invuln:0,throwT:tb,throwBase:tb,dir:-1,jumpT:1.0,color:b.color,name:b.name,defeated:0};
-  state=ST.BOSS; showScreen(null); }
-function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=false;duck.blink=1.0;duck.flutterT=0;duck.star=0;duck.big=false;duck.feather=false;duck.mounted=false;}
-function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
-function takeHit(){ const d=duck; if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
-function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
-function gameOver(){state=ST.OVER;el("overText").textContent="Münzen: "+coinsGot+" · Punkte: "+score;SFX.over();showScreen("scOver");}
-function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
-  if(worldProgress[w]===li) worldProgress[w]=li+1; // naechsten Knoten freischalten
-  const lastLevel=(li===levels-1);
-  const txt=lastLevel ? ("Stark, "+HERO+"! Jetzt wartet nur noch "+curWorld.boss.name+". Waehle den Boss auf der Karte.")
-                      : ("Abschnitt geschafft! Der naechste Weg ist frei.");
-  cutscene("",curWorld.name+" · Level "+(li+1)+" geschafft!",txt,"Zur Karte ▶",()=>enterSubmap(w)); }
-function bossDefeated(){ SFX.clear(); const w=worldIdx, levels=WORLDS[w].levels.length;
-  worldProgress[w]=levels+1; // Welt komplett
-  if(w>=WORLDS.length-1){ dialogSeq([
-      {t:"Das Finale",x:"Mit einem letzten, beherzten Sprung setzt "+HERO+" zum Sprung an — der "+VILLAIN+" wankt auf seinem Thron..."},
-      {t:"Der Thron wankt",x:"\"Unmoeglich!\", quakt der Baron, \"besiegt von einer so kleinen Ente?\" Mit einem Plumps landet er im Schlossgraben.",btn:"Weiter ▶"},
-      {t:"Goldi ist frei!",x:PRIN+"s Kaefig springt auf! Seite an Seite watscheln die beiden zurueck in die Quack-Bucht, wo ganz Entenhausen sie mit Jubel und Konfetti empfaengt."},
-      {t:"Held des Tages",x:"Held des Tages: "+HERO+"!   Endpunkte: "+score+" · Muenzen: "+coinsGot,btn:"NOCHMAL"},
-    ],startGame); }
-  else { if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,w+1); cutscene("",curWorld.name+" geschafft!","Boss besiegt! Die naechste Welt ist frei. Zurueck zur Weltkarte.","Zur Karte ▶",()=>enterOverworld()); } }
-el("btnRetry").addEventListener("click",startGame);
-
-/* ---------- Einstellungen-Screen ---------- */
-function openSettings(){ prevScreenState=state; setSel=0; state=ST.SETTINGS; showScreen(null); }
-function closeSettings(){ saveSettings(); state=prevScreenState; showScreen(state===ST.TITLE?"scTitle":null); }
-function settingsToggle(){ if(setSel===0)SET.sfx=!SET.sfx; else if(setSel===1){SET.music=!SET.music; if(SET.music&&AC){musicI=0;musicT=0;}} else if(setSel===2)SET.crt=!SET.crt; else if(setSel===3)SET.easy=!SET.easy; saveSettings(); }
-function settingsActivate(){ if(setSel<4)settingsToggle(); else closeSettings(); }
-el("btnSettings").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().state==="suspended")ac().resume();openSettings();});
-
-/* ---------- Physik ---------- */
-const GRAV=1500,MOVE=132,ACC=900,FRIC=760,JUMP=-430,JUMPCUT=0.45,MAXFALL=520,COYOTE=0.09,FLUTTER=420,FLUTTER_MAX=0.7;
-
-function update(dt){
-  if(state===ST.DEAD){deadT-=dt;duck.vy+=GRAV*dt;duck.y+=duck.vy*dt;if(deadT<=0)afterDeath();return;}
-  if(state!==ST.PLAY&&state!==ST.BOSS)return;
-  const d=duck;
-  const want=(keys.right?1:0)-(keys.left?1:0);
-  if(want!==0){d.vx+=want*ACC*dt;d.face=want;if(Math.abs(d.vx)>MOVE)d.vx=MOVE*want;}
-  else {if(d.vx>0)d.vx=Math.max(0,d.vx-FRIC*dt);else d.vx=Math.min(0,d.vx+FRIC*dt);}
-  if(d.buffer>0)d.buffer-=dt; if(d.coyote>0)d.coyote-=dt;
-  if(d.buffer>0&&(d.onGround||d.coyote>0)){d.vy=JUMP*(d.mounted?1.18:1);d.onGround=false;d.coyote=0;d.buffer=0;d.jumpHeld=true;d.flutterT=FLUTTER_MAX;SFX.jump();}
-  if(!keys.jump&&d.vy<0&&d.jumpHeld){d.vy*=JUMPCUT;d.jumpHeld=false;}
-  // flatter: in der Luft fallend + Sprung gehalten
-  let g=GRAV;
-  if(!d.onGround&&d.vy>0&&keys.jump){ if(d.feather){g=240;if(Math.random()<0.3)SFX.flap();} else if(d.flutterT>0){g=FLUTTER;d.flutterT-=dt;if(Math.random()<0.3)SFX.flap();} }
-  d.vy+=g*dt; if(d.vy>MAXFALL)d.vy=MAXFALL;
-  moveX(d,d.vx*dt);
-  const wasG=d.onGround; d.onGround=false; moveY(d,d.vy*dt);
-  if(wasG&&!d.onGround&&d.vy>=0)d.coyote=COYOTE;
-  if(d.onGround)d.flutterT=FLUTTER_MAX;
-  if(d.vx!==0&&d.onGround)d.runT+=dt*Math.abs(d.vx)/40;
-  if(d.blink>0)d.blink-=dt; if(d.star>0)d.star-=dt;
-  if(d.y>L.pxH+40){loseLife();return;}
-
-  // coins / powerups
-  for(const c of L.coins){if(!c.got){c.t+=dt*6;if(Math.abs((d.x+d.w/2)-c.x)<11&&Math.abs((d.y+d.h/2)-c.y)<12){c.got=true;coinsGot++;score+=100;SFX.coin();burst(c.x,c.y,"#ffe96b",5,70);}}}
-  for(const p of L.powers){if(!p.got){p.t+=dt;if(Math.abs((d.x+d.w/2)-p.x)<12&&Math.abs((d.y+d.h/2)-p.y)<13){p.got=true;score+=200;if(p.type==="mush"){d.big=true;}else if(p.type==="feather"){d.feather=true;}else{d.star=6;}SFX.star();}}}
-  for(const c of L.dragons){if(!c.got){c.t+=dt*5;if(Math.abs((d.x+d.w/2)-c.x)<13&&Math.abs((d.y+d.h/2)-c.y)<14){c.got=true;dragonGot++;score+=500;SFX.coin();if(L.dragons.length>0&&dragonGot===L.dragons.length){score+=2000;SFX.clear();}}}}
-  if(L.checkpoint&&!L.checkpoint.taken&&(d.x+d.w)>L.checkpoint.x+4){L.checkpoint.taken=true;L.spawn={x:L.checkpoint.x,y:Math.max(0,L.checkpoint.y)};SFX.coin();}
-  for(const mo of L.mounts){if(mo.taken)continue;mo.t+=dt;if(!d.mounted&&d.x<mo.x+16&&d.x+d.w>mo.x&&d.y+d.h>mo.y-2&&d.y<mo.y+14){mo.taken=true;d.mounted=true;score+=150;SFX.coin();}}
-
-  // foes
-  for(const f of L.foes){
-    if(!f.alive){if(f.poof>0){f.poof-=dt;f.y-=30*dt;}continue;}
-    f.t+=dt; f.vy+=GRAV*dt; if(f.vy>MAXFALL)f.vy=MAXFALL;
-    if(f.kind==="hop"){f.hopT-=dt;if(f.hopT<=0&&f.onG){f.vy=-300;f.hopT=1.1+Math.random()*0.6;}}
-    moveX(f,f.vx*dt); if(f.hitWall){f.vx*=-1;f.hitWall=false;}
-    f.onG=false; foeMoveY(f,f.vy*dt);
-    if(rectsOverlap(d,f)){
-      if(d.star>0){f.alive=false;f.poof=0.5;score+=200;SFX.stomp();burst(f.x+7,f.y+6,"#fff0a8",9,95);shake=Math.max(shake,0.12);}
-      else if(d.vy>0&&(d.y+d.h)-f.y<11){f.alive=false;f.poof=0.5;d.vy=-260;score+=200;SFX.stomp();burst(f.x+7,f.y+6,"#ffffff",8,90);shake=Math.max(shake,0.12);}
-      else if(d.blink<=0){takeHit();return;}
-    }
-  }
-
-  // bubbles (boss-Projektile)
-  for(const b of bubbles){ b.t+=dt; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vy+=140*dt;
-    if(d.blink<=0&&d.star<=0&&Math.abs((d.x+d.w/2)-b.x)<10&&Math.abs((d.y+d.h/2)-b.y)<10){takeHit();return;} }
-  for(let i=bubbles.length-1;i>=0;i--){if(bubbles[i].y>L.pxH||bubbles[i].x<-20||bubbles[i].x>L.pxW+20||bubbles[i].t>6)bubbles.splice(i,1);}
-
-  if(state===ST.BOSS&&boss) updateBoss(dt,d);
-
-  // flag
-  if(state===ST.PLAY&&L.flag){ if(!gaveBonus){gBarY+=gDir*80*dt; if(gBarY>26){gBarY=26;gDir=-1;} if(gBarY<0){gBarY=0;gDir=1;}}
-    if((d.x+d.w)>L.flag.x+6){ if(!gaveBonus){gaveBonus=true;clearBonus=Math.round((26-gBarY)*40)+100;score+=clearBonus;SFX.clear();} flagT+=dt; if(flagT>0.8){levelCleared();return;} } }
-
-  // camera
-  camX=Math.max(0,Math.min(L.pxW-VW,d.x+d.w/2-VW*0.42));
-  if(shake>0)shake-=dt;
-  for(let i=pops.length-1;i>=0;i--){pops[i].t-=dt;pops[i].y-=24*dt;if(pops[i].t<=0)pops.splice(i,1);}
-  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.t+=dt;p.vy+=620*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.t>=p.life)parts.splice(i,1);}
-}
-
-function updateBoss(dt,d){
-  const b=boss;
-  if(b.defeated>0){b.defeated-=dt;b.y+=40*dt;if(b.defeated<=0){boss=null;bossDefeated();}return;}
-  if(b.invuln>0)b.invuln-=dt;
-  b.vy+=GRAV*dt; if(b.vy>MAXFALL)b.vy=MAXFALL;
-  // bewegen
-  b.x+=b.vx*dt;
-  if(b.x<TILE){b.x=TILE;b.vx=Math.abs(b.vx);b.dir=1;} if(b.x+b.w>L.pxW-TILE){b.x=L.pxW-TILE-b.w;b.vx=-Math.abs(b.vx);b.dir=-1;}
-  bMoveY(b,b.vy*dt);
-  // hüpfen
-  b.jumpT-=dt; if(b.jumpT<=0&&b.onG){b.vy=-340;b.jumpT=1.6+Math.random();}
-  // werfen
-  b.throwT-=dt; if(b.throwT<=0){const dx=(d.x-b.x);const dir=dx<0?-1:1;bubbles.push({x:b.x+b.w/2,y:b.y+6,vx:dir*90,vy:-60,t:0});SFX.bubble();b.throwT=(b.throwBase||1.7)+Math.random()*0.7;}
-  // kollision mit Ente
-  if(rectsOverlap(d,b)){
-    if((d.star>0||(d.vy>0&&(d.y+d.h)-b.y<13))&&b.invuln<=0){
-      b.hp--; b.invuln=1.1; d.vy=-280; SFX.stomp(); shake=0.3; score+=300;
-      b.vx*=1.18; burst(b.x+b.w/2,b.y+4,"#ffd23f",14,115);
-      if(b.hp<=0){b.defeated=0.8;SFX.clear();burst(b.x+b.w/2,b.y+b.h/2,"#fff",22,140);}
-    } else if(d.blink<=0&&d.star<=0&&b.invuln<=0){ takeHit(); return; }
-  }
-}
-
-/* ---------- Tile-Kollision ---------- */
-function moveX(e,dx){e.x+=dx;const top=Math.floor(e.y/TILE),bot=Math.floor((e.y+e.h-1)/TILE);
-  if(dx>0){const tx=Math.floor((e.x+e.w-1)/TILE);for(let ty=top;ty<=bot;ty++)if(solidAt(tx,ty)){e.x=tx*TILE-e.w;e.vx=0;e.hitWall=true;break;}}
-  else if(dx<0){const tx=Math.floor(e.x/TILE);for(let ty=top;ty<=bot;ty++)if(solidAt(tx,ty)){e.x=(tx+1)*TILE;e.vx=0;e.hitWall=true;break;}}}
-function moveY(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
-  if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onGround=true;break;}}
-  else if(dy<0){const ty=Math.floor(e.y/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=(ty+1)*TILE;e.vy=0;
-    if(L.grid[ty]&&L.grid[ty][tx]==="?"){L.grid[ty][tx]="Q";coinsGot++;score+=100;SFX.coin();pops.push({x:tx*TILE+8,y:ty*TILE,t:0.5});}else SFX.bump();break;}}}
-function foeMoveY(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
-  if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onG=true;break;}}}
-function bMoveY(e,dy){e.y+=dy;e.onG=false;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
-  if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onG=true;break;}}}
-function rectsOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
-
-/* ---------- Render ---------- */
-function px(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(Math.round(x),Math.round(y),w,h);}
-/* ---------- Eigene 3x5-Bitmap-Font (pixelscharf, kein Weichzeichnen) ---------- */
-const FONT={
- "A":["010","101","111","101","101"],"B":["110","101","110","101","110"],"C":["011","100","100","100","011"],
- "D":["110","101","101","101","110"],"E":["111","100","110","100","111"],"F":["111","100","110","100","100"],
- "G":["011","100","101","101","011"],"H":["101","101","111","101","101"],"I":["111","010","010","010","111"],
- "J":["001","001","001","101","010"],"K":["101","101","110","101","101"],"L":["100","100","100","100","111"],
- "M":["101","111","111","101","101"],"N":["101","111","111","111","101"],"O":["010","101","101","101","010"],
- "P":["110","101","110","100","100"],"Q":["010","101","101","110","011"],"R":["110","101","110","101","101"],
- "S":["011","100","010","001","110"],"T":["111","010","010","010","010"],"U":["101","101","101","101","111"],
- "V":["101","101","101","101","010"],"W":["101","101","111","111","101"],"X":["101","101","010","101","101"],
- "Y":["101","101","010","010","010"],"Z":["111","001","010","100","111"],
- "0":["111","101","101","101","111"],"1":["010","110","010","010","111"],"2":["110","001","010","100","111"],
- "3":["110","001","010","001","110"],"4":["101","101","111","001","001"],"5":["111","100","110","001","110"],
- "6":["011","100","110","101","010"],"7":["111","001","010","010","010"],"8":["010","101","010","101","010"],
- "9":["010","101","011","001","110"],
- " ":["000","000","000","000","000"],"-":["000","000","111","000","000"],".":["000","000","000","000","010"],
- ":":["000","010","000","010","000"],"/":["001","001","010","100","100"],"!":["010","010","010","000","010"],
- "+":["000","010","111","010","000"],"'":["010","010","000","000","000"],"\"":["101","101","000","000","000"],
-};
-const UML={"Ä":"A","Ö":"O","Ü":"U"};
-function bmW(s,sc){sc=sc||1;return String(s).length*4*sc;}
-function bmText(s,x,y,col,sc){sc=sc||1;ctx.fillStyle=col;let cx=Math.round(x);y=Math.round(y);
-  for(const raw of String(s)){const ch=raw.toUpperCase();const uml=UML[ch];const g=FONT[uml||ch]||FONT[raw]||FONT[" "];
-    for(let r=0;r<5;r++){const row=g[r];for(let c=0;c<3;c++)if(row[c]==="1")ctx.fillRect(cx+c*sc,y+r*sc,sc,sc);}
-    if(uml){ctx.fillRect(cx,y-2*sc,sc,sc);ctx.fillRect(cx+2*sc,y-2*sc,sc,sc);}
-    cx+=4*sc;} return cx;}
-function bmCenter(s,cx,y,col,sc){bmText(s,cx-bmW(s,sc)/2,y,col,sc);}
-function pixHeart(x,y,col){const m=["0110110","1111111","1111111","0111110","0011100","0001000"];for(let r=0;r<6;r++)for(let c=0;c<7;c++)if(m[r][c]==="1")px(x+c,y+r,1,1,col);}
-function pixCheck(x,y,col){const m=["00001","00011","10110","11100","01000"];for(let r=0;r<5;r++)for(let c=0;c<5;c++)if(m[r][c]==="1")px(x+c,y+r,1,1,col);}
-function pixTri(x,y,dir,col){ // kleines gefuelltes Dreieck: dir 1=rechts,-1=links,0=hoch
-  if(dir===0){for(let r=0;r<5;r++)px(x+4-r,y+r,1+r*2,1,col);}
-  else for(let r=0;r<5;r++){const wdt=5-Math.abs(r-2)*1;if(dir>0)px(x,y+r,5-Math.abs(r-2)*2,1,col);else px(x+Math.abs(r-2)*2,y+r,5-Math.abs(r-2)*2,1,col);} }
-function draw(){
-  let ox=0,oy=0; if(shake>0){ox=(Math.random()-0.5)*4*shake;oy=(Math.random()-0.5)*4*shake;}
-  ctx.save(); ctx.translate(ox,oy);
-  if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
-  const w=curWorld;
-  const grd=ctx.createLinearGradient(0,0,0,VH); grd.addColorStop(0,w.sky[0]); grd.addColorStop(1,w.sky[1]);
-  ctx.fillStyle=grd; ctx.fillRect(0,0,VW,VH);
-  drawClouds(); drawHills(w);
-  if(state===ST.SUBMAP){ drawSubmap(); ctx.restore(); return; }
-  if(state===ST.SETTINGS){ drawSettings(); ctx.restore(); return; }
-  if(state===ST.TITLE){ drawTitleMascot(); ctx.restore(); return; }
-  if(L){ ctx.save(); ctx.translate(-Math.round(camX),0);
-    drawTiles(w); drawCoins(); drawDragons(); drawPowers(); drawCheckpoint(); drawGate(); drawFoes(); drawBubbles();
-    if(state===ST.BOSS&&boss)drawBoss(); drawDuck(); drawParts();
-    ctx.restore(); drawHUD(); }
-  ctx.restore();
-}
-function drawClouds(){const t=performance.now()/3000;
-  for(let i=0;i<4;i++){let x=((i*150-camX*0.3-t*10)%(VW+120));if(x<-80)x+=VW+120;const y=22+(i%2)*24;
-    px(x,y,22,8,C.cloud);px(x+8,y-6,18,8,C.cloud);px(x+18,y,16,8,C.cloud);}}
-function drawHills(w){const base=VH-30;
-  for(let i=0;i<6;i++){let x=((i*92-camX*0.5)%(VW+184));if(x<-92)x+=VW+184;
-    ctx.fillStyle=w.hillDk;ctx.beginPath();ctx.moveTo(x-30,base);ctx.lineTo(x+18,base-38);ctx.lineTo(x+66,base);ctx.fill();
-    ctx.fillStyle=w.hill;ctx.beginPath();ctx.moveTo(x-20,base);ctx.lineTo(x+18,base-32);ctx.lineTo(x+56,base);ctx.fill();}}
-function drawStar(cx,cy,r,col){ctx.fillStyle=col;ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;const xx=cx+Math.cos(a)*rr,yy=cy+Math.sin(a)*rr;i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);}ctx.closePath();ctx.fill();}
-function drawWorldIcon(type,x,y){
-  if(type==="flower"){px(x-1,y-8,2,8,"#3a8f2f");px(x-4,y-12,4,4,"#ff6ea0");px(x+1,y-12,4,4,"#ff6ea0");px(x-2,y-15,4,4,"#ff6ea0");px(x-2,y-9,4,4,"#ff6ea0");px(x-1,y-11,2,2,"#ffe08a");}
-  else if(type==="wave"){px(x-9,y-1,18,3,"#bdeefb");px(x-7,y-4,5,3,"#bdeefb");px(x+2,y-4,5,3,"#bdeefb");px(x-2,y-6,4,3,"#dff6ff");}
-  else if(type==="ice"){px(x-1,y-13,3,13,"#cfe9ff");px(x-7,y-8,16,3,"#cfe9ff");px(x-5,y-11,3,3,"#fff");px(x+3,y-4,3,3,"#fff");px(x-6,y-3,3,3,"#fff");}
-  else if(type==="cactus"){px(x-2,y-13,4,13,"#3fae4a");px(x-6,y-9,4,3,"#3fae4a");px(x-6,y-13,3,5,"#3fae4a");px(x+2,y-10,4,3,"#3fae4a");px(x+4,y-14,3,6,"#3fae4a");}
-  else if(type==="cloud"){px(x-9,y-4,19,6,"#fff");px(x-4,y-9,11,6,"#fff");px(x+4,y-7,7,5,"#fff");}
-  else if(type==="castle"){px(x-9,y-15,18,15,"#6a4f7a");px(x-9,y-19,4,4,"#6a4f7a");px(x-2,y-20,4,5,"#6a4f7a");px(x+5,y-19,4,4,"#6a4f7a");px(x-2,y-8,5,8,"#2c1d3a");px(x-7,y-12,3,3,"#2c1d3a");px(x+4,y-12,3,3,"#2c1d3a");}
-}
-function drawOWParallax(cam){
-  for(let i=0;i<14;i++){const x=i*120-cam*0.35,base=VH-22;
-    ctx.fillStyle="rgba(255,255,255,.10)";ctx.beginPath();ctx.moveTo(x-42,base);ctx.lineTo(x+22,base-50);ctx.lineTo(x+86,base);ctx.closePath();ctx.fill();}
-  for(let i=0;i<11;i++){const x=i*150-cam*0.55,y=18+(i%3)*15;
-    px(x,y,22,8,C.cloud);px(x+8,y-6,18,8,C.cloud);px(x+18,y,16,8,C.cloud);}
-}
-function drawOWTerrain(){
-  for(let i=0;i<WORLDS.length;i++){const n=MAPNODES[i],th=MAPTHEME[i];
-    let x=n.x-MAP.sectionW/2-1,w=MAP.sectionW+2; if(i===0){w+=x;x=0;} if(i===WORLDS.length-1){w=MAPW-x;}
-    const top=Math.round(n.y+18);
-    px(x,top+3,w,VH-top,th.groundDk);
-    px(x,top,w,VH-top-3,th.ground);
-    px(x,top,w,4,th.accent);
-    drawWorldIcon(th.icon,n.x+24,n.y+2);
-  }
-}
-function drawOWPath(){
-  for(let i=0;i<WORLDS.length-1;i++){const a=MAPNODES[i],b=MAPNODES[i+1];
-    const done=(i+1)<=unlocked,col=done?"#ffe08a":"rgba(255,255,255,.55)";
-    const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/8));
-    for(let s=0;s<=steps;s++){const t=s/steps,xx=a.x+(b.x-a.x)*t,yy=a.y+(b.y-a.y)*t;px(xx-1.5,yy-1.5,3,3,col);}}
-}
-function drawOWNode(i){const n=MAPNODES[i],done=i<unlocked,locked=i>unlocked,sel=i===mapSel,th=MAPTHEME[i],R=MAP.nodeR;
-  ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(n.x,n.y+R+2,R,4,0,0,7);ctx.fill();
-  ctx.fillStyle=th.groundDk;ctx.beginPath();ctx.arc(n.x,n.y,R+3,0,7);ctx.fill();
-  ctx.fillStyle=done?"#4ec03a":(locked?"#5a6472":"#f0a81c");ctx.beginPath();ctx.arc(n.x,n.y,R,0,7);ctx.fill();
-  ctx.fillStyle="rgba(255,255,255,.22)";ctx.beginPath();ctx.arc(n.x,n.y-3,R-4,0,7);ctx.fill();
-  bmCenter(String(i+1),n.x,n.y-3,locked?"#cdd5e0":"#1b1b1b",1);
-  if(locked){px(n.x-4,n.y-R-10,8,6,"#9aa6b5");px(n.x-3,n.y-R-13,6,4,"#c2ccda");px(n.x-1,n.y-R-8,2,3,"#5a6472");}
-  else if(done){drawStar(n.x,n.y-R-9,5,"#ffe96b");}
-  if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(n.x,n.y,R+5+Math.sin(performance.now()/180),0,7);ctx.stroke();}
-}
-function drawOWDuck(){const walking=Math.hypot(MAPNODES[mapSel].x-owDuckX,MAPNODES[mapSel].y-owDuckY)>0.6;
-  const x=Math.round(owDuckX),baseY=owDuckY-MAP.nodeR-6,bob=walking?Math.abs(Math.sin(owWalk))*2:Math.sin(performance.now()/220)*1.4,Y=Math.round(baseY-bob);
-  ctx.fillStyle="rgba(0,0,0,.25)";ctx.beginPath();ctx.ellipse(x,owDuckY-MAP.nodeR+1,7,3,0,0,7);ctx.fill();
-  const st=walking?(Math.sin(owWalk)>0?1:-1):0;
-  px(x-4+st,Y+8,3,2,C.beak);px(x+2-st,Y+8,3,2,C.beak);
-  px(x-6,Y,12,8,C.duck);px(x-6,Y+6,12,2,C.duckDk);
-  px(x+1,Y-6,7,7,C.duck);px(x+1,Y-6,7,1,"#fff0b0");
-  px(x+5,Y-4,2,2,C.eye);px(x+7,Y-3,3,2,C.beak);
-}
-function drawOverworld(){
-  // Animation/Easing (Menu-Rate)
-  const tgt=MAPNODES[mapSel],dx=tgt.x-owDuckX,dy=tgt.y-owDuckY;
-  if(Math.hypot(dx,dy)>0.6){owDuckX+=dx*0.18;owDuckY+=dy*0.18;owWalk+=0.45;}else{owDuckX=tgt.x;owDuckY=tgt.y;}
-  const camTgt=Math.max(0,Math.min(MAPW-VW,owDuckX-VW/2));owCam+=(camTgt-owCam)*0.16;const cam=Math.round(owCam);
-  // Himmel + Parallax
-  const grd=ctx.createLinearGradient(0,0,0,VH);grd.addColorStop(0,"#3a6fd8");grd.addColorStop(1,"#9bc7ff");ctx.fillStyle=grd;ctx.fillRect(0,0,VW,VH);
-  drawOWParallax(cam);
-  // Karte (kamera-verschoben)
-  ctx.save();ctx.translate(-cam,0);
-  drawOWTerrain();drawOWPath();
-  for(let i=0;i<WORLDS.length;i++)drawOWNode(i);
-  drawOWDuck();
-  ctx.restore();
-  // Overlay/HUD (bildschirmfest)
-  bmCenter("WELTKARTE",VW/2,10,"#fff",2);
-  px(0,VH-20,VW,20,"rgba(9,16,30,.62)");px(0,VH-20,VW,1,"rgba(255,255,255,.18)");
-  bmCenter("WELT "+(mapSel+1)+"  -  "+shortName(mapSel).toUpperCase(),VW/2,VH-31,"#ffe08a",1);
-  pixHeart(8,VH-15,"#e23b3b");bmText(String(lives),18,VH-15,"#fff",1);
-  px(40,VH-15,5,7,C.coin);px(41,VH-14,3,5,C.coinDk);bmText("X"+String(coinsGot).padStart(2,"0"),48,VH-15,"#fff",1);
-  bmText("PUNKTE "+score,92,VH-15,"#ffd23f",1);
-  bmText("PFEILE  HOCH=LOS",VW-bmW("PFEILE  HOCH=LOS",1)-6,VH-15,"rgba(255,255,255,.82)",1);
-}
-function drawSubmap(){
-  const w=worldIdx, levels=WORLDS[w].levels.length, n=nodeCount(w), prog=worldProgress[w], frontier=maxSelNode(w);
-  bmCenter(WORLDS[w].name.toUpperCase(),VW/2,12,"#fff",2);
-  bmCenter("WAEHLEN   HOCH = LOS   RUNTER = ZURUECK",VW/2,30,"rgba(255,255,255,.85)",1);
-  const y=120,x0=46,dx=(VW-92)/(n-1);
-  ctx.strokeStyle="rgba(255,255,255,.55)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+(n-1)*dx,y);ctx.stroke();
-  for(let i=0;i<n;i++){const x=x0+i*dx,boss=(i===n-1),done=i<prog,locked=i>frontier,sel=i===subSel;
-    ctx.fillStyle=done?"#4ec03a":(locked?"#5a6472":(boss?"#c0533a":"#f0a81c"));
-    ctx.beginPath();ctx.arc(x,y,boss?11:9,0,7);ctx.fill();
-    if(boss){ // kleines Krönchen statt Emoji
-      ctx.fillStyle="#ffd23f";px(x-6,y-2,12,4,"#ffd23f");px(x-6,y-6,3,4,"#ffd23f");px(x-1,y-7,3,5,"#ffd23f");px(x+4,y-6,3,4,"#ffd23f");
-      px(x-7,y+2,14,2,"#a86a00");
-    } else { bmCenter(String(i+1),x,y-3,"#1b1b1b",1); }
-    if(locked){px(x-3,y-17,6,4,"#9aa6b5");px(x-2,y-19,4,3,"#9aa6b5");}
-    else if(done&&!boss){pixCheck(x-2,y-16,"#bfe3a0");}
-    if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,boss?15:13,0,7);ctx.stroke();
-      const dy=Math.sin(performance.now()/200)*2;px(x-6,y-34+dy,12,8,C.duck);px(x+2,y-38+dy,7,7,C.duck);px(x+8,y-36+dy,3,2,C.beak);px(x+6,y-37+dy,1,1,C.eye);}}
-  const label = subSel<levels ? ("LEVEL "+(subSel+1)) : ("BOSS - "+WORLDS[w].boss.name.toUpperCase());
-  bmCenter(label,VW/2,VH-30,"#fff",1);
-  pixHeart(VW/2-44,VH-15,"#e23b3b");bmText(String(lives),VW/2-34,VH-15,"#fff",1);
-  bmText("PUNKTE "+score,VW/2-12,VH-15,"#ffd23f",1);}
-function drawSettings(){
-  // abgedunkelte Box
-  px(0,0,VW,VH,"rgba(9,16,30,.55)");
-  const pw=204,ph=160,x=Math.round((VW-pw)/2),y=Math.round((VH-ph)/2);
-  px(x,y,pw,ph,"rgba(10,16,30,.92)");
-  px(x,y,pw,3,"#ffd23f");px(x,y+ph-3,pw,3,"#ffd23f");px(x,y,3,ph,"#ffd23f");px(x+pw-3,y,3,ph,"#ffd23f");
-  bmCenter("EINSTELLUNGEN",VW/2,y+12,"#ffd23f",2);
-  const rows=[["TON",SET.sfx],["MUSIK",SET.music],["CRT-FILTER",SET.crt],["EASY-MODUS",SET.easy],["ZURUECK",null]];
-  const ry=y+40, rh=20;
-  for(let i=0;i<rows.length;i++){const cy=ry+i*rh,sel=i===setSel;
-    if(sel){px(x+10,cy,pw-20,16,"rgba(255,210,63,.18)");bmText(">",x+14,cy+4,"#ffd23f",2);}
-    bmText(rows[i][0],x+30,cy+4,sel?"#fff":"#cdd5e0",1);
-    if(rows[i][1]!==null){ const on=rows[i][1]; bmText(on?"AN":"AUS",x+pw-58,cy+4,on?"#4ec03a":"#e2554a",2); }
-  }
-  bmCenter("PFEILE WAEHLEN  AKTION UMSCHALTEN",VW/2,y+ph-14,"rgba(255,255,255,.7)",1);
-}
-function drawTitleMascot(){ const cx=VW/2, by=150+Math.sin(performance.now()/400)*3;
-  ctx.fillStyle="rgba(0,0,0,.18)";ctx.beginPath();ctx.ellipse(cx,184,42,7,0,0,7);ctx.fill();
-  px(cx-22,by-10,44,30,C.duck);px(cx-22,by+14,44,6,C.duckDk);
-  px(cx-12,by+2,16,12,C.duckDk);
-  px(cx-26,by-6,8,8,C.duckDk);
-  px(cx+6,by-30,26,26,C.duck);px(cx+6,by-30,26,3,"#fff0b0");
-  px(cx+24,by-22,5,5,C.eye);
-  px(cx+31,by-18,12,8,C.beak);px(cx+31,by-11,9,3,"#d96a1e");
-}
-function drawCRT(){ if(!SET.crt)return;
-  ctx.globalAlpha=0.10;ctx.fillStyle="#000";for(let y=0;y<VH;y+=2)ctx.fillRect(0,y,VW,1);ctx.globalAlpha=1;
-  const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.32,VW/2,VH/2,VH*0.78);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,"rgba(0,0,0,0.34)");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH); }
-function drawTiles(w){const x0=Math.floor(camX/TILE),x1=Math.min(L.W,x0+VW/TILE+2);
-  for(let tx=x0;tx<x1;tx++)for(let ty=0;ty<L.H;ty++){const ch=L.grid[ty][tx];if(ch===" "||ch==="|")continue;const X=tx*TILE,Y=ty*TILE;
-    if(ch==="#"){const top=(ty>0&&L.grid[ty-1][tx]===" ");px(X,Y,TILE,TILE,w.ground);px(X,Y+12,TILE,4,C.dirtDk);
-      if(top){px(X,Y,TILE,5,w.grass);px(X,Y+5,TILE,2,C.grassDk);}px(X,Y,1,TILE,"rgba(0,0,0,.15)");}
-    else if(ch==="="){px(X,Y,TILE,TILE,C.brick);px(X,Y,TILE,2,"#e0884a");px(X,Y+7,TILE,2,C.brickDk);px(X+7,Y,2,TILE,C.brickDk);}
-    else if(ch==="?"){const b=Math.sin(performance.now()/200)>0?C.qb:"#ffc24a";px(X,Y,TILE,TILE,b);px(X,Y,TILE,2,"#ffe08a");px(X+6,Y+4,4,5,C.qbDk);px(X+7,Y+10,2,2,C.qbDk);}
-    else if(ch==="Q"){px(X,Y,TILE,TILE,C.used);px(X,Y,TILE,2,"#b89a66");}
-    else if(ch==="P"){px(X,Y,TILE,TILE,C.pipe);px(X,Y,3,TILE,C.pipeHi);px(X+TILE-3,Y,3,TILE,C.pipeDk);
-      const top=(ty>0&&L.grid[ty-1][tx]!=="P");if(top){px(X-1,Y,TILE+2,5,C.pipe);px(X-1,Y,TILE+2,2,C.pipeHi);}}
-  }}
-function drawCoins(){for(const c of L.coins){if(c.got)continue;const ww=Math.abs(Math.cos(c.t))*5+2;
-  px(c.x-ww/2,c.y-6,ww,12,C.coin);px(c.x-ww/2,c.y-6,ww,2,"#fff2a8");px(c.x-1,c.y-3,1,6,C.coinDk);}}
-function drawDragons(){if(!L.dragons)return;for(const c of L.dragons){if(c.got)continue;const bob=Math.sin(c.t)*2;
-  px(c.x-7,c.y-8+bob,14,16,"#e2b33a");px(c.x-7,c.y-8+bob,14,2,"#ffe08a");px(c.x-7,c.y+6+bob,14,2,"#a8531c");px(c.x-2,c.y-3+bob,4,7,"#a8531c");}}
-function drawCheckpoint(){if(!L.checkpoint)return;const X=L.checkpoint.x,Y=L.checkpoint.y;px(X+7,Y-2,2,L.pxH-Y,C.pole);
-  ctx.fillStyle=L.checkpoint.taken?"#4ec03a":"#bcbcbc";ctx.beginPath();ctx.moveTo(X+9,Y);ctx.lineTo(X+20,Y+4);ctx.lineTo(X+9,Y+8);ctx.fill();}
-function drawPowers(){for(const p of L.powers){if(p.got)continue;p.t+=0.06;const yy=p.y+Math.sin(p.t)*2,x=p.x;
-  if(p.type==="mush"){px(x-6,yy-2,12,7,"#e24b4a");px(x-6,yy-2,12,2,"#ff7a78");px(x-4,yy,2,2,"#fff");px(x+2,yy,2,2,"#fff");px(x-3,yy+5,6,5,"#f0e2c0");}
-  else if(p.type==="feather"){px(x-1,yy-7,3,14,"#ffffff");px(x-4,yy-2,8,3,"#e24b6a");px(x-5,yy+1,10,2,"#cf3f58");}
-  else{ctx.save();ctx.translate(x,yy);ctx.rotate(p.t*0.5);ctx.fillStyle=C.star;
-  for(let i=0;i<5;i++){ctx.beginPath();const a=i*2.51-1.57;ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*6,Math.sin(a)*6);ctx.lineTo(Math.cos(a+0.6)*3,Math.sin(a+0.6)*3);ctx.fill();}
-  ctx.fillRect(-3,-3,6,6);ctx.restore();}}}
-function drawPops(){}
-function drawParts(){for(const p of parts){const a=Math.max(0,1-p.t/p.life);if(a<=0)continue;ctx.globalAlpha=a;px(p.x,p.y,p.sz,p.sz,p.col);}ctx.globalAlpha=1;}
-function drawGate(){if(!L.flag)return;const X=L.flag.x,Y=L.flag.y,topY=Y-12,h=54;
-  px(X+4,topY,2,h,C.pole);px(X+30,topY,2,h,C.pole);
-  ctx.fillStyle="#e6c84f";ctx.beginPath();ctx.arc(X+5,topY,3,0,7);ctx.fill();ctx.beginPath();ctx.arc(X+31,topY,3,0,7);ctx.fill();
-  const by=topY+4+gBarY;px(X+6,by,24,4,C.flag);px(X+6,by,24,1,"#ff9a9a");}
-function drawFoes(){for(const f of L.foes){if(!f.alive){if(f.poof>0){ctx.globalAlpha=Math.max(0,f.poof*2);px(f.x,f.y+4,14,8,C.foe);ctx.globalAlpha=1;}continue;}
-  const X=f.x,Y=f.y,wob=Math.sin(f.t*9)<0?1:0,col=f.kind==="hop"?"#7a9a3a":C.foe,colD=f.kind==="hop"?"#566f24":C.foeDk;
-  px(X+1,Y+2,12,9,col);px(X+1,Y+2,12,2,"#c9743a");px(X+3,Y,8,3,colD);px(X+(f.vx<0?2:8),Y+4,2,2,C.eye);
-  px(X+1,Y+11,4,2,wob?colD:"#000");px(X+9,Y+11,4,2,wob?"#000":colD);}}
-function drawBubbles(){for(const b of bubbles){ctx.fillStyle="rgba(180,230,255,.85)";ctx.beginPath();ctx.arc(b.x,b.y,5,0,7);ctx.fill();ctx.fillStyle="#fff";px(b.x-2,b.y-3,2,2,"#fff");}}
-function drawBoss(){const b=boss;if(b.invuln>0&&Math.floor(b.invuln*12)%2===0&&b.defeated<=0)return;
-  const X=Math.round(b.x),Y=Math.round(b.y);
-  px(X,Y+6,b.w,b.h-6,b.color);px(X,Y+b.h-4,b.w,4,"rgba(0,0,0,.25)"); // Körper
-  px(X+4,Y,b.w-8,9,b.color);px(X+4,Y,b.w-8,1,"#ffffffaa"); // Kopf
-  px(X+b.w-7,Y+2,3,3,C.eye); // Auge
-  px(X+b.w-1,Y+3,5,3,C.beak); // Schnabel
-  px(X+5,Y-4,b.w-10,4,"#ffd23f"); // Krönchen
-  // HP-Pips
-  for(let i=0;i<3;i++)px(X+2+i*7,Y-9,5,3,i<b.hp?"#e23b3b":"rgba(255,255,255,.3)");}
-function drawDuck(){const d=duck;if(d.blink>0&&Math.floor(d.blink*16)%2===0)return;
-  const X=Math.round(d.x),Y=Math.round(d.y),f=d.face;
-  ctx.save();if(f<0){ctx.translate(X+d.w,0);ctx.scale(-1,1);ctx.translate(-X,0);}
-  if(d.star>0){const hue=(performance.now()/4)%360;ctx.fillStyle="hsl("+hue+",90%,65%)";px(X-1,Y-1,d.w+2,d.h+2,ctx.fillStyle);}
-  if(d.feather){px(X-4,Y+4,4,9,"#e24b6a");px(X-5,Y+7,3,5,"#c43a56");}
-  if(d.big){const o="rgba(255,255,255,.55)";px(X-2,Y-2,d.w+4,1,o);px(X-2,Y+d.h+1,d.w+4,1,o);px(X-2,Y-2,1,d.h+4,o);px(X+d.w+1,Y-2,1,d.h+4,o);}
-  if(d.mounted){px(X-3,Y+9,d.w+6,5,"#5fbf4a");px(X-3,Y+13,3,2,"#3a8f2f");px(X+d.w,Y+13,3,2,"#3a8f2f");px(X+d.w+1,Y+7,4,4,"#5fbf4a");px(X+d.w+3,Y+8,1,1,C.eye);}
-  const air=!d.onGround,step=air?2:(Math.sin(d.runT)>0?1:-1);
-  px(X+2,Y+12,3,2,C.beak);px(X+7,Y+12,3,2,C.beak);if(d.onGround){px(X+2+step,Y+13,3,1,C.beak);px(X+7-step,Y+13,3,1,C.beak);}
-  px(X+1,Y+5,11,8,C.duck);px(X+1,Y+11,11,2,C.duckDk);
-  const flap=(air&&keys.jump&&d.flutterT>0)?(Math.sin(performance.now()/40)*2):0;
-  px(X+3,Y+7+flap,5,4,C.duckDk);
-  px(X+6,Y,7,7,C.duck);px(X+6,Y,7,1,"#fff0b0");px(X+10,Y+2,2,2,C.eye);px(X+12,Y+3,3,3,C.beak);
-  ctx.restore();}
-function drawHUD(){
-  for(let i=0;i<3;i++){const hx=6+i*12,hy=6,on=i<lives,col=on?"#e23b3b":"rgba(255,255,255,.25)";
-    px(hx,hy+1,3,3,col);px(hx+4,hy+1,3,3,col);px(hx+1,hy+3,6,3,col);px(hx+2,hy+6,4,2,col);}
-  // Muenzen + Score (rechts), pixelscharf
-  px(VW-86,7,5,7,C.coin);px(VW-85,8,3,5,C.coinDk);
-  bmText("X"+String(coinsGot).padStart(2,"0"),VW-78,8,"#fff",1);
-  bmText(String(score).padStart(6,"0"),VW-52,8,"#fff",1);
-  // Welt-/Level-Anzeige (links unter den Herzen)
-  bmText(state===ST.BOSS?("WELT "+(worldIdx+1)+" BOSS"):("WELT "+(worldIdx+1)+"-"+(curLevelIdx+1)),6,17,"#eaf2ff",1);
-  // Drachenmuenzen
-  if(L&&L.dragons&&L.dragons.length){const dx=6+bmW("WELT 1-1",1)+8;px(dx,17,5,6,"#e2b33a");px(dx+1,18,3,4,"#ffe08a");bmText(dragonGot+"/"+L.dragons.length,dx+8,18,"#e2b33a",1);}
-  // Stern-Timer
-  if(duck.star>0){px(6,26,6,6,C.star);px(7,27,4,4,"#fff0a8");bmText(Math.ceil(duck.star)+"S",15,27,"#ffe96b",1);}
-  if(duck.big){px(30,26,9,5,"#e24b4a");px(30,26,9,1,"#ff9a98");px(32,31,5,3,"#f0e2c0");}
-  if(duck.feather){px(45,25,2,9,"#ffffff");px(43,27,6,2,"#e24b6a");}
-  if(state===ST.PLAY&&gaveBonus){bmCenter("GESCHAFFT!",VW/2,72,"#fff",2);bmCenter("+"+clearBonus,VW/2,88,"#ffd23f",2);}
-}
-
-/* ---------- Loop ---------- */
-function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)dt=0.05;update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
-showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
-/* PWA: Service Worker registrieren (nur ueber http/https, nicht file://) */
-if("serviceWorker" in navigator && location.protocol.startsWith("http")){
-  addEventListener("load",()=>{ navigator.serviceWorker.register("./sw.js").catch(()=>{}); });
-}
 </script>
 </body>
 </html>
