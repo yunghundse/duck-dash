@@ -62,6 +62,9 @@
   .infobody p{margin:4px 0 10px;}
   .infobody .big{font-size:1.6em;color:var(--ui-edge);font-family:'Press Start 2P',monospace;}
   .back{margin-top:4px;}
+  #toast{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);z-index:30;max-width:80%;text-align:center;
+    background:var(--ui-edge);color:#23180a;border:3px solid #23180a;box-shadow:4px 4px 0 #000;
+    font-family:'Press Start 2P',monospace;font-size:clamp(8px,1.9vw,11px);line-height:1.5;padding:12px 16px;}
 </style>
 </head>
 <body>
@@ -83,6 +86,7 @@
     <div class="sub2">&#9664; &#9654; <span id="tMove">Laufen</span> &nbsp; &#9650; <span id="tJump">Springen</span> &nbsp; &#9650; <span id="tGlide">Halten = Gleiten</span></div>
     <div class="sub2" id="tKeys">M = Ton · C = CRT · O = Einstellungen</div>
     <div class="sub2" style="color:#ffd23f" id="tBetaNote">Wird laufend erweitert · Weitere Funktionen folgen</div>
+    <div class="sub2" id="tHi" style="color:#7be07b"></div>
     <div class="sub2" style="margin-top:4px">
       <span id="tLangLabel">Sprache</span>:
       <span class="langpick" data-l="de">DE</span> <span class="langpick" data-l="en">EN</span>
@@ -121,6 +125,7 @@
   </div>
 
   <button id="btnPause" class="hudbtn hidden" aria-label="Pause">II</button>
+  <div id="toast" class="hidden"></div>
 
   <div id="scHelp" class="screen dim hidden info">
     <h2 id="hHelpTitle">Hilfe</h2>
@@ -472,6 +477,9 @@ function makeFoe(x,y,kind){const ef=(typeof DIFF!=="undefined")?diffCfg().foe:1;
 const duck={x:0,y:0,w:12,h:14,vx:0,vy:0,onGround:false,face:1,coyote:0,buffer:0,jumpHeld:false,flutterT:0,runT:0,blink:0,star:0,big:false,feather:false,mounted:false};
 let boss=null; const bubbles=[]; const pops=[]; const parts=[];
 let powerMsg="", powerMsgT=0; // Power-up-Aufsammel-Feedback
+let comboCt=0, comboT=0, nmMsgT=0, secretBuf=""; // Combo + Near-Miss + Easter-Egg-Code
+function comboHit(){ comboCt++; comboT=1.5; const bonus=120+comboCt*60; score+=bonus; return bonus; }
+function comboReset(){ comboCt=0; comboT=0; }
 /* kleine Partikel-Bursts (Juice) */
 function burst(x,y,col,n,spd){ for(let i=0;i<n;i++){const a=Math.random()*6.283,s=(0.4+Math.random())*(spd||60);
   parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-28,life:0.35+Math.random()*0.3,t:0,col,sz:Math.random()<0.5?2:1});} }
@@ -561,6 +569,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));
   const cont=document.getElementById("btnContinue"); if(cont){ if(hasSave())cont.removeAttribute("disabled"); else cont.setAttribute("disabled","1"); }
   // Info-Screen-Titel + Zurueck
+  set("tHi", highscore>0 ? (t("highscoreShort")+": "+String(highscore).padStart(6,"0")) : "");
   set("hHelpTitle",t("helpTitle"));set("hBiosTitle",t("biosTitle"));set("hLeaderTitle",t("leaderboardTitle"));
   set("btnHelpBack",t("back"));set("btnBiosBack",t("back"));set("btnLeaderBack",t("back"));
   const picks=document.querySelectorAll&&document.querySelectorAll(".langpick");
@@ -704,6 +713,8 @@ addEventListener("keydown",e=>{
   if(paused){ if(["KeyP","Escape","Enter","Space"].includes(e.code)){pauseSet(false);e.preventDefault();} return; }
   if(e.code==="KeyP"&&isGameplay()){ pauseSet(true); return; }
   if(e.code==="Escape"&&(state===ST.PLAY||state===ST.BOSS)){ pauseSet(true); return; }
+  if(e.code==="KeyR"&&(state===ST.PLAY||state===ST.BOSS)){ comboReset(); if(state===ST.BOSS)startBoss(); else loadPlatform(worldIdx,curLevelIdx); return; }
+  if(/^Key[A-Z]$/.test(e.code)){ secretBuf=(secretBuf+e.code.slice(3)).slice(-5); if(secretBuf==="QUACK"){secretBuf="";unlockSecret();} }
   if(["ArrowLeft","KeyA"].includes(e.code))keys.left=true;
   else if(["ArrowRight","KeyD"].includes(e.code))keys.right=true;
   else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=true;pressJump();e.preventDefault();}
@@ -792,7 +803,7 @@ function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pop
   state=ST.BOSS; showScreen(null); }
 function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=false;duck.blink=1.0;duck.flutterT=0;duck.star=0;duck.big=false;duck.feather=false;duck.mounted=false;}
 function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
-function takeHit(){ const d=duck; if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
+function takeHit(){ const d=duck; comboReset(); if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
 function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
 function gameOver(){saveEconomy();saveHighscore();state=ST.OVER;el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore;SFX.over();showScreen("scOver");}
 function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
@@ -851,6 +862,8 @@ function fillBios(){ const chars=[
 function fillLeader(){ el("leaderBody").innerHTML = (highscore>0)
   ? "<p>"+t("highscoreLabel")+":</p><p class='big'>"+String(highscore).padStart(6,"0")+"</p><p>"+t("secretHint")+"</p>"
   : "<p>"+t("noScores")+"</p><p>"+t("secretHint")+"</p>"; }
+function showToast(msg){ const e=document.getElementById("toast"); if(!e)return; e.textContent=msg; e.classList.remove("hidden"); try{clearTimeout(showToast._t);showToast._t=setTimeout(()=>e.classList.add("hidden"),2600);}catch(x){} }
+function unlockSecret(){ if(!owned.golden)owned.golden=true; equippedSkin="golden"; saveEconomy(); SFX.star&&SFX.star(); showToast(t("secretFound")); }
 function clk(id,fn){const e=el(id); if(e)e.addEventListener("click",ev=>{ev.stopPropagation();fn();});}
 clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startGame(); });
 clk("btnContinue",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
@@ -908,15 +921,17 @@ function update(dt){
     moveX(f,f.vx*dt); if(f.hitWall){f.vx*=-1;f.hitWall=false;}
     f.onG=false; foeMoveY(f,f.vy*dt);
     if(rectsOverlap(d,f)){
-      if(d.star>0){f.alive=false;f.poof=0.5;score+=200;SFX.stomp();burst(f.x+7,f.y+6,"#fff0a8",9,95);shake=Math.max(shake,0.12);}
-      else if(d.vy>0&&(d.y+d.h)-f.y<11){f.alive=false;f.poof=0.5;d.vy=-260;score+=200;SFX.stomp();burst(f.x+7,f.y+6,"#ffffff",8,90);shake=Math.max(shake,0.12);}
+      if(d.star>0){f.alive=false;f.poof=0.5;comboHit();SFX.stomp();burst(f.x+7,f.y+6,"#fff0a8",9,95);shake=Math.max(shake,0.12);}
+      else if(d.vy>0&&(d.y+d.h)-f.y<11){f.alive=false;f.poof=0.5;d.vy=-260;comboHit();SFX.stomp();burst(f.x+7,f.y+6,"#ffffff",8,90);shake=Math.max(shake,0.12);}
       else if(d.blink<=0){takeHit();return;}
     }
   }
 
   // bubbles (boss-Projektile)
   for(const b of bubbles){ b.t+=dt; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vy+=(b.g!=null?b.g:140)*dt;
-    if(d.blink<=0&&d.star<=0&&Math.abs((d.x+d.w/2)-b.x)<10&&Math.abs((d.y+d.h/2)-b.y)<10){takeHit();return;} }
+    const dxn=Math.abs((d.x+d.w/2)-b.x),dyn=Math.abs((d.y+d.h/2)-b.y);
+    if(d.blink<=0&&d.star<=0&&dxn<10&&dyn<10){takeHit();return;}
+    else if(!b.nm&&dxn<18&&dyn<16){b.nm=true; score+=40; nmMsgT=0.8; SFX.coin&&SFX.coin();} } // Near-Miss "Knapp!"
   for(let i=bubbles.length-1;i>=0;i--){if(bubbles[i].y>L.pxH||bubbles[i].x<-20||bubbles[i].x>L.pxW+20||bubbles[i].t>6)bubbles.splice(i,1);}
 
   if(state===ST.BOSS&&boss) updateBoss(dt,d);
@@ -930,7 +945,8 @@ function update(dt){
   if(shake>0)shake-=dt;
   for(let i=pops.length-1;i>=0;i--){pops[i].t-=dt;pops[i].y-=24*dt;if(pops[i].t<=0)pops.splice(i,1);}
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.t+=dt;p.vy+=620*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.t>=p.life)parts.splice(i,1);}
-  if(powerMsgT>0)powerMsgT-=dt;
+  if(powerMsgT>0)powerMsgT-=dt; if(nmMsgT>0)nmMsgT-=dt;
+  if(comboT>0){comboT-=dt; if(comboT<=0)comboCt=0;}
 }
 
 function bossThrow(b,d){const cfg=b.cfg,baseDir=(d.x<b.x?-1:1);let n=cfg.throwN; if(b.phase2)n+=1;
@@ -1437,6 +1453,8 @@ function drawHUD(){
   else if(duck.feather){px(pxoff,24,2,9,"#ffffff");px(pxoff-1,26,5,2,"#e24b6a");bmText(t("glide"),pxoff+6,26,"#ffd0dc",1);}
   // Power-up-Aufsammel-Banner
   if(powerMsgT>0){const a=Math.min(1,powerMsgT*2);ctx.globalAlpha=a;bmCenter(powerMsg,VW/2,54,"#ffe96b",2);ctx.globalAlpha=1;}
+  if(comboCt>=2&&comboT>0){const a=Math.min(1,comboT);ctx.globalAlpha=a;bmCenter(t("comboLabel")+" X"+comboCt,VW/2,40,"#ff8fd0",2);ctx.globalAlpha=1;}
+  if(nmMsgT>0){const a=Math.min(1,nmMsgT*1.6);ctx.globalAlpha=a;bmCenter(t("niceDodge"),VW/2+40,30,"#8fe0ff",1);ctx.globalAlpha=1;}
   if(state===ST.PLAY&&gaveBonus){bmCenter(t("cleared"),VW/2,72,"#fff",2);bmCenter("+"+clearBonus,VW/2,88,"#ffd23f",2);}
 }
 
