@@ -113,6 +113,12 @@ const probe = `
   try { g.owned = owned; } catch(e){}
   try { g.SKINS = SKINS; } catch(e){}
   try { g.openShop = openShop; } catch(e){}
+  try { g.enterHub = enterHub; } catch(e){}
+  try { g.hubInteract = hubInteract; } catch(e){}
+  try { g.updateHub = updateHub; } catch(e){}
+  try { g.HUB_NPCS = HUB_NPCS; } catch(e){}
+  try { Object.defineProperty(g,"dlgActive",{get:()=>dlgActive}); } catch(e){}
+  try { Object.defineProperty(g,"hubNear",{get:()=>hubNear}); } catch(e){}
   try { g.shopAction = shopAction; } catch(e){}
   try { g.shopList = shopList; } catch(e){}
   try { g.closeShop = closeShop; } catch(e){}
@@ -296,6 +302,24 @@ assert(G.equippedSkin === skinId, "Gekaufter Skin ist ausgeruestet", "equipped="
 const w2 = G.wallet; G.shopAction(); // erneut: nur ausruesten, kein Abzug
 assert(G.wallet === w2, "Erneute Aktion zieht keine Muenzen ab", "w2=" + w2 + " now=" + G.wallet);
 G.closeShop();
+
+// Hub: betreten, NPC ansprechen (Dialog), Ausgang -> Weltkarte
+frameErr = null;
+G.enterHub();
+assert(G.state === G.ST.HUB, "enterHub -> HUB", "state=" + G.state);
+step(2);
+assert(!frameErr, "Hub-Frames laufen fehlerfrei", frameErr);
+const elder = G.HUB_NPCS.find(n => n.kind === "elder");
+G.duck.x = elder.x * 16; // direkt zum Aeltesten
+G.updateHub(0.016);
+assert(G.hubNear && G.hubNear.kind === "elder", "NPC in Reichweite erkannt", "hubNear=" + JSON.stringify(G.hubNear));
+G.hubInteract();
+assert(G.dlgActive === true, "Dialog oeffnet beim Ansprechen", "dlgActive=" + G.dlgActive);
+let dg = 0; while (G.dlgActive && dg++ < 8) G.hubInteract();
+assert(G.dlgActive === false, "Dialog laesst sich durchklicken", "haengt nach " + dg);
+G.duck.x = 70 * 16; G.updateHub(0.016); // zum Wegweiser
+G.hubInteract();
+assert(G.state === G.ST.OVERWORLD, "Wegweiser fuehrt zur Weltkarte", "state=" + G.state);
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();

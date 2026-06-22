@@ -424,7 +424,7 @@ function burst(x,y,col,n,spd){ for(let i=0;i<n;i++){const a=Math.random()*6.283,
   parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-28,life:0.35+Math.random()*0.3,t:0,col,sz:Math.random()<0.5?2:1});} }
 
 /* ---------- State ---------- */
-const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7,SETTINGS:8,SHOP:9};
+const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7,SETTINGS:8,SHOP:9,HUB:10};
 let state=ST.TITLE, L=null, worldIdx=0, lives=3, coinsGot=0, score=0, unlocked=0, mapSel=0;
 let subSel=0, curLevelIdx=0;
 // worldProgress[w] = naechster spielbarer Knoten (0..levels.length=Boss). =levels.length+1 -> Welt fertig.
@@ -520,6 +520,66 @@ function shopAction(){ const list=shopList(),id=list[shopSel],def=itemDef(id); i
   if(owned[id]){ if(def.type==="skin"){ equippedSkin=id; SFX.coin&&SFX.coin(); saveEconomy(); } }
   else if(wallet>=def.price){ wallet-=def.price; owned[id]=true; if(def.type==="skin")equippedSkin=id; SFX.star&&SFX.star(); saveEconomy(); }
   else { shopMsgT=1.2; SFX.bump&&SFX.bump(); } }
+
+/* ---------- Hub-Welt "Quack-Bucht" + Dialog-System (mehrsprachig) ---------- */
+const HUBTXT={
+ de:{title:"Quack-Bucht",talk:"Hoch = Reden",go:"Hoch = Abenteuer",toMap:"Wegweiser",
+  elderName:"Bürgermeister Erpel",elder:["Quacki! Gut, dass du da bist.","Baron von Quak hat unsere Prinzessin Goldi entführt - in sein fernes Quakschloss!","Sechs seiner Gummi-Tier-Wächter stehen im Weg. Sei mutig und hüpf ihnen auf den Kopf - niemand wird verletzt!"],
+  kidName:"Kleine Ente Pip",kid:["Hast du Goldi gesehen? Ich vermisse die Prinzessin.","Pass auf die Gummi-Eule auf, die ist ganz schön windig!"],
+  shopName:"Krämer-Ente",shopHi:["Willkommen im Shop! Mit Münzen gibt es Skins und Power-ups."]},
+ en:{title:"Quack Bay",talk:"Up = Talk",go:"Up = Adventure",toMap:"Signpost",
+  elderName:"Mayor Drake",elder:["Quacki! Glad you're here.","Baron von Quak kidnapped our princess Goldi - to his distant Quack Castle!","Six of his rubber-animal guards block the way. Be brave and hop on their heads - nobody gets hurt!"],
+  kidName:"Little Duck Pip",kid:["Have you seen Goldi? I miss the princess.","Watch out for the rubber owl, she's really gusty!"],
+  shopName:"Shopkeeper Duck",shopHi:["Welcome to the shop! Spend coins on skins and power-ups."]},
+ es:{title:"Bahía Cuac",talk:"Arriba = Hablar",go:"Arriba = Aventura",toMap:"Letrero",
+  elderName:"Alcalde Pato",elder:["¡Quacki! Qué bien que estés aquí.","¡El Barón von Quak secuestró a nuestra princesa Goldi, a su lejano Castillo Cuac!","Seis guardianes de goma cierran el paso. ¡Sé valiente y salta sobre sus cabezas, nadie sale herido!"],
+  kidName:"Patito Pip",kid:["¿Has visto a Goldi? Echo de menos a la princesa.","¡Cuidado con la lechuza de goma, es muy ventosa!"],
+  shopName:"Pato Tendero",shopHi:["¡Bienvenido a la tienda! Gasta monedas en skins y mejoras."]},
+ fr:{title:"Baie Coin-Coin",talk:"Haut = Parler",go:"Haut = Aventure",toMap:"Panneau",
+  elderName:"Maire Canard",elder:["Quacki ! Content que tu sois là.","Le Baron von Quak a enlevé notre princesse Goldi - dans son lointain Château Coin-Coin !","Six gardiens en caoutchouc barrent la route. Sois courageux et saute sur leurs têtes - personne n'est blessé !"],
+  kidName:"Petit Canard Pip",kid:["As-tu vu Goldi ? La princesse me manque.","Attention à la chouette en caoutchouc, elle est très venteuse !"],
+  shopName:"Canard Marchand",shopHi:["Bienvenue à la boutique ! Dépense des pièces en skins et bonus."]}
+};
+function hx(k){const o=HUBTXT[SET.lang]||HUBTXT.de;return o[k]!=null?o[k]:HUBTXT.de[k];}
+const HUB_NPCS=[
+ {x:13,kind:"elder",color:"#cdb38a"},
+ {x:27,kind:"shop", color:"#7fc24a"},
+ {x:41,kind:"kid",  color:"#ffe14a"},
+];
+const HUB_EXIT=70;
+let hubL=null, hubNear=null;
+function buildHub(){const W=82,H=14,grid=[];for(let y=0;y<H;y++){const row=[];for(let x=0;x<W;x++)row.push(y>=H-2?"#":" ");grid.push(row);}
+  [[19,9,4],[34,8,3],[52,9,5],[63,10,3]].forEach(p=>{for(let i=0;i<p[2];i++)grid[p[1]][p[0]+i]="=";});
+  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:6*TILE,y:(H-4)*TILE},flag:null,checkpoint:null,boss:false};}
+function enterHub(){ if(!hubL)hubL=buildHub(); L=hubL; resetDuckTo(L.spawn); camX=0; hubNear=null; dlgActive=false; state=ST.HUB; showScreen(null); saveEconomy(); }
+// Dialog
+let dlgActive=false, dlgLines=[], dlgIdx=0, dlgName="";
+function openDialog(name,lines){ dlgName=name; dlgLines=lines||[]; dlgIdx=0; dlgActive=dlgLines.length>0; }
+function advanceDialog(){ dlgIdx++; if(dlgIdx>=dlgLines.length)dlgActive=false; }
+function hubNpcName(n){ return n.kind==="elder"?hx("elderName"):n.kind==="kid"?hx("kidName"):hx("shopName"); }
+function hubInteract(){ if(dlgActive){advanceDialog();return;}
+  if(!hubNear){duck.buffer=0.12;return;}
+  if(hubNear.exit){ saveEconomy(); enterOverworld(); return; }
+  if(hubNear.kind==="shop"){ openDialog(hx("shopName"),hx("shopHi")); openShop(); return; }
+  openDialog(hubNpcName(hubNear), hubNear.kind==="elder"?hx("elder"):hx("kid")); }
+function updateHub(dt){ const d=duck;
+  // Idle-Atmen, wenn im Dialog/still
+  if(dlgActive)return;
+  const want=(keys.right?1:0)-(keys.left?1:0);
+  if(want!==0){d.vx+=want*ACC*dt;d.face=want;if(Math.abs(d.vx)>MOVE)d.vx=MOVE*want;}
+  else {if(d.vx>0)d.vx=Math.max(0,d.vx-FRIC*dt);else d.vx=Math.min(0,d.vx+FRIC*dt);}
+  if(d.buffer>0)d.buffer-=dt; if(d.coyote>0)d.coyote-=dt;
+  if(d.buffer>0&&(d.onGround||d.coyote>0)){d.vy=JUMP;d.onGround=false;d.coyote=0;d.buffer=0;d.jumpHeld=true;SFX.jump();}
+  if(!keys.jump&&d.vy<0&&d.jumpHeld){d.vy*=JUMPCUT;d.jumpHeld=false;}
+  d.vy+=GRAV*dt; if(d.vy>MAXFALL)d.vy=MAXFALL;
+  moveX(d,d.vx*dt); const wasG=d.onGround; d.onGround=false; moveY(d,d.vy*dt); if(wasG&&!d.onGround&&d.vy>=0)d.coyote=COYOTE;
+  if(d.vx!==0&&d.onGround)d.runT+=dt*Math.abs(d.vx)/40;
+  if(d.x<0)d.x=0; if(d.x+d.w>L.pxW)d.x=L.pxW-d.w;
+  camX=Math.max(0,Math.min(L.pxW-VW,d.x+d.w/2-VW*0.42));
+  hubNear=null; const cxp=d.x+d.w/2;
+  for(const n of HUB_NPCS){ if(Math.abs(cxp-(n.x*TILE+8))<18){hubNear=n;break;} }
+  if(!hubNear && Math.abs(cxp-(HUB_EXIT*TILE+8))<22) hubNear={exit:true};
+}
 function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
 function blip(f,d,t,v,to){if(!SET.sfx)return;const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();
   o.type=t||"square";o.frequency.setValueAtTime(f,a.currentTime);if(to)o.frequency.exponentialRampToValueAtTime(Math.max(40,to),a.currentTime+d);
@@ -551,6 +611,7 @@ addEventListener("keydown",e=>{
   else if(state===ST.SUBMAP){ if(["ArrowLeft","KeyA"].includes(e.code))subSel=Math.max(0,subSel-1); else if(["ArrowRight","KeyD"].includes(e.code))subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedNode(); else if(["ArrowDown","KeyS","Escape","Backspace"].includes(e.code))enterOverworld(); }
   else if(state===ST.SETTINGS){ if(["ArrowUp","KeyW"].includes(e.code))setSel=(setSel+5)%6; else if(["ArrowDown","KeyS"].includes(e.code))setSel=(setSel+1)%6; else if(["ArrowLeft","ArrowRight","KeyA","KeyD"].includes(e.code))settingsToggle(); else if(["Space","Enter"].includes(e.code))settingsActivate(); else if(["Escape","Backspace"].includes(e.code))closeSettings(); }
   else if(state===ST.SHOP){ const n=shopList().length; if(["ArrowUp","KeyW"].includes(e.code))shopSel=(shopSel+n-1)%n; else if(["ArrowDown","KeyS"].includes(e.code))shopSel=(shopSel+1)%n; else if(["Space","Enter","ArrowLeft","ArrowRight","KeyA","KeyD"].includes(e.code))shopAction(); else if(["Escape","Backspace"].includes(e.code))closeShop(); }
+  else if(state===ST.HUB){ if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))hubInteract(); else if(["Escape","Backspace"].includes(e.code)&&dlgActive)dlgActive=false; }
 });
 addEventListener("keyup",e=>{
   if(["ArrowLeft","KeyA"].includes(e.code))keys.left=false;
@@ -562,10 +623,11 @@ function bindBtn(id,on,off){const el=document.getElementById(id);
   ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off&&off();}));}
 bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else if(state===ST.SETTINGS)setSel=(setSel+5)%6; else if(state===ST.SHOP){const n=shopList().length;shopSel=(shopSel+n-1)%n;} else keys.left=true; },()=>keys.left=false);
 bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(state===ST.SETTINGS)setSel=(setSel+1)%6; else if(state===ST.SHOP){const n=shopList().length;shopSel=(shopSel+1)%n;} else keys.right=true; },()=>keys.right=false);
-bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} if(state===ST.SETTINGS){settingsActivate();return;} if(state===ST.SHOP){shopAction();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
+bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} if(state===ST.SETTINGS){settingsActivate();return;} if(state===ST.SHOP){shopAction();return;} if(state===ST.HUB){hubInteract();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
 function evToCanvas(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(VW/r.width),y:(e.clientY-r.top)*(VH/r.height)};}
 cv.addEventListener("pointerdown",e=>{
   if(state===ST.TITLE){startGame();return;}
+  if(state===ST.HUB&&dlgActive){advanceDialog();return;}
   if(state===ST.OVERWORLD){ const p=evToCanvas(e),mx=p.x+owCam; let best=-1,bd=1e9;
     for(let i=0;i<=unlocked;i++){const n=MAPNODES[i],d=Math.hypot(mx-n.x,p.y-n.y);if(d<MAP.nodeR+8&&d<bd){bd=d;best=i;}}
     if(best>=0){ if(best===mapSel)enterSelectedWorld(); else mapSel=best; } }
@@ -592,7 +654,7 @@ function dialogSeq(beats,done){ let i=0; const next=()=>{ if(i>=beats.length){ i
 /* ---------- Flow ---------- */
 function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=(SET.easy?5:3)+(hasPerk("extralife")?1:0);coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
   for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0;
-  cutscene("",t("introTitle"),t("introText"),t("cont"),()=>enterOverworld()); }
+  cutscene("",t("introTitle"),t("introText"),t("cont"),()=>enterHub()); }
 function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null);
   owDuckX=MAPNODES[mapSel].x; owDuckY=MAPNODES[mapSel].y; owLastSel=mapSel; owWalk=0;
   owCam=Math.max(0,Math.min(MAPW-VW,owDuckX-VW/2)); }
@@ -653,6 +715,7 @@ el("btnShop").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().sta
 const GRAV=1500,MOVE=132,ACC=900,FRIC=760,JUMP=-430,JUMPCUT=0.45,MAXFALL=520,COYOTE=0.09,FLUTTER=420,FLUTTER_MAX=0.7;
 
 function update(dt){
+  if(state===ST.HUB){updateHub(dt);return;}
   if(state===ST.DEAD){deadT-=dt;duck.vy+=GRAV*dt;duck.y+=duck.vy*dt;if(deadT<=0)afterDeath();return;}
   if(state!==ST.PLAY&&state!==ST.BOSS)return;
   const d=duck;
@@ -823,6 +886,7 @@ function pixTri(x,y,dir,col){ // kleines gefuelltes Dreieck: dir 1=rechts,-1=lin
 function draw(){
   let ox=0,oy=0; if(shake>0){ox=(Math.random()-0.5)*4*shake;oy=(Math.random()-0.5)*4*shake;}
   ctx.save(); ctx.translate(ox,oy);
+  if(state===ST.HUB){ drawHub(); ctx.restore(); return; }
   if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
   const w=curWorld;
   const grd=ctx.createLinearGradient(0,0,0,VH); grd.addColorStop(0,w.sky[0]); grd.addColorStop(1,w.sky[1]);
@@ -995,6 +1059,36 @@ function drawShop(){
   // Aktion-Status / Meldung
   if(shopMsgT>0) bmCenter(sx("notEnough"),VW/2,y+h-30,"#ff7a7a",1);
   bmCenter(sx("hint"),VW/2,y+h-14,"rgba(255,255,255,.7)",1);
+}
+function wrapText(s,x,y,maxw,lh,col){const words=String(s).split(" ");let line="",yy=y;
+  for(const w of words){const tryl=line?line+" "+w:w; if(bmW(tryl,1)>maxw&&line){bmText(line,x,yy,col,1);yy+=lh;line=w;}else line=tryl;}
+  if(line)bmText(line,x,yy,col,1); return yy;}
+function drawDialog(){ if(!dlgActive)return; const bx=10,bw=VW-20,bh=56,by=VH-bh-6;
+  px(bx,by,bw,bh,"rgba(10,16,30,.95)");px(bx,by,bw,3,"#ffd23f");px(bx,by+bh-3,bw,3,"#ffd23f");px(bx,by,3,bh,"#ffd23f");px(bx+bw-3,by,3,bh,"#ffd23f");
+  bmText(dlgName,bx+10,by+8,"#ffe08a",1);
+  wrapText(dlgLines[dlgIdx]||"",bx+10,by+22,bw-20,9,"#fff");
+  const more="> "+t("cont"); bmText(more,bx+bw-bmW(more,1)-10,by+bh-12,"rgba(255,255,255,.7)",1); }
+function drawHub(){
+  const g=ctx.createLinearGradient(0,0,0,VH);g.addColorStop(0,"#5fb0e8");g.addColorStop(1,"#bfe6ff");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
+  for(let i=0;i<8;i++){const x=i*120-camX*0.4,base=VH-26;ctx.fillStyle="rgba(120,200,120,.35)";ctx.beginPath();ctx.moveTo(x-40,base);ctx.lineTo(x+20,base-44);ctx.lineTo(x+80,base);ctx.closePath();ctx.fill();}
+  for(let i=0;i<5;i++){let x=((i*150-camX*0.5)%(VW+140));if(x<-100)x+=VW+140;const y=18+(i%2)*16;px(x,y,22,8,"#fff");px(x+8,y-6,18,8,"#fff");px(x+18,y,16,8,"#fff");}
+  ctx.save();ctx.translate(-Math.round(camX),0);
+  const gw="#5fb24a",gd="#c75c1c",gdk="#8a3e10";
+  for(let tx=Math.floor(camX/TILE);tx<Math.min(L.W,camX/TILE+VW/TILE+2);tx++)for(let ty=0;ty<L.H;ty++){const ch=L.grid[ty][tx];if(ch===" ")continue;const X=tx*TILE,Y=ty*TILE;
+    if(ch==="#"){const top=(ty>0&&L.grid[ty-1][tx]===" ");px(X,Y,TILE,TILE,gd);px(X,Y+12,TILE,4,gdk);if(top){px(X,Y,TILE,5,gw);px(X,Y+5,TILE,2,"#2f8f24");}}
+    else if(ch==="="){px(X,Y,TILE,TILE,"#c0641c");px(X,Y,TILE,2,"#e0884a");px(X,Y+5,TILE,5,gw);px(X,Y+5,TILE,1,"#2f8f24");}}
+  px(20*TILE,(L.H-2)*TILE-2,8*TILE,3,"#7fd0ff"); // Teich
+  for(const n of HUB_NPCS){ const nx=n.x*TILE, ny=(L.H-2)*TILE-14, bob=Math.sin(performance.now()/300+n.x)*1;
+    drawRubberDuck(nx,Math.round(ny+bob),{skin:{body:n.color,dk:shade(n.color,-30)},air:false,step:0});
+    bmCenter(hubNpcName(n),nx+6,ny-10,"#0b2030",1);
+    if(n.kind==="shop"){px(nx-10,ny-8,12,7,"#ffd23f");px(nx-10,ny-1,12,2,"#a86a00");bmCenter("$",nx-4,ny-7,"#23180a",1);} }
+  { const ex=HUB_EXIT*TILE, ey=(L.H-2)*TILE; px(ex+6,ey-30,3,30,"#8a5a2a"); px(ex-6,ey-36,24,10,"#ffd23f"); bmCenter(">>",ex+6,ey-34,"#23180a",1); }
+  drawDuck();
+  ctx.restore();
+  bmCenter(hx("title"),VW/2,8,"#fff",2);
+  px(8,VH-16,5,7,C.coin);px(9,VH-15,3,5,C.coinDk);bmText(""+wallet,15,VH-15,"#fff",1);
+  if(hubNear&&!dlgActive){ bmCenter(hubNear.exit?hx("go"):hx("talk"),VW/2,VH-30,"#ffe08a",1); }
+  drawDialog();
 }
 function drawTitleMascot(){ const cx=VW/2, by=158+Math.sin(performance.now()/400)*3, S=3.6;
   ctx.fillStyle="rgba(0,0,0,.18)";ctx.beginPath();ctx.ellipse(cx,188,50,8,0,0,7);ctx.fill();
