@@ -329,6 +329,32 @@ const BANTER=[
 ];
 WORLDS.forEach((w,i)=>{ w.boss.banter=BANTER[i]; });
 
+/* ---------- Weltkarte (Overworld) — Layout & Theme als Daten ----------
+   Gewundener Pfad ueber breite Karte; Kamera folgt der Ente. Alles hier
+   anpassbar, ohne die Render-Logik zu beruehren. */
+const MAP={
+  marginX:70,      // Rand links/rechts in Map-Pixeln
+  sectionW:130,    // Abstand zwischen zwei Welt-Knoten
+  baseY:150,       // Pfad-Grundhoehe
+  ampY:30,         // Schwankung des Pfads
+  nodeR:11,        // Knoten-Radius
+};
+// Welt-Theme fuer die Karte (Boden-/Akzentfarben + Icon-Typ, kein Emoji)
+const MAPTHEME=[
+  {ground:"#4ec03a",groundDk:"#2f8f24",accent:"#7be07b",icon:"flower"}, // Wiese
+  {ground:"#3fb0d8",groundDk:"#2a85a8",accent:"#bdeefb",icon:"wave"},   // Bucht
+  {ground:"#dff0ff",groundDk:"#a9c8e8",accent:"#ffffff",icon:"ice"},    // Eis
+  {ground:"#e0b46a",groundDk:"#b8893f",accent:"#fff0c0",icon:"cactus"}, // Wueste
+  {ground:"#cfe0f5",groundDk:"#a9c4e0",accent:"#ffffff",icon:"cloud"},  // Wolken
+  {ground:"#6b5870",groundDk:"#3f2c4a",accent:"#b78fd8",icon:"castle"}, // Schloss
+];
+// Knotenpositionen auf der Karte (winding)
+const MAPNODES=WORLDS.map((w,i)=>({ x:MAP.marginX+i*MAP.sectionW, y:MAP.baseY+Math.sin(i*1.15)*MAP.ampY }));
+const MAPW=MAP.marginX*2+(WORLDS.length-1)*MAP.sectionW; // Gesamtbreite der Karte
+function shortName(i){return WORLDS[i].name.split("·").pop().trim();} // "Welt 4 · Wüstenei" -> "Wüstenei"
+// Overworld-Animationszustand
+let owCam=0, owDuckX=MAPNODES[0].x, owDuckY=MAPNODES[0].y, owWalk=0, owLastSel=0;
+
 /* ---------- Level build ---------- */
 function buildLevel(def){
   const rows=def.slice(); let W=0; for(const r of rows) W=Math.max(W,r.length);
@@ -426,7 +452,13 @@ function bindBtn(id,on,off){const el=document.getElementById(id);
 bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else if(state===ST.SETTINGS)setSel=(setSel+4)%5; else keys.left=true; },()=>keys.left=false);
 bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(state===ST.SETTINGS)setSel=(setSel+1)%5; else keys.right=true; },()=>keys.right=false);
 bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} if(state===ST.SETTINGS){settingsActivate();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
-cv.addEventListener("pointerdown",()=>{if(state===ST.TITLE)startGame();});
+function evToCanvas(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(VW/r.width),y:(e.clientY-r.top)*(VH/r.height)};}
+cv.addEventListener("pointerdown",e=>{
+  if(state===ST.TITLE){startGame();return;}
+  if(state===ST.OVERWORLD){ const p=evToCanvas(e),mx=p.x+owCam; let best=-1,bd=1e9;
+    for(let i=0;i<=unlocked;i++){const n=MAPNODES[i],d=Math.hypot(mx-n.x,p.y-n.y);if(d<MAP.nodeR+8&&d<bd){bd=d;best=i;}}
+    if(best>=0){ if(best===mapSel)enterSelectedWorld(); else mapSel=best; } }
+});
 function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
 function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)startGame(); }
 
@@ -445,7 +477,9 @@ function dialogSeq(beats,done){ let i=0; const next=()=>{ if(i>=beats.length){ i
 function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=SET.easy?5:3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
   for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0;
   cutscene("","Die Entführung","In der ruhigen Quack-Bucht lebten "+HERO+" und "+PRIN+", die goldene Gummiente, in Frieden. Doch in einer stürmischen Nacht stürmte "+VILLAIN+" mit seiner Schergen-Bande heran und verschleppte "+PRIN+" in sein fernes Quakschloss! Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich "+HERO+" auf — mutig, klein und unaufhaltsam.","WEITER",()=>enterOverworld()); }
-function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null); }
+function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null);
+  owDuckX=MAPNODES[mapSel].x; owDuckY=MAPNODES[mapSel].y; owLastSel=mapSel; owWalk=0;
+  owCam=Math.max(0,Math.min(MAPW-VW,owDuckX-VW/2)); }
 function nodeCount(w){ return WORLDS[w].levels.length+1; } // Level + Boss
 function maxSelNode(w){ return Math.min(worldProgress[w], nodeCount(w)-1); }
 function enterSelectedWorld(){ if(state!==ST.OVERWORLD)return; enterSubmap(mapSel); }
@@ -622,10 +656,12 @@ const FONT={
  ":":["000","010","000","010","000"],"/":["001","001","010","100","100"],"!":["010","010","010","000","010"],
  "+":["000","010","111","010","000"],"'":["010","010","000","000","000"],"\"":["101","101","000","000","000"],
 };
+const UML={"Ä":"A","Ö":"O","Ü":"U"};
 function bmW(s,sc){sc=sc||1;return String(s).length*4*sc;}
 function bmText(s,x,y,col,sc){sc=sc||1;ctx.fillStyle=col;let cx=Math.round(x);y=Math.round(y);
-  for(const raw of String(s)){const ch=raw.toUpperCase();const g=FONT[ch]||FONT[raw]||FONT[" "];
+  for(const raw of String(s)){const ch=raw.toUpperCase();const uml=UML[ch];const g=FONT[uml||ch]||FONT[raw]||FONT[" "];
     for(let r=0;r<5;r++){const row=g[r];for(let c=0;c<3;c++)if(row[c]==="1")ctx.fillRect(cx+c*sc,y+r*sc,sc,sc);}
+    if(uml){ctx.fillRect(cx,y-2*sc,sc,sc);ctx.fillRect(cx+2*sc,y-2*sc,sc,sc);}
     cx+=4*sc;} return cx;}
 function bmCenter(s,cx,y,col,sc){bmText(s,cx-bmW(s,sc)/2,y,col,sc);}
 function pixHeart(x,y,col){const m=["0110110","1111111","1111111","0111110","0011100","0001000"];for(let r=0;r<6;r++)for(let c=0;c<7;c++)if(m[r][c]==="1")px(x+c,y+r,1,1,col);}
@@ -636,11 +672,11 @@ function pixTri(x,y,dir,col){ // kleines gefuelltes Dreieck: dir 1=rechts,-1=lin
 function draw(){
   let ox=0,oy=0; if(shake>0){ox=(Math.random()-0.5)*4*shake;oy=(Math.random()-0.5)*4*shake;}
   ctx.save(); ctx.translate(ox,oy);
+  if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
   const w=curWorld;
   const grd=ctx.createLinearGradient(0,0,0,VH); grd.addColorStop(0,w.sky[0]); grd.addColorStop(1,w.sky[1]);
   ctx.fillStyle=grd; ctx.fillRect(0,0,VW,VH);
   drawClouds(); drawHills(w);
-  if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
   if(state===ST.SUBMAP){ drawSubmap(); ctx.restore(); return; }
   if(state===ST.SETTINGS){ drawSettings(); ctx.restore(); return; }
   if(state===ST.TITLE){ drawTitleMascot(); ctx.restore(); return; }
@@ -657,21 +693,79 @@ function drawHills(w){const base=VH-30;
   for(let i=0;i<6;i++){let x=((i*92-camX*0.5)%(VW+184));if(x<-92)x+=VW+184;
     ctx.fillStyle=w.hillDk;ctx.beginPath();ctx.moveTo(x-30,base);ctx.lineTo(x+18,base-38);ctx.lineTo(x+66,base);ctx.fill();
     ctx.fillStyle=w.hill;ctx.beginPath();ctx.moveTo(x-20,base);ctx.lineTo(x+18,base-32);ctx.lineTo(x+56,base);ctx.fill();}}
+function drawStar(cx,cy,r,col){ctx.fillStyle=col;ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;const xx=cx+Math.cos(a)*rr,yy=cy+Math.sin(a)*rr;i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);}ctx.closePath();ctx.fill();}
+function drawWorldIcon(type,x,y){
+  if(type==="flower"){px(x-1,y-8,2,8,"#3a8f2f");px(x-4,y-12,4,4,"#ff6ea0");px(x+1,y-12,4,4,"#ff6ea0");px(x-2,y-15,4,4,"#ff6ea0");px(x-2,y-9,4,4,"#ff6ea0");px(x-1,y-11,2,2,"#ffe08a");}
+  else if(type==="wave"){px(x-9,y-1,18,3,"#bdeefb");px(x-7,y-4,5,3,"#bdeefb");px(x+2,y-4,5,3,"#bdeefb");px(x-2,y-6,4,3,"#dff6ff");}
+  else if(type==="ice"){px(x-1,y-13,3,13,"#cfe9ff");px(x-7,y-8,16,3,"#cfe9ff");px(x-5,y-11,3,3,"#fff");px(x+3,y-4,3,3,"#fff");px(x-6,y-3,3,3,"#fff");}
+  else if(type==="cactus"){px(x-2,y-13,4,13,"#3fae4a");px(x-6,y-9,4,3,"#3fae4a");px(x-6,y-13,3,5,"#3fae4a");px(x+2,y-10,4,3,"#3fae4a");px(x+4,y-14,3,6,"#3fae4a");}
+  else if(type==="cloud"){px(x-9,y-4,19,6,"#fff");px(x-4,y-9,11,6,"#fff");px(x+4,y-7,7,5,"#fff");}
+  else if(type==="castle"){px(x-9,y-15,18,15,"#6a4f7a");px(x-9,y-19,4,4,"#6a4f7a");px(x-2,y-20,4,5,"#6a4f7a");px(x+5,y-19,4,4,"#6a4f7a");px(x-2,y-8,5,8,"#2c1d3a");px(x-7,y-12,3,3,"#2c1d3a");px(x+4,y-12,3,3,"#2c1d3a");}
+}
+function drawOWParallax(cam){
+  for(let i=0;i<14;i++){const x=i*120-cam*0.35,base=VH-22;
+    ctx.fillStyle="rgba(255,255,255,.10)";ctx.beginPath();ctx.moveTo(x-42,base);ctx.lineTo(x+22,base-50);ctx.lineTo(x+86,base);ctx.closePath();ctx.fill();}
+  for(let i=0;i<11;i++){const x=i*150-cam*0.55,y=18+(i%3)*15;
+    px(x,y,22,8,C.cloud);px(x+8,y-6,18,8,C.cloud);px(x+18,y,16,8,C.cloud);}
+}
+function drawOWTerrain(){
+  for(let i=0;i<WORLDS.length;i++){const n=MAPNODES[i],th=MAPTHEME[i];
+    let x=n.x-MAP.sectionW/2-1,w=MAP.sectionW+2; if(i===0){w+=x;x=0;} if(i===WORLDS.length-1){w=MAPW-x;}
+    const top=Math.round(n.y+18);
+    px(x,top+3,w,VH-top,th.groundDk);
+    px(x,top,w,VH-top-3,th.ground);
+    px(x,top,w,4,th.accent);
+    drawWorldIcon(th.icon,n.x+24,n.y+2);
+  }
+}
+function drawOWPath(){
+  for(let i=0;i<WORLDS.length-1;i++){const a=MAPNODES[i],b=MAPNODES[i+1];
+    const done=(i+1)<=unlocked,col=done?"#ffe08a":"rgba(255,255,255,.55)";
+    const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/8));
+    for(let s=0;s<=steps;s++){const t=s/steps,xx=a.x+(b.x-a.x)*t,yy=a.y+(b.y-a.y)*t;px(xx-1.5,yy-1.5,3,3,col);}}
+}
+function drawOWNode(i){const n=MAPNODES[i],done=i<unlocked,locked=i>unlocked,sel=i===mapSel,th=MAPTHEME[i],R=MAP.nodeR;
+  ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(n.x,n.y+R+2,R,4,0,0,7);ctx.fill();
+  ctx.fillStyle=th.groundDk;ctx.beginPath();ctx.arc(n.x,n.y,R+3,0,7);ctx.fill();
+  ctx.fillStyle=done?"#4ec03a":(locked?"#5a6472":"#f0a81c");ctx.beginPath();ctx.arc(n.x,n.y,R,0,7);ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.22)";ctx.beginPath();ctx.arc(n.x,n.y-3,R-4,0,7);ctx.fill();
+  bmCenter(String(i+1),n.x,n.y-3,locked?"#cdd5e0":"#1b1b1b",1);
+  if(locked){px(n.x-4,n.y-R-10,8,6,"#9aa6b5");px(n.x-3,n.y-R-13,6,4,"#c2ccda");px(n.x-1,n.y-R-8,2,3,"#5a6472");}
+  else if(done){drawStar(n.x,n.y-R-9,5,"#ffe96b");}
+  if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(n.x,n.y,R+5+Math.sin(performance.now()/180),0,7);ctx.stroke();}
+}
+function drawOWDuck(){const walking=Math.hypot(MAPNODES[mapSel].x-owDuckX,MAPNODES[mapSel].y-owDuckY)>0.6;
+  const x=Math.round(owDuckX),baseY=owDuckY-MAP.nodeR-6,bob=walking?Math.abs(Math.sin(owWalk))*2:Math.sin(performance.now()/220)*1.4,Y=Math.round(baseY-bob);
+  ctx.fillStyle="rgba(0,0,0,.25)";ctx.beginPath();ctx.ellipse(x,owDuckY-MAP.nodeR+1,7,3,0,0,7);ctx.fill();
+  const st=walking?(Math.sin(owWalk)>0?1:-1):0;
+  px(x-4+st,Y+8,3,2,C.beak);px(x+2-st,Y+8,3,2,C.beak);
+  px(x-6,Y,12,8,C.duck);px(x-6,Y+6,12,2,C.duckDk);
+  px(x+1,Y-6,7,7,C.duck);px(x+1,Y-6,7,1,"#fff0b0");
+  px(x+5,Y-4,2,2,C.eye);px(x+7,Y-3,3,2,C.beak);
+}
 function drawOverworld(){
-  bmCenter("WELTKARTE",VW/2,12,"#fff",2);
-  bmCenter("PFEILE WAEHLEN   HOCH = LOS",VW/2,30,"rgba(255,255,255,.85)",1);
-  const n=WORLDS.length,y=118,x0=42,dx=(VW-84)/(n-1);
-  ctx.strokeStyle="rgba(255,255,255,.55)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+(n-1)*dx,y);ctx.stroke();
-  for(let i=0;i<n;i++){const x=x0+i*dx,done=i<unlocked,locked=i>unlocked,sel=i===mapSel;
-    ctx.fillStyle=done?"#4ec03a":(locked?"#5a6472":"#f0a81c");ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();
-    bmCenter(String(i+1),x,y-3,"#1b1b1b",1);
-    if(locked){px(x-3,y-17,6,4,"#9aa6b5");px(x-2,y-19,4,3,"#9aa6b5");}
-    else if(done){pixCheck(x-2,y-16,"#bfe3a0");}
-    if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
-      const dy=Math.sin(performance.now()/200)*2;px(x-6,y-32+dy,12,8,C.duck);px(x+2,y-36+dy,7,7,C.duck);px(x+8,y-34+dy,3,2,C.beak);px(x+6,y-35+dy,1,1,C.eye);}}
-  bmCenter(WORLDS[mapSel].name.toUpperCase(),VW/2,VH-30,"#fff",1);
-  pixHeart(VW/2-44,VH-15,"#e23b3b");bmText(String(lives),VW/2-34,VH-15,"#fff",1);
-  bmText("PUNKTE "+score,VW/2-12,VH-15,"#ffd23f",1);}
+  // Animation/Easing (Menu-Rate)
+  const tgt=MAPNODES[mapSel],dx=tgt.x-owDuckX,dy=tgt.y-owDuckY;
+  if(Math.hypot(dx,dy)>0.6){owDuckX+=dx*0.18;owDuckY+=dy*0.18;owWalk+=0.45;}else{owDuckX=tgt.x;owDuckY=tgt.y;}
+  const camTgt=Math.max(0,Math.min(MAPW-VW,owDuckX-VW/2));owCam+=(camTgt-owCam)*0.16;const cam=Math.round(owCam);
+  // Himmel + Parallax
+  const grd=ctx.createLinearGradient(0,0,0,VH);grd.addColorStop(0,"#3a6fd8");grd.addColorStop(1,"#9bc7ff");ctx.fillStyle=grd;ctx.fillRect(0,0,VW,VH);
+  drawOWParallax(cam);
+  // Karte (kamera-verschoben)
+  ctx.save();ctx.translate(-cam,0);
+  drawOWTerrain();drawOWPath();
+  for(let i=0;i<WORLDS.length;i++)drawOWNode(i);
+  drawOWDuck();
+  ctx.restore();
+  // Overlay/HUD (bildschirmfest)
+  bmCenter("WELTKARTE",VW/2,10,"#fff",2);
+  px(0,VH-20,VW,20,"rgba(9,16,30,.62)");px(0,VH-20,VW,1,"rgba(255,255,255,.18)");
+  bmCenter("WELT "+(mapSel+1)+"  -  "+shortName(mapSel).toUpperCase(),VW/2,VH-31,"#ffe08a",1);
+  pixHeart(8,VH-15,"#e23b3b");bmText(String(lives),18,VH-15,"#fff",1);
+  px(40,VH-15,5,7,C.coin);px(41,VH-14,3,5,C.coinDk);bmText("X"+String(coinsGot).padStart(2,"0"),48,VH-15,"#fff",1);
+  bmText("PUNKTE "+score,92,VH-15,"#ffd23f",1);
+  bmText("PFEILE  HOCH=LOS",VW-bmW("PFEILE  HOCH=LOS",1)-6,VH-15,"rgba(255,255,255,.82)",1);
+}
 function drawSubmap(){
   const w=worldIdx, levels=WORLDS[w].levels.length, n=nodeCount(w), prog=worldProgress[w], frontier=maxSelNode(w);
   bmCenter(WORLDS[w].name.toUpperCase(),VW/2,12,"#fff",2);
