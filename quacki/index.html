@@ -206,6 +206,103 @@ const WORLDS=[
    ]},
 ];
 
+/* ---------- Level-Pack: zweite (kurze) Level je Welt ----------
+   Boden (unterste 2 Reihen) ist durchgehend -> kein Pit, kinder-
+   sicher und garantiert begehbar. Breite/Hoehe daten-getrieben. */
+const L2=[
+ [ // Welt 1 · Sonnenwiese
+   "                                              ",
+   "              o o o                           ",
+   "      ?       = = =            o o            ",
+   "                              = = =       *   ",
+   "   o o                                        ",
+   "  = = =       E          H           o o      ",
+   "@        o          ?           o         |   ",
+   "      ###       ###       ####       ###      ",
+   "                                              ",
+   "      E              H            E           ",
+   "   ####       #####       #####       ####    ",
+   "##################################################",
+   "##################################################",
+ ],
+ [ // Welt 2 · Seifenblasen-Bucht
+   "                                                  ",
+   "          o o o            ? ? ?                  ",
+   "          = = =                          o o      ",
+   "    ?                ?                  = = =   *  ",
+   "         H        o o        H                    ",
+   "  o o          = = =                H        o    ",
+   "@= = =    H              ? ?            ?      |   ",
+   "      ##      ###    P    ###    P   ###    ##     ",
+   "             ##     ##   ##     ##  ##             ",
+   "      E           H            E          H        ",
+   "   ####    #####     #####    #####    ####        ",
+   "##################################################",
+   "##################################################",
+ ],
+ [ // Welt 3 · Frostzipfel
+   "                                                  ",
+   "     o o o         *          o o o               ",
+   "     = = =                    = = =               ",
+   "  ?           ? ?       H              o o      |  ",
+   "        o o           = = =          = = =     ##  ",
+   "  H    = = =     H              H            o     ",
+   "@         E              E              E          ",
+   "    ####      ####    ####     ####    ####   ###  ",
+   "                                                  ",
+   "      H          H            H          H         ",
+   "   #####     #####     #####     #####     ###     ",
+   "##################################################",
+   "##################################################",
+ ],
+ [ // Welt 4 · Wuestenei
+   "                                                  ",
+   "         o o o                     o o            ",
+   "  ?      = = =        ? ?          = = =       *   ",
+   "                                                  ",
+   "   o o          H        E             H      |    ",
+   "  = = =    E         ###       o o          ##    ",
+   "@      H        ?          E  = = =    E           ",
+   "    ###     ###      ###       ###     ###    ##   ",
+   "                                                  ",
+   "       E          H           E          H        ",
+   "   ####     #####     #####     #####     ####     ",
+   "##################################################",
+   "##################################################",
+ ],
+ [ // Welt 5 · Wolkenburg
+   "          o o o                  o o o            ",
+   "          = = =      *           = = =            ",
+   "   ?              H           H              |    ",
+   "      ===       ===        ===       ===    ##    ",
+   "  o o       E          E          E       o o     ",
+   "@= = =    ===     ===      ===     ===   = = =     ",
+   "      H            H            H           H      ",
+   "   ===     ===   ===     ===   ===     ===  ===    ",
+   "                                                  ",
+   "      ####     #####     #####     #####    ###    ",
+   "   #####    #####    #####    #####    #####       ",
+   "##################################################",
+   "##################################################",
+ ],
+ [ // Welt 6 · Quakschloss
+   "                                                  ",
+   "      o o      ? ? ?         o o      ? ?          ",
+   "      = =      = = =         = =      = = =     *  ",
+   "  ?        H          E          H          |     ",
+   "     ===       =====       =====      ===   ##     ",
+   "  o o    H        E    H        E    H    o o      ",
+   "@= = =       E         =====        E        E     ",
+   "    ##    ##   ###   ##    ##   ###   ##   ###     ",
+   "                                                  ",
+   "      E       H        E       H        E         ",
+   "   ####    #####    #####    #####    #####   ###  ",
+   "##################################################",
+   "##################################################",
+ ],
+];
+WORLDS.forEach((w,i)=>{ w.levels=[w.level, L2[i]]; });
+
 /* ---------- Level build ---------- */
 function buildLevel(def){
   const rows=def.slice(); let W=0; for(const r of rows) W=Math.max(W,r.length);
@@ -242,8 +339,11 @@ const duck={x:0,y:0,w:12,h:14,vx:0,vy:0,onGround:false,face:1,coyote:0,buffer:0,
 let boss=null; const bubbles=[]; const pops=[];
 
 /* ---------- State ---------- */
-const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6};
+const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7};
 let state=ST.TITLE, L=null, worldIdx=0, lives=3, coinsGot=0, score=0, unlocked=0, mapSel=0;
+let subSel=0, curLevelIdx=0;
+// worldProgress[w] = naechster spielbarer Knoten (0..levels.length=Boss). =levels.length+1 -> Welt fertig.
+const worldProgress=WORLDS.map(()=>0);
 let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, crt=true, musicT=0, musicI=0;
 let curWorld=WORLDS[0];
 
@@ -276,6 +376,7 @@ addEventListener("keydown",e=>{
   else if(e.code==="KeyC"){crt=!crt;}
   if(state===ST.TITLE&&(e.code==="Space"||e.code==="Enter"))startGame();
   if(state===ST.OVERWORLD){ if(["ArrowLeft","KeyA"].includes(e.code))mapSel=Math.max(0,mapSel-1); else if(["ArrowRight","KeyD"].includes(e.code))mapSel=Math.min(unlocked,mapSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedWorld(); }
+  else if(state===ST.SUBMAP){ if(["ArrowLeft","KeyA"].includes(e.code))subSel=Math.max(0,subSel-1); else if(["ArrowRight","KeyD"].includes(e.code))subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedNode(); else if(["ArrowDown","KeyS","Escape","Backspace"].includes(e.code))enterOverworld(); }
 });
 addEventListener("keyup",e=>{
   if(["ArrowLeft","KeyA"].includes(e.code))keys.left=false;
@@ -285,9 +386,9 @@ addEventListener("keyup",e=>{
 function bindBtn(id,on,off){const el=document.getElementById(id);
   el.addEventListener("pointerdown",e=>{e.preventDefault();on();});
   ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off&&off();}));}
-bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else keys.left=true; },()=>keys.left=false);
-bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else keys.right=true; },()=>keys.right=false);
-bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
+bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else keys.left=true; },()=>keys.left=false);
+bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else keys.right=true; },()=>keys.right=false);
+bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
 cv.addEventListener("pointerdown",()=>{if(state===ST.TITLE)startGame();});
 function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
 function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)startGame(); }
@@ -300,14 +401,22 @@ function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
 el("storyBtn").addEventListener("click",storyAdvance);
 
 /* ---------- Flow ---------- */
-function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;
+function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
+  for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0;
   cutscene("","Die Entführung","In der ruhigen Quack-Bucht lebten "+HERO+" und "+PRIN+", die goldene Gummiente, in Frieden. Doch in einer stürmischen Nacht stürmte "+VILLAIN+" mit seiner Schergen-Bande heran und verschleppte "+PRIN+" in sein fernes Quakschloss! Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich "+HERO+" auf — mutig, klein und unaufhaltsam.","WEITER",()=>enterOverworld()); }
 function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null); }
-function enterSelectedWorld(){ if(state!==ST.OVERWORLD)return; beginWorld(mapSel); }
-function beginWorld(i){ worldIdx=i; curWorld=WORLDS[i];
-  cutscene("🗺️",curWorld.name,curWorld.story,"Start ▶",()=>loadPlatform(i)); }
-function loadPlatform(i){ L=buildLevel(WORLDS[i].level); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); }
-function startBossIntro(){ const b=curWorld.boss; cutscene(b.emoji,b.name,b.story,"Kampf! ▶",startBoss); }
+function nodeCount(w){ return WORLDS[w].levels.length+1; } // Level + Boss
+function maxSelNode(w){ return Math.min(worldProgress[w], nodeCount(w)-1); }
+function enterSelectedWorld(){ if(state!==ST.OVERWORLD)return; enterSubmap(mapSel); }
+function enterSubmap(w){ worldIdx=w; curWorld=WORLDS[w]; subSel=maxSelNode(w); state=ST.SUBMAP; showScreen(null); }
+function enterSelectedNode(){ if(state!==ST.SUBMAP)return; const w=worldIdx, li=subSel, levels=WORLDS[w].levels.length;
+  if(li<levels){ beginLevel(w,li); } else { startBossIntro(); } }
+function beginLevel(w,li){ worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
+  const intro = li===0 ? curWorld.story : (curWorld.name+" · Abschnitt "+(li+1)+". "+HERO+" watschelt weiter!");
+  cutscene("",curWorld.name+" · Level "+(li+1),intro,"Start ▶",()=>loadPlatform(w,li)); }
+function loadPlatform(w,li){ if(li===undefined)li=curLevelIdx; worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
+  L=buildLevel(WORLDS[w].levels[li]); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); }
+function startBossIntro(){ const b=curWorld.boss; cutscene("",b.name,b.story,"Kampf! ▶",startBoss); }
 function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0; bossWonT=0;
   const b=curWorld.boss; boss={x:18*TILE,y:(L.H-4)*TILE,w:22,h:20,vx:-40,vy:0,hp:3,invuln:0,throwT:1.4,dir:-1,jumpT:1.0,color:b.color,name:b.name,defeated:0};
   state=ST.BOSS; showScreen(null); }
@@ -316,10 +425,16 @@ function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;
 function takeHit(){ const d=duck; if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
 function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
 function gameOver(){state=ST.OVER;el("overText").textContent="Münzen: "+coinsGot+" · Punkte: "+score;SFX.over();showScreen("scOver");}
-function levelToBoss(){ SFX.clear(); startBossIntro(); }
-function bossDefeated(){ SFX.clear();
-  if(worldIdx>=WORLDS.length-1){ cutscene("","Goldi gerettet!","Mit einem letzten beherzten Sprung stürzt "+HERO+" den Baron vom Thron — und "+PRIN+"s Käfig springt auf! Seite an Seite watscheln die beiden zurück in die Quack-Bucht, wo ganz Entenhausen sie mit Jubel und Konfetti empfängt. Held des Tages: "+HERO+"!   Endpunkte: "+score+" · Münzen: "+coinsGot,"NOCHMAL",startGame); }
-  else { if(worldIdx===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,worldIdx+1); cutscene("🎉",curWorld.name+" geschafft!","Boss besiegt! Zurück zur Weltkarte — die nächste Welt ist frei.","Zur Karte ▶",()=>enterOverworld()); } }
+function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
+  if(worldProgress[w]===li) worldProgress[w]=li+1; // naechsten Knoten freischalten
+  const lastLevel=(li===levels-1);
+  const txt=lastLevel ? ("Stark, "+HERO+"! Jetzt wartet nur noch "+curWorld.boss.name+". Waehle den Boss auf der Karte.")
+                      : ("Abschnitt geschafft! Der naechste Weg ist frei.");
+  cutscene("",curWorld.name+" · Level "+(li+1)+" geschafft!",txt,"Zur Karte ▶",()=>enterSubmap(w)); }
+function bossDefeated(){ SFX.clear(); const w=worldIdx, levels=WORLDS[w].levels.length;
+  worldProgress[w]=levels+1; // Welt komplett
+  if(w>=WORLDS.length-1){ cutscene("","Goldi gerettet!","Mit einem letzten beherzten Sprung stuerzt "+HERO+" den Baron vom Thron — und "+PRIN+"s Kaefig springt auf! Seite an Seite watscheln die beiden zurueck in die Quack-Bucht, wo ganz Entenhausen sie mit Jubel und Konfetti empfaengt. Held des Tages: "+HERO+"!   Endpunkte: "+score+" · Muenzen: "+coinsGot,"NOCHMAL",startGame); }
+  else { if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,w+1); cutscene("",curWorld.name+" geschafft!","Boss besiegt! Die naechste Welt ist frei. Zurueck zur Weltkarte.","Zur Karte ▶",()=>enterOverworld()); } }
 el("btnRetry").addEventListener("click",startGame);
 
 /* ---------- Physik ---------- */
@@ -377,7 +492,7 @@ function update(dt){
 
   // flag
   if(state===ST.PLAY&&L.flag){ if(!gaveBonus){gBarY+=gDir*80*dt; if(gBarY>26){gBarY=26;gDir=-1;} if(gBarY<0){gBarY=0;gDir=1;}}
-    if((d.x+d.w)>L.flag.x+6){ if(!gaveBonus){gaveBonus=true;clearBonus=Math.round((26-gBarY)*40)+100;score+=clearBonus;SFX.clear();} flagT+=dt; if(flagT>0.8){levelToBoss();return;} } }
+    if((d.x+d.w)>L.flag.x+6){ if(!gaveBonus){gaveBonus=true;clearBonus=Math.round((26-gBarY)*40)+100;score+=clearBonus;SFX.clear();} flagT+=dt; if(flagT>0.8){levelCleared();return;} } }
 
   // camera
   camX=Math.max(0,Math.min(L.pxW-VW,d.x+d.w/2-VW*0.42));
@@ -432,6 +547,7 @@ function draw(){
   ctx.fillStyle=grd; ctx.fillRect(0,0,VW,VH);
   drawClouds(); drawHills(w);
   if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
+  if(state===ST.SUBMAP){ drawSubmap(); ctx.restore(); return; }
   if(state===ST.TITLE){ drawTitleMascot(); ctx.restore(); return; }
   if(L){ ctx.save(); ctx.translate(-Math.round(camX),0);
     drawTiles(w); drawCoins(); drawDragons(); drawPowers(); drawCheckpoint(); drawGate(); drawFoes(); drawBubbles();
@@ -459,6 +575,26 @@ function drawOverworld(){
     if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
       const dy=Math.sin(performance.now()/200)*2;px(x-6,y-32+dy,12,8,C.duck);px(x+2,y-36+dy,7,7,C.duck);px(x+8,y-34+dy,3,2,C.beak);px(x+6,y-35+dy,1,1,C.eye);}}
   ctx.fillStyle="#fff";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(WORLDS[mapSel].name,VW/2,VH-26);
+  ctx.fillStyle="#ffd23f";ctx.fillText("♥ "+lives+"    Punkte "+score,VW/2,VH-12);ctx.textAlign="left";}
+function drawSubmap(){
+  const w=worldIdx, levels=WORLDS[w].levels.length, n=nodeCount(w), prog=worldProgress[w], frontier=maxSelNode(w);
+  ctx.fillStyle="#fff";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(WORLDS[w].name.toUpperCase(),VW/2,20);
+  ctx.font="8px monospace";ctx.fillStyle="rgba(255,255,255,.85)";ctx.fillText("◀ ▶ waehlen  ·  ▲ los  ·  ▼ zurueck",VW/2,34);
+  const y=120,x0=46,dx=(VW-92)/(n-1);
+  ctx.strokeStyle="rgba(255,255,255,.55)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+(n-1)*dx,y);ctx.stroke();
+  for(let i=0;i<n;i++){const x=x0+i*dx,boss=(i===n-1),done=i<prog,locked=i>frontier,sel=i===subSel;
+    ctx.fillStyle=done?"#4ec03a":(locked?"#5a6472":(boss?"#c0533a":"#f0a81c"));
+    ctx.beginPath();ctx.arc(x,y,boss?11:9,0,7);ctx.fill();
+    if(boss){ // kleines Krönchen statt Emoji
+      ctx.fillStyle="#ffd23f";px(x-6,y-2,12,4,"#ffd23f");px(x-6,y-6,3,4,"#ffd23f");px(x-1,y-7,3,5,"#ffd23f");px(x+4,y-6,3,4,"#ffd23f");
+      px(x-7,y+2,14,2,"#a86a00");
+    } else { ctx.fillStyle="#1b1b1b";ctx.font="bold 10px monospace";ctx.textAlign="center";ctx.fillText(String(i+1),x,y+4); }
+    if(locked){px(x-3,y-17,6,4,"#9aa6b5");px(x-2,y-19,4,3,"#9aa6b5");}
+    else if(done){px(x-2,y-15,2,2,"#bfe3a0");px(x,y-13,2,2,"#bfe3a0");px(x+2,y-17,2,4,"#bfe3a0");}
+    if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,boss?15:13,0,7);ctx.stroke();
+      const dy=Math.sin(performance.now()/200)*2;px(x-6,y-34+dy,12,8,C.duck);px(x+2,y-38+dy,7,7,C.duck);px(x+8,y-36+dy,3,2,C.beak);px(x+6,y-37+dy,1,1,C.eye);}}
+  const label = subSel<levels ? ("Level "+(subSel+1)) : ("Boss: "+WORLDS[w].boss.name);
+  ctx.fillStyle="#fff";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(label,VW/2,VH-26);
   ctx.fillStyle="#ffd23f";ctx.fillText("♥ "+lives+"    Punkte "+score,VW/2,VH-12);ctx.textAlign="left";}
 function drawTitleMascot(){ const cx=VW/2, by=150+Math.sin(performance.now()/400)*3;
   ctx.fillStyle="rgba(0,0,0,.18)";ctx.beginPath();ctx.ellipse(cx,184,42,7,0,0,7);ctx.fill();
@@ -533,7 +669,8 @@ function drawHUD(){
   ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.textBaseline="top";
   px(VW-86,7,5,7,C.coin);ctx.fillStyle="#fff";ctx.fillText("x"+String(coinsGot).padStart(2,"0"),VW-78,7);
   ctx.fillText(String(score).padStart(6,"0"),VW-52,7);
-  ctx.font="7px monospace";ctx.fillStyle="rgba(255,255,255,.9)";ctx.fillText("Welt "+(worldIdx+1)+"/"+WORLDS.length,6,17);
+  ctx.font="7px monospace";ctx.fillStyle="rgba(255,255,255,.9)";
+  ctx.fillText(state===ST.BOSS?("Welt "+(worldIdx+1)+" · Boss"):("Welt "+(worldIdx+1)+"-"+(curLevelIdx+1)),6,17);
   if(L&&L.dragons&&L.dragons.length){ctx.fillStyle="#e2b33a";ctx.textAlign="left";ctx.fillText("◈ "+dragonGot+"/"+L.dragons.length,60,17);}
   if(duck.star>0){ctx.fillStyle="#ffe96b";ctx.fillText("★ "+Math.ceil(duck.star)+"s",6,26);}
   if(duck.big){px(27,21,9,5,"#e24b4a");px(27,21,9,1,"#ff9a98");px(29,26,5,3,"#f0e2c0");}

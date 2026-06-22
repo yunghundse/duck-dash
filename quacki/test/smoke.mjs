@@ -91,6 +91,9 @@ const probe = `
   try { Object.defineProperty(g,"lives",{get:()=>lives}); } catch(e){}
   try { Object.defineProperty(g,"score",{get:()=>score}); } catch(e){}
   try { Object.defineProperty(g,"boss",{get:()=>boss}); } catch(e){}
+  try { Object.defineProperty(g,"subSel",{get:()=>subSel}); } catch(e){}
+  try { Object.defineProperty(g,"curLevelIdx",{get:()=>curLevelIdx}); } catch(e){}
+  try { g.worldProgress = worldProgress; } catch(e){}
   try { g.duck = duck; } catch(e){}
   try { g.keys = keys; } catch(e){}
   try { g.ST = ST; } catch(e){}
@@ -98,7 +101,11 @@ const probe = `
   try { g.startGame = startGame; } catch(e){}
   try { g.storyAdvance = storyAdvance; } catch(e){}
   try { g.enterOverworld = enterOverworld; } catch(e){}
-  try { g.beginWorld = beginWorld; } catch(e){}
+  try { g.enterSubmap = enterSubmap; } catch(e){}
+  try { g.enterSelectedNode = enterSelectedNode; } catch(e){}
+  try { g.beginLevel = beginLevel; } catch(e){}
+  try { g.loadPlatform = loadPlatform; } catch(e){}
+  try { g.nodeCount = nodeCount; } catch(e){}
   try { g.startBossIntro = startBossIntro; } catch(e){}
   try { g.pressJump = pressJump; } catch(e){}
   try { g.buildLevel = buildLevel; } catch(e){}
@@ -143,22 +150,33 @@ G.storyAdvance(); // Intro-Cutscene -> Overworld
 step(2);
 assert(!frameErr, "Overworld-Frames laufen fehlerfrei", frameErr);
 
-// Alle Welten-Level bauen (Tilemap-Parsing aller Welten validieren)
-const nWorlds = G.WORLDS.length;
-let buildOk = true, buildDetail = "";
-for (let i = 0; i < nWorlds; i++) {
-  try {
-    G.beginWorld(i);      // Welt-Intro-Cutscene
-    G.storyAdvance();     // -> loadPlatform(i) -> PLAY
-    step(1);
-    if (!G.L || !Array.isArray(G.L.foes)) { buildOk = false; buildDetail = "Welt " + (i+1) + ": L/foes fehlt"; break; }
-    if (frameErr) { buildOk = false; buildDetail = "Welt " + (i+1) + ": " + frameErr; break; }
-  } catch (e) { buildOk = false; buildDetail = "Welt " + (i+1) + ": " + e.message; break; }
-}
-assert(buildOk, "Alle " + nWorlds + " Welten-Level bauen + laufen", buildDetail);
+// Sub-Map: Welt 1 betreten
+G.enterSubmap(0);
+assert(G.state === G.ST.SUBMAP, "enterSubmap -> SUBMAP", "state=" + G.state);
+step(2);
+assert(!frameErr, "Sub-Map-Frames laufen fehlerfrei", frameErr);
 
-// Zurueck zu Welt 1, Level automatisiert anspielen
-G.beginWorld(0); G.storyAdvance(); step(1);
+// ALLE Welten x ALLE Level bauen + 1 Frame laufen (Tilemap-Parsing aller Packs)
+const nWorlds = G.WORLDS.length;
+let buildOk = true, buildDetail = "", levelsTotal = 0;
+for (let i = 0; i < nWorlds && buildOk; i++) {
+  const nLv = G.WORLDS[i].levels.length;
+  for (let li = 0; li < nLv; li++) {
+    try {
+      frameErr = null;
+      G.loadPlatform(i, li);   // direkt -> PLAY
+      step(1);
+      levelsTotal++;
+      if (!G.L || !Array.isArray(G.L.foes)) { buildOk = false; buildDetail = "W" + (i+1) + "-L" + (li+1) + ": L/foes fehlt"; break; }
+      if (frameErr) { buildOk = false; buildDetail = "W" + (i+1) + "-L" + (li+1) + ": " + frameErr; break; }
+    } catch (e) { buildOk = false; buildDetail = "W" + (i+1) + "-L" + (li+1) + ": " + e.message; break; }
+  }
+}
+assert(buildOk, "Alle " + levelsTotal + " Level (6 Welten x 2) bauen + laufen", buildDetail);
+
+// Zurueck zu Welt 1, Level 1 automatisiert anspielen
+frameErr = null;
+G.loadPlatform(0, 0); step(1);
 assert(G.state === G.ST.PLAY, "Level 1 aktiv (PLAY)", "state=" + G.state);
 assert(G.L && G.L.foes.length > 0, "Level 1 hat Gegner", "foes=" + (G.L && G.L.foes.length));
 const startX = G.duck.x;
@@ -171,10 +189,13 @@ G.keys.right = false;
 assert(!frameErr, "Level 1: 400 Frames Gameplay fehlerfrei", frameErr);
 assert(G.duck.x > startX, "Ente bewegt sich nach rechts", "startX=" + startX + " x=" + G.duck.x);
 
-// Boss-Arena pruefen
+// Sub-Map Boss-Gating + Knoten-Routing
 frameErr = null;
-G.startBossIntro();
-assert(G.state === G.ST.STORY, "Boss-Intro = STORY", "state=" + G.state);
+G.worldProgress[0] = G.WORLDS[0].levels.length; // alle Level erledigt -> Boss frei
+G.enterSubmap(0);
+assert(G.subSel === G.WORLDS[0].levels.length, "Sub-Map waehlt Boss-Knoten wenn Level fertig", "subSel=" + G.subSel);
+G.enterSelectedNode(); // Boss-Knoten -> startBossIntro -> STORY
+assert(G.state === G.ST.STORY, "Boss-Knoten -> Boss-Intro (STORY)", "state=" + G.state);
 G.storyAdvance(); // -> startBoss -> BOSS
 step(1);
 assert(G.state === G.ST.BOSS, "Boss-Kampf aktiv (BOSS)", "state=" + G.state);
