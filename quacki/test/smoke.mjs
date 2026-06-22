@@ -63,6 +63,7 @@ const sandbox = {
   removeEventListener: () => {},
   document: {
     getElementById: getEl,
+    querySelectorAll: () => [],
     createElement: () => makeEl("dyn"),
     addEventListener: (t, fn) => { (winListeners[t] || (winListeners[t] = [])).push(fn); },
     body: { appendChild(){}, classList: { add(){}, remove(){} } },
@@ -105,6 +106,10 @@ const probe = `
   try { g.keys = keys; } catch(e){}
   try { g.ST = ST; } catch(e){}
   try { g.WORLDS = WORLDS; } catch(e){}
+  try { g.t = t; } catch(e){}
+  try { g.setLang = setLang; } catch(e){}
+  try { g.worldName = worldName; } catch(e){}
+  try { g.bossName = bossName; } catch(e){}
   try { g.startGame = startGame; } catch(e){}
   try { g.storyAdvance = storyAdvance; } catch(e){}
   try { g.enterOverworld = enterOverworld; } catch(e){}
@@ -123,6 +128,13 @@ const probe = `
 /* ---------- Ausfuehren ---------- */
 const ctx = vm.createContext(sandbox);
 let loadErr = null;
+// Externe i18n.js zuerst im selben Kontext laden (setzt window.I18N etc.)
+try {
+  const i18nPath = join(__dir, "..", "i18n.js");
+  const i18nSrc = readFileSync(i18nPath, "utf8");
+  vm.runInContext(i18nSrc, ctx, { filename: "i18n.js" });
+} catch (e) { loadErr = e; }
+assert(!loadErr, "i18n.js laedt ohne Exception", loadErr && loadErr.message);
 try {
   vm.runInContext(blocks.join("\n;\n") + probe, ctx, { filename: "quacki-inline.js" });
 } catch (e) { loadErr = e; }
@@ -246,6 +258,17 @@ assert(stored.sfx === G.SET.sfx, "Einstellung in localStorage persistiert", "sto
 G.settingsToggle(); // zuruecksetzen
 G.closeSettings();
 assert(G.state === G.ST.OVERWORLD, "closeSettings kehrt zurueck", "state=" + G.state);
+
+// i18n: Sprachwechsel wirkt auf Texte
+const deWorld = G.worldName(0), dePoints = G.t("points");
+G.setLang("en"); const enWorld = G.worldName(0), enPoints = G.t("points");
+G.setLang("es"); const esBoss = G.bossName(0);
+G.setLang("fr"); const frPoints = G.t("points");
+G.setLang("de");
+assert(deWorld && enWorld && deWorld !== enWorld, "Weltname wechselt mit Sprache (de!=en)", "de=" + deWorld + " en=" + enWorld);
+assert(dePoints !== enPoints, "UI-Begriff wechselt (Punkte/Points)", "de=" + dePoints + " en=" + enPoints);
+assert(typeof esBoss === "string" && esBoss.length > 0, "ES Boss-Name vorhanden", "esBoss=" + esBoss);
+assert(typeof frPoints === "string" && frPoints.length > 0, "FR UI-Begriff vorhanden", "frPoints=" + frPoints);
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();

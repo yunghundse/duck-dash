@@ -47,6 +47,11 @@
   .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);box-shadow:none;}
   .badge{display:inline-block;font-size:.5em;color:#23180a;background:var(--gold);border:2px solid #23180a;
     padding:3px 7px;letter-spacing:1px;vertical-align:middle;margin-left:6px;box-shadow:2px 2px 0 #000;}
+  .langbar{position:sticky;top:0;z-index:20;text-align:right;padding:8px var(--pad);background:rgba(11,16,32,.85);
+    font-size:10px;color:var(--ink-dim);border-bottom:1px solid var(--line);}
+  .lang{cursor:pointer;font-family:var(--font);font-size:10px;color:var(--ink);background:transparent;
+    border:2px solid var(--line);padding:4px 7px;margin-left:4px;}
+  .lang.active{background:var(--gold);color:#23180a;border-color:#23180a;}
   .betabar{background:var(--panel2);border:2px solid var(--line);padding:14px 16px;margin-top:18px;}
   .betabar p{font-size:9px;color:var(--ink-dim);line-height:1.8;}
   .betabar b{color:var(--gold);}
@@ -93,71 +98,145 @@
 </head>
 <body>
 
+  <div class="langbar"><span data-i="lLabel">Sprache</span>:
+    <button class="lang" data-l="de">DE</button><button class="lang" data-l="en">EN</button><button class="lang" data-l="es">ES</button><button class="lang" data-l="fr">FR</button>
+  </div>
+
   <header class="hero">
     <div class="wrap">
       <h1>DUCK<br>DASH</h1>
-      <div class="sub">Die Entenrettung <span class="badge">Beta</span></div>
-      <img class="mascot" src="./icon-512.png" width="200" height="200" alt="Quacki, die kleine gelbe Pixel-Ente" />
+      <div class="sub"><span data-i="sub">Die Entenrettung</span> <span class="badge" data-i="beta">Beta</span></div>
+      <img class="mascot" src="./icon-512.png" width="200" height="200" alt="Quacki, die gelbe Pixel-Gummiente" />
       <div class="cta">
-        <a class="btn" href="./game.html">▶ Spielen</a>
-        <a class="btn ghost" href="#welten">Welten ansehen</a>
+        <a class="btn" href="./game.html" data-i="play">▶ Spielen</a>
+        <a class="btn ghost" href="#welten" data-i="worldsBtn">Welten ansehen</a>
       </div>
-      <div class="claim">6 Welten · Gewaltfrei · Kinderfreundlich · Retro-Pixel</div>
+      <div class="claim" data-i="claim">6 Welten · Gewaltfrei · Kinderfreundlich · Retro-Pixel</div>
       <div class="betabar wrap" style="max-width:560px">
-        <p><b>Beta-Version.</b> Duck Dash ist schon voll spielbar und wird laufend weiter ausgebaut. Weitere Welten, Gegner und Funktionen folgen Schritt für Schritt.</p>
+        <p><b data-i="betaB">Beta-Version.</b> <span data-i="betaP">Duck Dash ist schon voll spielbar und wird laufend ausgebaut. Weitere Welten, Gegner und Funktionen folgen.</span></p>
       </div>
     </div>
   </header>
 
   <section id="story">
     <div class="wrap">
-      <h2>Die Geschichte</h2>
-      <p class="lead">In der ruhigen Quack-Bucht lebten Quacki und Goldi, die goldene Gummiente, in Frieden.</p>
-      <p class="lead">Doch in einer stürmischen Nacht stürmte der Baron von Quak mit seiner Schergen-Bande heran und verschleppte Goldi in sein fernes Quakschloss!</p>
-      <p class="lead">Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich Quacki auf — mutig, klein und unaufhaltsam. Niemand wird verletzt: Gegner werden einfach übersprungen oder weggehüpft.</p>
+      <h2 data-i="hStory">Die Geschichte</h2>
+      <p class="lead" data-i="s1">In der ruhigen Quack-Bucht lebten Quacki und Goldi, die Enten-Prinzessin, in Frieden.</p>
+      <p class="lead" data-i="s2">Doch in einer stürmischen Nacht verschleppte Baron von Quak die Prinzessin in sein fernes Quakschloss!</p>
+      <p class="lead" data-i="s3">Über sechs Welten, vorbei an seinen Gummi-Tier-Wächtern, macht sich Quacki auf — mutig und unaufhaltsam. Niemand wird verletzt.</p>
     </div>
   </section>
 
   <section id="welten">
     <div class="wrap">
-      <h2>Sechs Welten</h2>
+      <h2 data-i="hWorlds">Sechs Welten</h2>
       <div class="worlds">
-        <div class="card" style="--wc:var(--w1)"><span class="strip"></span><span class="num">Welt 1</span><h3>Sonnenwiese</h3><p>Grüne Hügel und ein sanfter Start für jede kleine Ente.</p></div>
-        <div class="card" style="--wc:var(--w2)"><span class="strip"></span><span class="num">Welt 2</span><h3>Seifenblasen-Bucht</h3><p>Glitzerndes Wasser und die Blasen-Fallen der Blubber-Ente.</p></div>
-        <div class="card" style="--wc:var(--w3)"><span class="strip"></span><span class="num">Welt 3</span><h3>Frostzipfel</h3><p>Glatte Pfade und Schneebälle der frostigen Wächterin.</p></div>
-        <div class="card" style="--wc:var(--w4)"><span class="strip"></span><span class="num">Welt 4</span><h3>Wüstenei</h3><p>Heißer Sand, fiese Kakteen und wirbelnder Staub.</p></div>
-        <div class="card" style="--wc:var(--w5)"><span class="strip"></span><span class="num">Welt 5</span><h3>Wolkenburg</h3><p>Hoch über den Wolken pfeift der Wind der Sturm-Ente.</p></div>
-        <div class="card" style="--wc:var(--w6)"><span class="strip"></span><span class="num">Welt 6</span><h3>Quakschloss</h3><p>Das dunkle Finale — und das letzte Hüpf-Duell mit dem Baron.</p></div>
+        <div class="card" style="--wc:var(--w1)"><span class="strip"></span><span class="num"><span data-i="world">Welt</span> 1</span><h3 data-wn="0">Sonnenwiese</h3><p data-i="w0">Grüne Hügel, ein sanfter Start.</p></div>
+        <div class="card" style="--wc:var(--w2)"><span class="strip"></span><span class="num"><span data-i="world">Welt</span> 2</span><h3 data-wn="1">Seifenblasen-Bucht</h3><p data-i="w1">Glitzerndes Wasser und Blasen-Fallen.</p></div>
+        <div class="card" style="--wc:var(--w3)"><span class="strip"></span><span class="num"><span data-i="world">Welt</span> 3</span><h3 data-wn="2">Frostzipfel</h3><p data-i="w2">Glatte Pfade und Schneebälle.</p></div>
+        <div class="card" style="--wc:var(--w4)"><span class="strip"></span><span class="num"><span data-i="world">Welt</span> 4</span><h3 data-wn="3">Wüstenei</h3><p data-i="w3">Heißer Sand und wirbelnder Staub.</p></div>
+        <div class="card" style="--wc:var(--w5)"><span class="strip"></span><span class="num"><span data-i="world">Welt</span> 5</span><h3 data-wn="4">Wolkenburg</h3><p data-i="w4">Hoch über den Wolken pfeift der Wind.</p></div>
+        <div class="card" style="--wc:var(--w6)"><span class="strip"></span><span class="num"><span data-i="world">Welt</span> 6</span><h3 data-wn="5">Quakschloss</h3><p data-i="w5">Das dunkle Finale beim Baron.</p></div>
       </div>
     </div>
   </section>
 
   <section id="steuerung">
     <div class="wrap">
-      <h2>Steuerung</h2>
-      <p class="lead dim">Am Computer mit Tastatur, am Handy mit großen Tasten auf dem Bildschirm.</p>
+      <h2 data-i="hCtrl">Steuerung</h2>
+      <p class="lead dim" data-i="cIntro">Am Computer mit Tastatur, am Handy mit großen Tasten.</p>
       <div class="controls">
-        <div class="keyrow"><span class="key">◀ ▶</span><span>Laufen — nach links und rechts</span></div>
-        <div class="keyrow"><span class="key">▲</span><span>Springen — Leertaste oder hoch</span></div>
-        <div class="keyrow"><span class="key">▲</span><span>Halten in der Luft = sanft gleiten</span></div>
-        <div class="keyrow"><span class="key">M</span><span>Ton an / aus</span></div>
-        <div class="keyrow"><span class="key">C</span><span>CRT-Filter an / aus</span></div>
-        <div class="keyrow"><span class="key">O</span><span>Einstellungen öffnen</span></div>
+        <div class="keyrow"><span class="key">◀ ▶</span><span data-i="c1">Laufen — links und rechts</span></div>
+        <div class="keyrow"><span class="key">▲</span><span data-i="c2">Springen — Leertaste oder hoch</span></div>
+        <div class="keyrow"><span class="key">▲</span><span data-i="c3">Halten in der Luft = gleiten</span></div>
+        <div class="keyrow"><span class="key">M</span><span data-i="c4">Ton an / aus</span></div>
+        <div class="keyrow"><span class="key">C</span><span data-i="c5">CRT-Filter an / aus</span></div>
+        <div class="keyrow"><span class="key">O</span><span data-i="c6">Einstellungen öffnen</span></div>
       </div>
       <div class="cta" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
-        <a class="btn" href="./game.html">▶ Jetzt spielen</a>
+        <a class="btn" href="./game.html" data-i="playNow">▶ Jetzt spielen</a>
       </div>
     </div>
   </section>
 
   <footer>
     <div class="wrap">
-      <p>DUCK DASH — Die Entenrettung</p>
-      <p class="dim">Ein eigenständiges Retro-Jump'n'Run. Alle Figuren, Grafiken und Musik sind original.</p>
+      <p>DUCK DASH</p>
+      <p class="dim" data-i="foot2">Ein eigenständiges Retro-Jump'n'Run. Alle Figuren, Grafiken und Musik sind original.</p>
     </div>
   </footer>
 
+<script src="./i18n.js"></script>
 <script>
+  /* Landing-eigene Texte (Spiel-Welt-/Boss-Namen kommen aus i18n.js) */
+  const LP={
+    de:{lLabel:"Sprache",play:"▶ Spielen",worldsBtn:"Welten ansehen",playNow:"▶ Jetzt spielen",
+      claim:"6 Welten · Gewaltfrei · Kinderfreundlich · Retro-Pixel",betaB:"Beta-Version.",
+      betaP:"Duck Dash ist schon voll spielbar und wird laufend ausgebaut. Weitere Welten, Gegner und Funktionen folgen.",
+      hStory:"Die Geschichte",hWorlds:"Sechs Welten",hCtrl:"Steuerung",world:"Welt",
+      cIntro:"Am Computer mit Tastatur, am Handy mit großen Tasten.",
+      s1:"In der ruhigen Quack-Bucht lebten Quacki und Goldi, die Enten-Prinzessin, in Frieden.",
+      s2:"Doch in einer stürmischen Nacht verschleppte Baron von Quak die Prinzessin in sein fernes Quakschloss!",
+      s3:"Über sechs Welten, vorbei an seinen Gummi-Tier-Wächtern, macht sich Quacki auf — mutig und unaufhaltsam. Niemand wird verletzt.",
+      w0:"Grüne Hügel, ein sanfter Start.",w1:"Glitzerndes Wasser und Blasen-Fallen.",w2:"Glatte Pfade und Schneebälle.",
+      w3:"Heißer Sand und wirbelnder Staub.",w4:"Hoch über den Wolken pfeift der Wind.",w5:"Das dunkle Finale beim Baron.",
+      c1:"Laufen — links und rechts",c2:"Springen — Leertaste oder hoch",c3:"Halten in der Luft = gleiten",
+      c4:"Ton an / aus",c5:"CRT-Filter an / aus",c6:"Einstellungen öffnen",
+      foot2:"Ein eigenständiges Retro-Jump'n'Run. Alle Figuren, Grafiken und Musik sind original."},
+    en:{lLabel:"Language",play:"▶ Play",worldsBtn:"See worlds",playNow:"▶ Play now",
+      claim:"6 worlds · Non-violent · Kid-friendly · Retro pixel",betaB:"Beta version.",
+      betaP:"Duck Dash is already fully playable and is constantly being expanded. More worlds, enemies and features are coming.",
+      hStory:"The Story",hWorlds:"Six Worlds",hCtrl:"Controls",world:"World",
+      cIntro:"On desktop with the keyboard, on mobile with big buttons.",
+      s1:"In the peaceful Quack Bay, Quacki and Goldi the duck princess lived happily.",
+      s2:"But on a stormy night, Baron von Quak carried the princess off to his distant Quack Castle!",
+      s3:"Across six worlds, past his rubber-animal guards, Quacki sets off — brave and unstoppable. Nobody gets hurt.",
+      w0:"Green hills, a gentle start.",w1:"Sparkling water and bubble traps.",w2:"Slippery paths and snowballs.",
+      w3:"Hot sand and swirling dust.",w4:"High above the clouds the wind howls.",w5:"The dark finale at the Baron's.",
+      c1:"Run — left and right",c2:"Jump — space or up",c3:"Hold in the air = glide",
+      c4:"Sound on / off",c5:"CRT filter on / off",c6:"Open settings",
+      foot2:"An original retro platformer. All characters, art and music are original."},
+    es:{lLabel:"Idioma",play:"▶ Jugar",worldsBtn:"Ver mundos",playNow:"▶ Jugar ahora",
+      claim:"6 mundos · Sin violencia · Para niños · Pixel retro",betaB:"Versión beta.",
+      betaP:"Duck Dash ya es totalmente jugable y se amplía constantemente. Llegarán más mundos, enemigos y funciones.",
+      hStory:"La Historia",hWorlds:"Seis Mundos",hCtrl:"Controles",world:"Mundo",
+      cIntro:"En el ordenador con teclado, en el móvil con botones grandes.",
+      s1:"En la tranquila Bahía Cuac, Quacki y Goldi, la princesa pata, vivían en paz.",
+      s2:"¡Pero en una noche de tormenta, el Barón von Quak se llevó a la princesa a su lejano Castillo Cuac!",
+      s3:"A través de seis mundos, sorteando a sus guardianes de goma, Quacki se lanza — valiente e imparable. Nadie sale herido.",
+      w0:"Colinas verdes, un comienzo suave.",w1:"Agua brillante y trampas de burbujas.",w2:"Caminos resbaladizos y bolas de nieve.",
+      w3:"Arena caliente y polvo en remolino.",w4:"En lo alto de las nubes aúlla el viento.",w5:"El oscuro final ante el Barón.",
+      c1:"Correr — izquierda y derecha",c2:"Saltar — espacio o arriba",c3:"Mantener en el aire = planear",
+      c4:"Sonido on / off",c5:"Filtro CRT on / off",c6:"Abrir ajustes",
+      foot2:"Un plataformas retro original. Todos los personajes, gráficos y música son originales."},
+    fr:{lLabel:"Langue",play:"▶ Jouer",worldsBtn:"Voir les mondes",playNow:"▶ Jouer maintenant",
+      claim:"6 mondes · Sans violence · Pour enfants · Pixel rétro",betaB:"Version bêta.",
+      betaP:"Duck Dash est déjà entièrement jouable et s'enrichit en continu. D'autres mondes, ennemis et fonctions arrivent.",
+      hStory:"L'Histoire",hWorlds:"Six Mondes",hCtrl:"Commandes",world:"Monde",
+      cIntro:"Sur ordinateur au clavier, sur mobile avec de gros boutons.",
+      s1:"Dans la paisible Baie Coin-Coin, Quacki et Goldi la princesse cane vivaient en paix.",
+      s2:"Mais par une nuit d'orage, le Baron von Quak emporta la princesse dans son lointain Château Coin-Coin !",
+      s3:"À travers six mondes, en évitant ses gardiens en caoutchouc, Quacki s'élance — courageux et imparable. Personne n'est blessé.",
+      w0:"Collines vertes, un début tout doux.",w1:"Eau scintillante et pièges à bulles.",w2:"Chemins glissants et boules de neige.",
+      w3:"Sable chaud et poussière tourbillonnante.",w4:"Très haut dans les nuages, le vent hurle.",w5:"Le final sombre chez le Baron.",
+      c1:"Courir — gauche et droite",c2:"Sauter — espace ou haut",c3:"Maintenir en l'air = planer",
+      c4:"Son on / off",c5:"Filtre CRT on / off",c6:"Ouvrir les réglages",
+      foot2:"Un jeu de plateforme rétro original. Personnages, graphismes et musique sont originaux."}
+  };
+  function curLang(){ try{const l=localStorage.getItem("quacki_lang"); if(l&&LP[l])return l;}catch(e){} return "de"; }
+  function applyLang(code){
+    const d=LP[code]||LP.de, I=(window.I18N&&window.I18N[code])||(window.I18N&&window.I18N.de)||{};
+    document.documentElement.lang=code;
+    document.querySelectorAll("[data-i]").forEach(function(el){const k=el.getAttribute("data-i"); if(d[k]!=null)el.textContent=d[k];});
+    if(I.subtitle){const s=document.querySelector('[data-i="sub"]'); if(s)s.textContent=I.subtitle;}
+    if(I.beta){const b=document.querySelector('[data-i="beta"]'); if(b)b.textContent=I.beta;}
+    document.querySelectorAll("[data-wn]").forEach(function(el){const i=+el.getAttribute("data-wn"); if(I.worldNames&&I.worldNames[i])el.textContent=I.worldNames[i];});
+    document.querySelectorAll(".lang").forEach(function(b){b.classList.toggle("active",b.getAttribute("data-l")===code);});
+  }
+  function setLang(code){ if(!LP[code])return; try{localStorage.setItem("quacki_lang",code);}catch(e){} applyLang(code); }
+  document.querySelectorAll(".lang").forEach(function(b){b.addEventListener("click",function(){setLang(b.getAttribute("data-l"));});});
+  applyLang(curLang());
+
   /* PWA: Service Worker registrieren (nur ueber http/https) */
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
     addEventListener("load",function(){ navigator.serviceWorker.register("./sw.js").catch(function(){}); });
