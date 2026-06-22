@@ -303,6 +303,19 @@ const L2=[
 ];
 WORLDS.forEach((w,i)=>{ w.levels=[w.level, L2[i]]; });
 
+/* ---------- Waechter-Enten-Banter (Story-Tiefe, gewaltfrei) ----------
+   Jeder Boss ist eine Waechter-Ente des Barons. Kurzer Wortwechsel vor
+   dem Huepf-Duell. Welt 6 = dramatisches Finale mit dem Baron. */
+const BANTER=[
+ [ "Halt! Niemand watschelt hier vorbei!", "Ich bin Hibbel, schnellste Huepf-Ente weit und breit. Fang mich doch!" ],
+ [ "Pscht... hoerst du die Blasen platzen?", "Blubber laesst keine kleine Ente durch. Pass auf meine Seifenblasen auf!" ],
+ [ "Brrr! Hier ist alles spiegelglatt.", "Frost-Ente friert jeden Weg ein. Komm doch naeher, wenn du dich traust!" ],
+ [ "Heisser Sand, kleine Ente!", "Sand-Ente wirbelt Staub, dass dir Hoeren und Sehen vergeht. Kehr lieber um!" ],
+ [ "Festhalten! Der Wind nimmt zu!", "Sturm-Ente fegt alles von den Wolken. Dich gleich mit!" ],
+ [ "So weit bist du also gekommen, "+HERO+".", "Ich, "+VILLAIN+", habe sechs Welten zwischen dich und "+PRIN+" gelegt — und doch stehst du hier.", "Genug geplaudert. Ein letztes Huepf-Duell entscheidet alles!" ],
+];
+WORLDS.forEach((w,i)=>{ w.boss.banter=BANTER[i]; });
+
 /* ---------- Level build ---------- */
 function buildLevel(def){
   const rows=def.slice(); let W=0; for(const r of rows) W=Math.max(W,r.length);
@@ -399,6 +412,10 @@ function showScreen(id){["scTitle","scStory","scOver"].forEach(s=>el(s).classLis
 function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||"Weiter ▶";storyNext=next;state=ST.STORY;showScreen("scStory");}
 function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
 el("storyBtn").addEventListener("click",storyAdvance);
+/* Spielt mehrere Cutscene-Beats nacheinander, dann done().
+   beats: [{t:Titel, x:Text, btn?:Buttontext}] */
+function dialogSeq(beats,done){ let i=0; const next=()=>{ if(i>=beats.length){ if(done)done(); return; }
+  const b=beats[i++]; const last=(i>=beats.length); cutscene("",b.t,b.x,b.btn||(last?"Weiter ▶":"Weiter ▶"),next); }; next(); }
 
 /* ---------- Flow ---------- */
 function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
@@ -416,7 +433,10 @@ function beginLevel(w,li){ worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
   cutscene("",curWorld.name+" · Level "+(li+1),intro,"Start ▶",()=>loadPlatform(w,li)); }
 function loadPlatform(w,li){ if(li===undefined)li=curLevelIdx; worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
   L=buildLevel(WORLDS[w].levels[li]); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); }
-function startBossIntro(){ const b=curWorld.boss; cutscene("",b.name,b.story,"Kampf! ▶",startBoss); }
+function startBossIntro(){ const b=curWorld.boss;
+  const beats=(b.banter||[]).map(line=>({t:b.name,x:line}));
+  beats.push({t:b.name,x:b.story,btn:"Kampf! ▶"});
+  dialogSeq(beats,startBoss); }
 function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0; bossWonT=0;
   const b=curWorld.boss; boss={x:18*TILE,y:(L.H-4)*TILE,w:22,h:20,vx:-40,vy:0,hp:3,invuln:0,throwT:1.4,dir:-1,jumpT:1.0,color:b.color,name:b.name,defeated:0};
   state=ST.BOSS; showScreen(null); }
@@ -433,7 +453,12 @@ function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=W
   cutscene("",curWorld.name+" · Level "+(li+1)+" geschafft!",txt,"Zur Karte ▶",()=>enterSubmap(w)); }
 function bossDefeated(){ SFX.clear(); const w=worldIdx, levels=WORLDS[w].levels.length;
   worldProgress[w]=levels+1; // Welt komplett
-  if(w>=WORLDS.length-1){ cutscene("","Goldi gerettet!","Mit einem letzten beherzten Sprung stuerzt "+HERO+" den Baron vom Thron — und "+PRIN+"s Kaefig springt auf! Seite an Seite watscheln die beiden zurueck in die Quack-Bucht, wo ganz Entenhausen sie mit Jubel und Konfetti empfaengt. Held des Tages: "+HERO+"!   Endpunkte: "+score+" · Muenzen: "+coinsGot,"NOCHMAL",startGame); }
+  if(w>=WORLDS.length-1){ dialogSeq([
+      {t:"Das Finale",x:"Mit einem letzten, beherzten Sprung setzt "+HERO+" zum Sprung an — der "+VILLAIN+" wankt auf seinem Thron..."},
+      {t:"Der Thron wankt",x:"\"Unmoeglich!\", quakt der Baron, \"besiegt von einer so kleinen Ente?\" Mit einem Plumps landet er im Schlossgraben.",btn:"Weiter ▶"},
+      {t:"Goldi ist frei!",x:PRIN+"s Kaefig springt auf! Seite an Seite watscheln die beiden zurueck in die Quack-Bucht, wo ganz Entenhausen sie mit Jubel und Konfetti empfaengt."},
+      {t:"Held des Tages",x:"Held des Tages: "+HERO+"!   Endpunkte: "+score+" · Muenzen: "+coinsGot,btn:"NOCHMAL"},
+    ],startGame); }
   else { if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,w+1); cutscene("",curWorld.name+" geschafft!","Boss besiegt! Die naechste Welt ist frei. Zurueck zur Weltkarte.","Zur Karte ▶",()=>enterOverworld()); } }
 el("btnRetry").addEventListener("click",startGame);
 

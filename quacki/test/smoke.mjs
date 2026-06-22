@@ -194,9 +194,12 @@ frameErr = null;
 G.worldProgress[0] = G.WORLDS[0].levels.length; // alle Level erledigt -> Boss frei
 G.enterSubmap(0);
 assert(G.subSel === G.WORLDS[0].levels.length, "Sub-Map waehlt Boss-Knoten wenn Level fertig", "subSel=" + G.subSel);
-G.enterSelectedNode(); // Boss-Knoten -> startBossIntro -> STORY
+G.enterSelectedNode(); // Boss-Knoten -> startBossIntro (Banter-Sequenz) -> STORY
 assert(G.state === G.ST.STORY, "Boss-Knoten -> Boss-Intro (STORY)", "state=" + G.state);
-G.storyAdvance(); // -> startBoss -> BOSS
+// Durch alle Banter-Beats steppen bis der Kampf startet
+let guard = 0;
+while (G.state === G.ST.STORY && guard++ < 12) G.storyAdvance();
+assert(guard < 12, "Boss-Banter-Sequenz endet im Kampf", "haengt in STORY nach " + guard + " Beats");
 step(1);
 assert(G.state === G.ST.BOSS, "Boss-Kampf aktiv (BOSS)", "state=" + G.state);
 assert(G.boss && G.boss.hp === 3, "Boss geladen mit 3 HP", "boss=" + JSON.stringify(G.boss && {hp:G.boss.hp}));
