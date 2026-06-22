@@ -92,6 +92,12 @@ const probe = `
   try { Object.defineProperty(g,"score",{get:()=>score}); } catch(e){}
   try { Object.defineProperty(g,"boss",{get:()=>boss}); } catch(e){}
   try { Object.defineProperty(g,"subSel",{get:()=>subSel}); } catch(e){}
+  try { Object.defineProperty(g,"setSel",{get:()=>setSel,set:(v)=>{setSel=v;}}); } catch(e){}
+  try { g.SET = SET; } catch(e){}
+  try { g.openSettings = openSettings; } catch(e){}
+  try { g.closeSettings = closeSettings; } catch(e){}
+  try { g.settingsActivate = settingsActivate; } catch(e){}
+  try { g.settingsToggle = settingsToggle; } catch(e){}
   try { Object.defineProperty(g,"curLevelIdx",{get:()=>curLevelIdx}); } catch(e){}
   try { g.worldProgress = worldProgress; } catch(e){}
   try { g.duck = duck; } catch(e){}
@@ -211,6 +217,22 @@ for (let i = 0; i < 200 && !frameErr; i++) {
 }
 G.keys.right = G.keys.left = false;
 assert(!frameErr, "Boss: 200 Frames Kampf fehlerfrei", frameErr);
+
+// Einstellungen-Menue
+frameErr = null;
+G.enterOverworld();              // definierter Ausgangspunkt
+G.openSettings();
+assert(G.state === G.ST.SETTINGS, "openSettings -> SETTINGS", "state=" + G.state);
+step(2);
+assert(!frameErr, "Settings-Frames laufen fehlerfrei", frameErr);
+const sfxBefore = G.SET.sfx;
+G.setSel = 0; G.settingsToggle();
+assert(G.SET.sfx === !sfxBefore, "Ton-Toggle wirkt", "sfx=" + G.SET.sfx);
+const stored = JSON.parse(sandbox.localStorage.getItem("quacki_settings") || "{}");
+assert(stored.sfx === G.SET.sfx, "Einstellung in localStorage persistiert", "stored=" + JSON.stringify(stored));
+G.settingsToggle(); // zuruecksetzen
+G.closeSettings();
+assert(G.state === G.ST.OVERWORLD, "closeSettings kehrt zurueck", "state=" + G.state);
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
