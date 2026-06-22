@@ -20,11 +20,14 @@ function assert(cond, name, detail) { cond ? ok(name) : bad(name, detail); }
 
 /* ---------- DOM / Canvas / Audio Stubs ---------- */
 const grad = { addColorStop() {} };
+// Layout-Instrumentierung: fillRect-Aufrufe optional aufzeichnen (Bounding-Boxes)
+let recordOn = false; const drawRects = [];
 const ctxStub = new Proxy({}, {
   get(t, p) {
     if (p in t) return t[p];
     if (p === "createLinearGradient" || p === "createRadialGradient" || p === "createPattern") return () => grad;
     if (p === "measureText") return () => ({ width: 0 });
+    if (p === "fillRect") return (x, y, w, h) => { if (recordOn) drawRects.push([x, y, w, h]); };
     return () => {};
   },
   set(t, p, v) { t[p] = v; return true; },
@@ -127,6 +130,12 @@ const probe = `
   try { g.bossName = bossName; } catch(e){}
   try { g.startGame = startGame; } catch(e){}
   try { g.pauseSet = pauseSet; } catch(e){}
+  try { g.toggleTheme = toggleTheme; } catch(e){}
+  try { g.settingsRows = settingsRows; } catch(e){}
+  try { g.DIFFNAME = DIFFNAME; } catch(e){}
+  try { g.makeFoe = makeFoe; } catch(e){}
+  try { g.unlockSecret = unlockSecret; } catch(e){}
+  try { Object.defineProperty(g,"equippedSkin2",{get:()=>equippedSkin}); } catch(e){}
   try { g.isGameplay = isGameplay; } catch(e){}
   try { Object.defineProperty(g,"paused",{get:()=>paused}); } catch(e){}
   try { g.loadPlatform = loadPlatform; } catch(e){}
@@ -342,6 +351,68 @@ assert(Math.abs(G.duck.x - xBeforePause) < 0.001, "Pause friert Spielwelt ein", 
 assert(!frameErr, "Pause-Frames laufen fehlerfrei", frameErr);
 G.pauseSet(false);
 assert(G.paused === false, "Fortsetzen hebt Pause auf", "paused=" + G.paused);
+
+// ===== Pflicht-Erweiterung: alle Schwierigkeiten, Menue/Settings/Theme/Sprache, Layout, Konzept =====
+
+// (1) Alle 3 Schwierigkeiten: Leben korrekt, alle Level bauen, Gegner-Tempo skaliert, Level-1 spielbar
+const diffLives = [5, 3, 2];
+let foeFast = [];
+for (let d = 0; d < 3; d++) {
+  frameErr = null; G.SET.diff = d;
+  G.startGame(); G.storyAdvance();
+  assert(G.lives === diffLives[d], "Diff " + d + ": " + diffLives[d] + " Leben", "lives=" + G.lives);
+  // alle 12 Level bauen + 1 Frame
+  let okBuild = true;
+  for (let wi = 0; wi < G.WORLDS.length && okBuild; wi++) for (let li = 0; li < G.WORLDS[wi].levels.length; li++) {
+    frameErr = null; G.loadPlatform(wi, li); step(1);
+    if (!G.L || frameErr) { okBuild = false; assert(false, "Diff " + d + " Bau W" + (wi+1) + "-L" + (li+1), frameErr || "L fehlt"); break; }
+  }
+  assert(okBuild, "Diff " + d + ": alle 12 Level bauen fehlerfrei");
+  // Gegner-Tempo messen (Betrag der vx eines walk-Foes)
+  const f = G.makeFoe(0, 0, "walk"); foeFast[d] = Math.abs(f.vx);
+  // Level 1 anspielen, Bewegung
+  frameErr = null; G.loadPlatform(0, 0); const sx0 = G.duck.x;
+  for (let i = 0; i < 200 && !frameErr; i++) { G.keys.right = true; if (i % 30 === 0) G.pressJump(); step(1); }
+  G.keys.right = false;
+  assert(!frameErr && G.duck.x > sx0, "Diff " + d + ": Level 1 spielbar (Bewegung, kein Fehler)", frameErr || ("dx=" + (G.duck.x - sx0)));
+}
+assert(foeFast[0] < foeFast[1] && foeFast[1] < foeFast[2], "Gegner-Tempo steigt mit Schwierigkeit", "easy=" + foeFast[0] + " normal=" + foeFast[1] + " hard=" + foeFast[2]);
+G.SET.diff = 1;
+
+// (2) Theme-Umschaltung wirkt + fehlerfrei
+const th0 = G.SET.theme; G.toggleTheme();
+assert(G.SET.theme !== th0, "Theme-Toggle wechselt Hell/Dunkel", "vorher=" + th0 + " nachher=" + G.SET.theme);
+G.toggleTheme();
+
+// (3) Sprachen DE/EN/ES/FR: Menue-Begriffe vorhanden + verschieden
+const menuKeys = {};
+for (const lng of ["de","en","es","fr"]) { G.setLang(lng); menuKeys[lng] = G.t("menuPlay"); }
+assert(menuKeys.de && menuKeys.en && menuKeys.de !== menuKeys.en, "Menue-Texte uebersetzt (de!=en)", JSON.stringify(menuKeys));
+assert(G.t("diffHard") && G.t("pause") && G.t("biosTitle"), "Neue i18n-Keys (Schwer/Pause/Steckbriefe) in aktiver Sprache vorhanden");
+G.setLang("de");
+
+// (4) Settings-Render Layout: nichts zeichnet weit ausserhalb des Canvas (Clipping-Check)
+// Grobe Layout-Pruefung: kein UI-Element zeichnet katastrophal weit weg (Hintergrund-Wolken duerfen leicht ueberstehen, werden geclippt)
+const M = 150;
+function grossOff() { return drawRects.filter(r => { const x=r[0],y=r[1],w=r[2]||0,h=r[3]||0; return x < -M || y < -M || x + w > 384 + M || y + h > 224 + M; }); }
+function recordScene(setup) { drawRects.length = 0; recordOn = true; setup(); step(1); recordOn = false; return drawRects.length; }
+const nSet = recordScene(() => G.openSettings());
+assert(nSet > 0, "Settings rendert (fillRect-Aufrufe)", "n=" + nSet);
+assert(grossOff().length === 0, "Settings: kein UI grob ausserhalb des Canvas", grossOff().slice(0,3).map(r=>r.join(",")).join(" | "));
+G.closeSettings();
+recordScene(() => G.openShop());
+assert(grossOff().length === 0, "Shop: kein UI grob ausserhalb des Canvas", grossOff().slice(0,3).map(r=>r.join(",")).join(" | "));
+G.closeShop();
+
+// (5) Easter Egg: Code schaltet goldene Ente frei + ruestet aus
+G.unlockSecret();
+assert(G.owned.golden === true && G.equippedSkin2 === "golden", "Easter Egg schaltet goldene Ente frei", "owned=" + G.owned.golden + " skin=" + G.equippedSkin2);
+
+// (6) Konzept-Kohaerenz (roter Faden Entfuehrung -> 6 Welten -> Gummi-Tier-Bosse -> Rettung)
+assert(G.WORLDS.length === 6, "Genau 6 Welten");
+let bossesOk = true; for (let i = 0; i < 6; i++) if (!G.bossName(i) || !G.WORLDS[i].levels || G.WORLDS[i].levels.length < 1) bossesOk = false;
+assert(bossesOk, "Jede Welt hat Level + benannten Boss");
+assert(!!G.t("introText") && !!G.t("bioBaron") && !!G.t("bioGoldi"), "Story-Bogen vorhanden (Intro + Baron + Goldi)");
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
