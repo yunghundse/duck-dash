@@ -22,6 +22,12 @@
     --maxw:960px; --pad:clamp(16px,4vw,40px);
     --font:'Press Start 2P',monospace;
   }
+  html[data-theme="light"]{
+    --bg:#dfe9ff; --bg2:#eef3ff; --panel:#fbf7ea; --panel2:#fff6df;
+    --ink:#241a0a; --ink-dim:#5a4a2e; --gold:#b5731a; --gold-dk:#7a4d00;
+    --accent:#2f8f24; --line:rgba(20,15,5,.14); --shadow:rgba(120,100,60,.35);
+  }
+  html[data-theme="light"] body{background-image:radial-gradient(circle at 50% -10%,#ffffff 0%,var(--bg) 60%);}
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html{scroll-behavior:smooth;}
   body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.7;
@@ -100,6 +106,7 @@
 
   <div class="langbar"><span data-i="lLabel">Sprache</span>:
     <button class="lang" data-l="de">DE</button><button class="lang" data-l="en">EN</button><button class="lang" data-l="es">ES</button><button class="lang" data-l="fr">FR</button>
+    <button class="lang" id="themeBtn" style="margin-left:10px" data-i="themeBtn">Dunkel</button>
   </div>
 
   <header class="hero">
@@ -168,6 +175,7 @@
   </footer>
 
 <script src="./i18n.js"></script>
+<script src="./i18n_extra.js"></script>
 <script>
   /* Landing-eigene Texte (Spiel-Welt-/Boss-Namen kommen aus i18n.js) */
   const LP={
@@ -234,8 +242,15 @@
     document.querySelectorAll("[data-wn]").forEach(function(el){const i=+el.getAttribute("data-wn"); if(I.worldNames&&I.worldNames[i])el.textContent=I.worldNames[i];});
     document.querySelectorAll(".lang").forEach(function(b){b.classList.toggle("active",b.getAttribute("data-l")===code);});
   }
-  function setLang(code){ if(!LP[code])return; try{localStorage.setItem("quacki_lang",code);}catch(e){} applyLang(code); }
+  function setLang(code){ if(!LP[code])return; try{localStorage.setItem("quacki_lang",code);}catch(e){} applyLang(code); applyThemeLabel(); }
   document.querySelectorAll(".lang").forEach(function(b){b.addEventListener("click",function(){setLang(b.getAttribute("data-l"));});});
+  /* Hell-/Dunkel-Modus */
+  function curTheme(){ try{const tt=localStorage.getItem("quacki_theme"); if(tt==="light"||tt==="dark")return tt;}catch(e){} return "dark"; }
+  function applyThemeLabel(){ const th=curTheme(),lang=curLang(),E=(window.I18N_EXTRA&&window.I18N_EXTRA[lang])||{},btn=document.getElementById("themeBtn");
+    if(btn)btn.textContent = th==="dark" ? (E.themeLight||"Hell") : (E.themeDark||"Dunkel"); }
+  function applyTheme(th){ document.documentElement.setAttribute("data-theme",th); applyThemeLabel(); }
+  document.getElementById("themeBtn").addEventListener("click",function(){ const nx=curTheme()==="dark"?"light":"dark"; try{localStorage.setItem("quacki_theme",nx);}catch(e){} applyTheme(nx); });
+  applyTheme(curTheme());
   applyLang(curLang());
 
   /* PWA: Service Worker registrieren (nur ueber http/https) */

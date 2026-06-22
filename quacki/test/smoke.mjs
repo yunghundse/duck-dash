@@ -145,11 +145,12 @@ const ctx = vm.createContext(sandbox);
 let loadErr = null;
 // Externe i18n.js zuerst im selben Kontext laden (setzt window.I18N etc.)
 try {
-  const i18nPath = join(__dir, "..", "i18n.js");
-  const i18nSrc = readFileSync(i18nPath, "utf8");
+  const i18nSrc = readFileSync(join(__dir, "..", "i18n.js"), "utf8");
   vm.runInContext(i18nSrc, ctx, { filename: "i18n.js" });
+  const extraSrc = readFileSync(join(__dir, "..", "i18n_extra.js"), "utf8");
+  vm.runInContext(extraSrc, ctx, { filename: "i18n_extra.js" });
 } catch (e) { loadErr = e; }
-assert(!loadErr, "i18n.js laedt ohne Exception", loadErr && loadErr.message);
+assert(!loadErr, "i18n.js + i18n_extra.js laden ohne Exception", loadErr && loadErr.message);
 try {
   vm.runInContext(blocks.join("\n;\n") + probe, ctx, { filename: "quacki-inline.js" });
 } catch (e) { loadErr = e; }
@@ -253,10 +254,12 @@ assert(G.state === G.ST.STORY, "beginLevel zeigt How-to (STORY)", "state=" + G.s
 let g2 = 0; while (G.state === G.ST.STORY && g2++ < 8) G.storyAdvance();
 step(1);
 assert(G.state === G.ST.PLAY, "How-to fuehrt ins Level (PLAY)", "state=" + G.state);
-// Easy-Modus: mehr Leben
-G.SET.easy = true; G.startGame(); G.storyAdvance();
-assert(G.lives === 5, "Easy-Modus startet mit 5 Leben", "lives=" + G.lives);
-G.SET.easy = false;
+// Schwierigkeit Einfach: mehr Leben
+G.SET.diff = 0; G.startGame(); G.storyAdvance();
+assert(G.lives === 5, "Einfach startet mit 5 Leben", "lives=" + G.lives);
+G.SET.diff = 2; G.startGame(); G.storyAdvance();
+assert(G.lives === 2, "Schwer startet mit 2 Leben", "lives=" + G.lives);
+G.SET.diff = 1;
 
 // Einstellungen-Menue
 frameErr = null;
