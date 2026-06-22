@@ -351,6 +351,9 @@ const BOSSCFG=[
  {hp:4,move:70,jump:250,jumpEvery:1.3, throwN:2,spread:0.4,throwEvery:1.5,pType:"gust", pSpeed:160,pG:12,  hover:true},              // 5 Sturm: schnell, schwebt
  {hp:5,move:54,jump:350,jumpEvery:1.35,throwN:2,spread:0.45,throwEvery:1.4,pType:"bubble",pSpeed:115,pG:140},                        // 6 Baron: Finale
 ];
+// Gummi-Tier je Welt: Form + thematische Farbe (Endboss = Baron, die Gummiente)
+const BOSSSHAPE=["frog","croc","penguin","camel","owl","baron"];
+const BOSSCOLOR=["#62c24a","#3f9f5a","#3a5b8f","#d9a85a","#a06b3a","#7a5a9a"];
 
 /* ---------- Weltkarte (Overworld) — Layout & Theme als Daten ----------
    Gewundener Pfad ueber breite Karte; Kamera folgt der Ente. Alles hier
@@ -554,8 +557,8 @@ function startBossIntro(){ const nm=bossName(worldIdx);
 function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0;parts.length=0;powerMsgT=0; camX=0; bossWonT=0;
   const bdef=curWorld.boss, cfg=BOSSCFG[worldIdx], hp=cfg.hp;
   boss={x:18*TILE,y:(L.H-4)*TILE,w:24,h:22,vx:0,vy:0,hp,maxHp:hp,invuln:0,
-    throwT:cfg.throwEvery*0.9,jumpT:1.0,dir:-1,color:bdef.color,name:bdef.name,defeated:0,
-    cfg,windup:false,phase2:false};
+    throwT:cfg.throwEvery*0.9,jumpT:1.0,dir:-1,color:BOSSCOLOR[worldIdx]||bdef.color,name:bossName(worldIdx),defeated:0,
+    shape:BOSSSHAPE[worldIdx]||"baron",cfg,windup:false,phase2:false};
   state=ST.BOSS; showScreen(null); }
 function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=false;duck.blink=1.0;duck.flutterT=0;duck.star=0;duck.big=false;duck.feather=false;duck.mounted=false;}
 function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
@@ -932,28 +935,67 @@ function drawBubbles(){for(const b of bubbles){const t=b.type;
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=((n>>8)&255)+amt,bl=(n&255)+amt;
   r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));bl=Math.max(0,Math.min(255,bl));
   return "#"+((1<<24)+(r<<16)+(g<<8)+bl).toString(16).slice(1);}
+/* ---------- Gummi-Tier-Bosse: je Welt eine Tierform ---------- */
+function bossEyes(X,Y,b,ex,ey,dk){ // gemeinsame Augen (Phase 2 = boeser Blick)
+  if(b.phase2){px(X+ex,Y+ey+1,3,2,C.eye);px(X+ex,Y+ey,3,1,dk);} else {px(X+ex,Y+ey,3,3,C.eye);px(X+ex+1,Y+ey,1,1,"#fff");}}
+function drawBossShape(b,X,Y,dk){const W=b.w,H=b.h,col=b.color,lite=shade(col,28),wht="#f3f7ff";
+  if(b.shape==="frog"){
+    px(X+1,Y+9,W-2,H-10,col);px(X,Y+11,W,H-13,col);px(X+2,Y+H-4,W-4,3,dk);
+    px(X+5,Y+13,W-10,5,lite); // Bauch
+    px(X+3,Y+12,W-6,1,dk);    // Mund (sanftes Laecheln)
+    px(X+2,Y+3,7,7,col);px(X+W-9,Y+3,7,7,col); // Augenhuegel
+    px(X+3,Y+4,5,5,wht);px(X+W-8,Y+4,5,5,wht);
+    bossEyes(X,Y,b,4,5,dk);bossEyes(X,Y,b,W-7,5,dk);
+    px(X+9,Y+11,1,1,dk);px(X+W-10,Y+11,1,1,dk); // Nasenloecher
+  } else if(b.shape==="croc"){
+    px(X+4,Y+8,W-4,H-9,col);px(X+3,Y+10,W-3,H-13,col);px(X+5,Y+H-4,W-6,3,dk);
+    px(X-5,Y+11,11,5,col);px(X-5,Y+15,11,1,dk); // lange Schnauze
+    for(let i=0;i<4;i++)px(X-4+i*3,Y+10,1,1,wht); // sanfte Zaehnchen
+    px(X-4,Y+12,1,1,C.eye); // Nasenloch
+    px(X+6,Y+3,5,6,col);px(X+7,Y+4,4,4,wht);bossEyes(X,Y,b,8,5,dk); // Auge oben
+    px(X+W-3,Y+8,4,4,col); // Schwanz/Hoecker
+  } else if(b.shape==="penguin"){
+    px(X+2,Y+1,W-4,H-1,col);px(X+1,Y+5,W-2,H-7,col);
+    px(X+6,Y+6,W-12,H-7,wht); // weisser Bauch
+    px(X,Y+7,3,9,dk);px(X+W-3,Y+7,3,9,dk); // Fluegel
+    px(X+6,Y+4,2,2,C.eye);px(X+W-8,Y+4,2,2,C.eye);
+    px(X+W/2-2,Y+7,4,3,C.beak); // Schnabel
+    px(X+5,Y+H,4,2,C.beak);px(X+W-9,Y+H,4,2,C.beak); // Fuesse
+  } else if(b.shape==="camel"){
+    px(X+2,Y+11,W-4,H-12,col);px(X+1,Y+13,W-2,H-15,col);px(X+3,Y+H-3,W-6,2,dk);
+    px(X+7,Y+5,10,7,col);px(X+8,Y+4,8,2,lite); // Hoecker
+    px(X-1,Y+5,5,9,col);px(X-5,Y+3,7,6,col); // Hals + Kopf
+    px(X-6,Y+6,3,3,shade(col,18)); // Schnauze
+    bossEyes(X,Y,b,-3,4,dk);
+    px(X+4,Y+H,3,2,dk);px(X+W-7,Y+H,3,2,dk); // Beine
+    px(X+W-2,Y+10,3,2,col); // Schwanz
+  } else if(b.shape==="owl"){
+    px(X+1,Y+4,W-2,H-4,col);px(X,Y+7,W,H-9,col);
+    px(X+2,Y,3,4,col);px(X+W-5,Y,3,4,col); // Ohrbueschel
+    px(X+2,Y+5,9,9,wht);px(X+W-11,Y+5,9,9,wht); // grosse Augen
+    px(X+5,Y+8,4,4,C.eye);px(X+W-9,Y+8,4,4,C.eye);
+    if(b.phase2){px(X+5,Y+7,4,1,col);px(X+W-9,Y+7,4,1,col);} // boese Braue
+    px(X+W/2-1,Y+12,2,3,C.beak); // Schnabel
+    px(X+2,Y+13,4,6,dk);px(X+W-6,Y+13,4,6,dk); // Fluegel
+    px(X+7,Y+16,W-14,3,lite); // Bauchmuster
+  } else { // baron = gekroente Gummiente
+    px(X+W-2,Y+6,4,4,col); // Schwanz
+    px(X+1,Y+8,W-2,H-9,col);px(X,Y+10,W,H-13,col);px(X+1,Y+H-3,W-2,3,"rgba(0,0,0,.22)");
+    px(X+2,Y+8,W-5,1,"#ffffff88");px(X+5,Y+11,7,4,dk); // Fluegel
+    px(X+1,Y,9,9,col);px(X,Y+2,11,6,col);px(X+1,Y,8,1,"#ffffff88"); // Kopf
+    bossEyes(X,Y,b,2,3,dk);
+    px(X-3,Y+4,4,3,C.beak);px(X-3,Y+6,3,1,"#d96a1e"); // Schnabel
+  }
+}
 function drawBoss(){const b=boss;if(b.invuln>0&&Math.floor(b.invuln*12)%2===0&&b.defeated<=0)return;
   const X=Math.round(b.x),Y=Math.round(b.y),dk=shade(b.color,-34);
-  ctx.save(); if(b.dir>0){ctx.translate(X+b.w,0);ctx.scale(-1,1);ctx.translate(-X,0);} // Schnabel zeigt in Laufrichtung (Default: links)
+  ctx.save(); if(b.dir>0){ctx.translate(X+b.w,0);ctx.scale(-1,1);ctx.translate(-X,0);}
   ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(X+b.w/2,Y+b.h+1,b.w/2,4,0,0,7);ctx.fill();
-  // Schwanz hinten
-  px(X+b.w-2,Y+6,4,4,b.color);
-  // Koerper
-  px(X+1,Y+8,b.w-2,b.h-9,b.color);px(X,Y+10,b.w,b.h-13,b.color);px(X+1,Y+b.h-3,b.w-2,3,"rgba(0,0,0,.22)");
-  px(X+2,Y+8,b.w-5,1,"#ffffff88");
-  px(X+5,Y+11,7,4,dk); // Fluegel
-  // Kopf
-  px(X+1,Y,9,9,b.color);px(X,Y+2,11,6,b.color);px(X+1,Y,8,1,"#ffffff88");
-  // Auge (Phase 2 boese/schmal)
-  if(b.phase2){px(X+2,Y+4,4,2,C.eye);px(X+2,Y+3,3,1,dk);} else {px(X+2,Y+3,3,3,C.eye);px(X+3,Y+3,1,1,"#fff");}
-  // Schnabel
-  px(X-3,Y+4,4,3,C.beak);px(X-3,Y+6,3,1,"#d96a1e");
-  // Kroenchen
-  px(X+4,Y-4,b.w-9,4,"#ffd23f");px(X+4,Y-6,2,3,"#ffd23f");px(X+Math.round((b.w-2)/2),Y-7,2,4,"#ffd23f");px(X+b.w-7,Y-6,2,3,"#ffd23f");
-  // Wind-up-Leuchten kurz vor dem Wurf
-  if(b.windup){px(X-6,Y+3,2,2,"#fff");px(X-7,Y+5,2,2,"#fff0a8");px(X-5,Y+6,2,2,"#fff");}
+  drawBossShape(b,X,Y,dk);
+  if(b.shape==="baron"){ // Kroenchen nur fuer den Baron
+    px(X+4,Y-4,b.w-9,4,"#ffd23f");px(X+4,Y-6,2,3,"#ffd23f");px(X+Math.round((b.w-2)/2),Y-7,2,4,"#ffd23f");px(X+b.w-7,Y-6,2,3,"#ffd23f"); }
+  if(b.windup){px(X-6,Y+5,2,2,"#fff");px(X-8,Y+7,2,2,"#fff0a8");px(X-5,Y+8,2,2,"#fff");} // Wind-up
   ctx.restore();
-  // HP-Pips ueber dem Boss
   for(let i=0;i<b.maxHp;i++)px(X+2+i*6,Y-12,4,3,i<b.hp?"#e23b3b":"rgba(255,255,255,.3)");}
 /* ---------- Gummiente (Badeente) ---------- */
 function drawRubberDuck(X,Y,opts){opts=opts||{};const air=opts.air,flap=opts.flap||0,step=opts.step||0;
