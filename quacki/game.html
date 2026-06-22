@@ -329,6 +329,18 @@ const BANTER=[
 ];
 WORLDS.forEach((w,i)=>{ w.boss.banter=BANTER[i]; });
 
+/* ---------- Boss-Verhalten je Welt (datengetrieben) ----------
+   Jede Waechter-Ente kaempft anders. Gewaltfrei: nur Huepfen/Ausweichen,
+   Treffer durch Drauf-Springen. Projektile sind weiche Blasen/Flocken. */
+const BOSSCFG=[
+ {hp:3,move:50,jump:400,jumpEvery:0.95,throwN:0,spread:0,throwEvery:99, pType:"none", pSpeed:0,  pG:0,   hops:true},               // 1 Hibbel: wilde Huepferin
+ {hp:3,move:42,jump:330,jumpEvery:1.7, throwN:1,spread:0,throwEvery:1.7,pType:"bubble",pSpeed:95, pG:150},                          // 2 Blubber: Blasen
+ {hp:4,move:58,jump:300,jumpEvery:2.0, throwN:1,spread:0,throwEvery:1.3,pType:"snow",  pSpeed:135,pG:60,  slip:true},               // 3 Frost: schnelle Schneebaelle
+ {hp:4,move:44,jump:330,jumpEvery:1.7, throwN:3,spread:0.6,throwEvery:2.0,pType:"dust", pSpeed:85, pG:120},                          // 4 Sand: Staub-Faecher
+ {hp:4,move:70,jump:250,jumpEvery:1.3, throwN:2,spread:0.4,throwEvery:1.5,pType:"gust", pSpeed:160,pG:12,  hover:true},              // 5 Sturm: schnell, schwebt
+ {hp:5,move:54,jump:350,jumpEvery:1.35,throwN:2,spread:0.45,throwEvery:1.4,pType:"bubble",pSpeed:115,pG:140},                        // 6 Baron: Finale
+];
+
 /* ---------- Weltkarte (Overworld) — Layout & Theme als Daten ----------
    Gewundener Pfad ueber breite Karte; Kamera folgt der Ente. Alles hier
    anpassbar, ohne die Render-Logik zu beruehren. */
@@ -503,8 +515,10 @@ function startBossIntro(){ const b=curWorld.boss;
   beats.push({t:b.name,x:b.story,btn:"Kampf! ▶"});
   dialogSeq(beats,startBoss); }
 function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0;parts.length=0;powerMsgT=0; camX=0; bossWonT=0;
-  const b=curWorld.boss; const tb=(SET.easy?2.4:1.9)-worldIdx*0.13; // spaetere Welten werfen schneller, Easy entschaerft
-  boss={x:18*TILE,y:(L.H-4)*TILE,w:22,h:20,vx:-40*(SET.easy?0.8:1),vy:0,hp:3,invuln:0,throwT:tb,throwBase:tb,dir:-1,jumpT:1.0,color:b.color,name:b.name,defeated:0};
+  const bdef=curWorld.boss, cfg=BOSSCFG[worldIdx], hp=cfg.hp;
+  boss={x:18*TILE,y:(L.H-4)*TILE,w:24,h:22,vx:0,vy:0,hp,maxHp:hp,invuln:0,
+    throwT:cfg.throwEvery*0.9,jumpT:1.0,dir:-1,color:bdef.color,name:bdef.name,defeated:0,
+    cfg,windup:false,phase2:false};
   state=ST.BOSS; showScreen(null); }
 function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=false;duck.blink=1.0;duck.flutterT=0;duck.star=0;duck.big=false;duck.feather=false;duck.mounted=false;}
 function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
@@ -586,7 +600,7 @@ function update(dt){
   }
 
   // bubbles (boss-Projektile)
-  for(const b of bubbles){ b.t+=dt; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vy+=140*dt;
+  for(const b of bubbles){ b.t+=dt; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vy+=(b.g!=null?b.g:140)*dt;
     if(d.blink<=0&&d.star<=0&&Math.abs((d.x+d.w/2)-b.x)<10&&Math.abs((d.y+d.h/2)-b.y)<10){takeHit();return;} }
   for(let i=bubbles.length-1;i>=0;i--){if(bubbles[i].y>L.pxH||bubbles[i].x<-20||bubbles[i].x>L.pxW+20||bubbles[i].t>6)bubbles.splice(i,1);}
 
@@ -604,25 +618,37 @@ function update(dt){
   if(powerMsgT>0)powerMsgT-=dt;
 }
 
+function bossThrow(b,d){const cfg=b.cfg,baseDir=(d.x<b.x?-1:1);let n=cfg.throwN; if(b.phase2)n+=1;
+  for(let i=0;i<n;i++){const off=(i-(n-1)/2);
+    const vy0=cfg.pType==="bubble"?-72:cfg.pType==="snow"?-55:cfg.pType==="dust"?-40:-12;
+    bubbles.push({x:b.x+b.w/2,y:b.y+5,vx:baseDir*cfg.pSpeed,vy:vy0+off*cfg.spread*95,t:0,g:cfg.pG,type:cfg.pType});}
+  SFX.bubble();}
 function updateBoss(dt,d){
-  const b=boss;
+  const b=boss,cfg=b.cfg;
   if(b.defeated>0){b.defeated-=dt;b.y+=40*dt;if(b.defeated<=0){boss=null;bossDefeated();}return;}
   if(b.invuln>0)b.invuln-=dt;
-  b.vy+=GRAV*dt; if(b.vy>MAXFALL)b.vy=MAXFALL;
-  // bewegen
-  b.x+=b.vx*dt;
-  if(b.x<TILE){b.x=TILE;b.vx=Math.abs(b.vx);b.dir=1;} if(b.x+b.w>L.pxW-TILE){b.x=L.pxW-TILE-b.w;b.vx=-Math.abs(b.vx);b.dir=-1;}
+  // Phase 2 ab halber HP -> schneller, aggressiver
+  b.phase2=b.hp<=Math.ceil(b.maxHp/2);
+  const ef=SET.easy?0.8:1, p2=b.phase2?1.35:1;
+  // Schwerkraft (Sturm-Ente schwebt)
+  const grav=cfg.hover?GRAV*0.5:GRAV; b.vy+=grav*dt; if(b.vy>MAXFALL)b.vy=MAXFALL;
+  // seitliche Bewegung (Wand -> Richtung drehen)
+  b.x+=b.dir*cfg.move*p2*ef*dt;
+  if(b.x<TILE){b.x=TILE;b.dir=1;} if(b.x+b.w>L.pxW-TILE){b.x=L.pxW-TILE-b.w;b.dir=-1;}
   bMoveY(b,b.vy*dt);
-  // hüpfen
-  b.jumpT-=dt; if(b.jumpT<=0&&b.onG){b.vy=-340;b.jumpT=1.6+Math.random();}
-  // werfen
-  b.throwT-=dt; if(b.throwT<=0){const dx=(d.x-b.x);const dir=dx<0?-1:1;bubbles.push({x:b.x+b.w/2,y:b.y+6,vx:dir*90,vy:-60,t:0});SFX.bubble();b.throwT=(b.throwBase||1.7)+Math.random()*0.7;}
-  // kollision mit Ente
+  // huepfen
+  b.jumpT-=dt; const je=cfg.jumpEvery*(b.phase2?0.7:1);
+  if(b.jumpT<=0&&(b.onG||cfg.hover)){b.vy=-cfg.jump*(b.phase2?1.1:1);b.jumpT=je+Math.random()*0.5;
+    if(cfg.hops){burst(b.x+b.w/2,b.y+b.h,"#ffffff",5,40);shake=Math.max(shake,0.08);}}
+  // werfen mit Telegraph (Wind-up-Blink)
+  if(cfg.throwN>0){ b.throwT-=dt; b.windup=(b.throwT<=0.3&&b.throwT>0);
+    if(b.throwT<=0){ b.windup=false; bossThrow(b,d); b.throwT=cfg.throwEvery*(b.phase2?0.62:1)/ef+Math.random()*0.4; } }
+  // Kollision mit Ente
   if(rectsOverlap(d,b)){
     if((d.star>0||(d.vy>0&&(d.y+d.h)-b.y<13))&&b.invuln<=0){
-      b.hp--; b.invuln=1.1; d.vy=-280; SFX.stomp(); shake=0.3; score+=300;
-      b.vx*=1.18; burst(b.x+b.w/2,b.y+4,"#ffd23f",14,115);
-      if(b.hp<=0){b.defeated=0.8;SFX.clear();burst(b.x+b.w/2,b.y+b.h/2,"#fff",22,140);}
+      b.hp--; b.invuln=1.1; d.vy=-300; SFX.stomp(); shake=0.32; score+=300;
+      burst(b.x+b.w/2,b.y+4,"#ffd23f",16,120);
+      if(b.hp<=0){b.defeated=0.8;SFX.clear();burst(b.x+b.w/2,b.y+b.h/2,"#fff",24,150);}
     } else if(d.blink<=0&&d.star<=0&&b.invuln<=0){ takeHit(); return; }
   }
 }
@@ -847,16 +873,37 @@ function drawFoes(){for(const f of L.foes){if(!f.alive){if(f.poof>0){ctx.globalA
   const X=f.x,Y=f.y,wob=Math.sin(f.t*9)<0?1:0,col=f.kind==="hop"?"#7a9a3a":C.foe,colD=f.kind==="hop"?"#566f24":C.foeDk;
   px(X+1,Y+2,12,9,col);px(X+1,Y+2,12,2,"#c9743a");px(X+3,Y,8,3,colD);px(X+(f.vx<0?2:8),Y+4,2,2,C.eye);
   px(X+1,Y+11,4,2,wob?colD:"#000");px(X+9,Y+11,4,2,wob?"#000":colD);}}
-function drawBubbles(){for(const b of bubbles){ctx.fillStyle="rgba(180,230,255,.85)";ctx.beginPath();ctx.arc(b.x,b.y,5,0,7);ctx.fill();ctx.fillStyle="#fff";px(b.x-2,b.y-3,2,2,"#fff");}}
+function drawBubbles(){for(const b of bubbles){const t=b.type;
+  if(t==="snow"){px(b.x-3,b.y-1,7,2,"#eaf6ff");px(b.x-1,b.y-3,2,7,"#eaf6ff");px(b.x-2,b.y-2,4,4,"#ffffff");}
+  else if(t==="dust"){ctx.fillStyle="rgba(224,180,106,.85)";ctx.beginPath();ctx.arc(b.x,b.y,5,0,7);ctx.fill();px(b.x-2,b.y-2,2,2,"#fff0c0");px(b.x+1,b.y+1,2,2,"#b8893f");}
+  else if(t==="gust"){ctx.fillStyle="rgba(220,235,255,.7)";px(b.x-6,b.y-2,12,1,"rgba(220,235,255,.7)");px(b.x-4,b.y+1,9,1,"rgba(220,235,255,.55)");px(b.x-7,b.y,5,2,"#ffffff");}
+  else{ctx.fillStyle="rgba(180,230,255,.85)";ctx.beginPath();ctx.arc(b.x,b.y,5,0,7);ctx.fill();px(b.x-2,b.y-3,2,2,"#fff");}}}
+function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=((n>>8)&255)+amt,bl=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));bl=Math.max(0,Math.min(255,bl));
+  return "#"+((1<<24)+(r<<16)+(g<<8)+bl).toString(16).slice(1);}
 function drawBoss(){const b=boss;if(b.invuln>0&&Math.floor(b.invuln*12)%2===0&&b.defeated<=0)return;
-  const X=Math.round(b.x),Y=Math.round(b.y);
-  px(X,Y+6,b.w,b.h-6,b.color);px(X,Y+b.h-4,b.w,4,"rgba(0,0,0,.25)"); // Körper
-  px(X+4,Y,b.w-8,9,b.color);px(X+4,Y,b.w-8,1,"#ffffffaa"); // Kopf
-  px(X+b.w-7,Y+2,3,3,C.eye); // Auge
-  px(X+b.w-1,Y+3,5,3,C.beak); // Schnabel
-  px(X+5,Y-4,b.w-10,4,"#ffd23f"); // Krönchen
-  // HP-Pips
-  for(let i=0;i<3;i++)px(X+2+i*7,Y-9,5,3,i<b.hp?"#e23b3b":"rgba(255,255,255,.3)");}
+  const X=Math.round(b.x),Y=Math.round(b.y),dk=shade(b.color,-34);
+  ctx.save(); if(b.dir>0){ctx.translate(X+b.w,0);ctx.scale(-1,1);ctx.translate(-X,0);} // Schnabel zeigt in Laufrichtung (Default: links)
+  ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(X+b.w/2,Y+b.h+1,b.w/2,4,0,0,7);ctx.fill();
+  // Schwanz hinten
+  px(X+b.w-2,Y+6,4,4,b.color);
+  // Koerper
+  px(X+1,Y+8,b.w-2,b.h-9,b.color);px(X,Y+10,b.w,b.h-13,b.color);px(X+1,Y+b.h-3,b.w-2,3,"rgba(0,0,0,.22)");
+  px(X+2,Y+8,b.w-5,1,"#ffffff88");
+  px(X+5,Y+11,7,4,dk); // Fluegel
+  // Kopf
+  px(X+1,Y,9,9,b.color);px(X,Y+2,11,6,b.color);px(X+1,Y,8,1,"#ffffff88");
+  // Auge (Phase 2 boese/schmal)
+  if(b.phase2){px(X+2,Y+4,4,2,C.eye);px(X+2,Y+3,3,1,dk);} else {px(X+2,Y+3,3,3,C.eye);px(X+3,Y+3,1,1,"#fff");}
+  // Schnabel
+  px(X-3,Y+4,4,3,C.beak);px(X-3,Y+6,3,1,"#d96a1e");
+  // Kroenchen
+  px(X+4,Y-4,b.w-9,4,"#ffd23f");px(X+4,Y-6,2,3,"#ffd23f");px(X+Math.round((b.w-2)/2),Y-7,2,4,"#ffd23f");px(X+b.w-7,Y-6,2,3,"#ffd23f");
+  // Wind-up-Leuchten kurz vor dem Wurf
+  if(b.windup){px(X-6,Y+3,2,2,"#fff");px(X-7,Y+5,2,2,"#fff0a8");px(X-5,Y+6,2,2,"#fff");}
+  ctx.restore();
+  // HP-Pips ueber dem Boss
+  for(let i=0;i<b.maxHp;i++)px(X+2+i*6,Y-12,4,3,i<b.hp?"#e23b3b":"rgba(255,255,255,.3)");}
 /* ---------- Gummiente (Badeente) ---------- */
 function drawRubberDuck(X,Y,opts){opts=opts||{};const air=opts.air,flap=opts.flap||0,step=opts.step||0;
   // Schwanz (hinten, leicht hoch)
