@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Quacki — Die Entenrettung</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;background:#0b1020;overflow:hidden;font-family:"Courier New",monospace;color:#fff;}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+  #cv{image-rendering:pixelated;image-rendering:crisp-edges;width:min(100vw,177.7vh);height:auto;
+    background:#5c94fc;display:block;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55);}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:22px;}
+  .dim{background:rgba(9,16,30,.72);}
+  .hidden{display:none!important;}
+  h1{font-family:'Press Start 2P',monospace;font-size:clamp(18px,5vw,40px);line-height:1.25;letter-spacing:1px;color:#ffd23f;text-shadow:3px 3px 0 #b06b00,5px 5px 0 #000;}
+  h2{font-family:'Press Start 2P',monospace;font-size:clamp(13px,3.6vw,22px);line-height:1.35;color:#ffd23f;text-shadow:2px 2px 0 #000;}
+  .sub{font-size:clamp(12px,2.4vw,16px);opacity:.96;max-width:540px;line-height:1.6;letter-spacing:1px;}
+  .sub2{font-size:clamp(9px,1.9vw,12px);opacity:.82;letter-spacing:1px;line-height:1.8;}
+  .panel{background:rgba(10,16,30,.82);border:3px solid #ffd23f;box-shadow:6px 6px 0 #000, inset 0 0 0 2px #0b1020;padding:18px 22px;max-width:560px;}
+  .blink{font-family:'Press Start 2P',monospace;animation:bl 1s steps(2,start) infinite;font-size:clamp(11px,2.4vw,16px);color:#fff;}
+  @keyframes bl{50%{opacity:0;}}
+  .btn{cursor:pointer;border:3px solid #23180a;border-radius:0;font-family:'Press Start 2P',monospace;font-size:clamp(10px,2vw,14px);
+    padding:12px 18px;color:#23180a;background:#ffd23f;box-shadow:4px 4px 0 #000;text-transform:uppercase;}
+  .btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #000;}
+  #pad{position:absolute;inset:0;pointer-events:none;}
+  .tb{position:absolute;bottom:14px;width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.16);
+    border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;
+    pointer-events:auto;user-select:none;touch-action:none;}
+  #bLeft{left:14px;} #bRight{left:96px;} #bJump{right:18px;background:rgba(255,210,63,.32);border-color:#ffd23f;}
+  @media (hover:hover){#pad{display:none;}}
+  .emoji{font-size:clamp(34px,9vw,64px);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv" width="384" height="224"></canvas>
+  <div id="pad"><div class="tb" id="bLeft">◀</div><div class="tb" id="bRight">▶</div><div class="tb" id="bJump">▲</div></div>
+
+  <div id="scTitle" class="screen">
+    <h1>DUCK<br>DASH</h1>
+    <div class="sub" style="color:#cdd5e0">DIE ENTENRETTUNG &nbsp;·&nbsp; 6 WELTEN</div>
+    <div class="blink" id="startHint">- PRESS START -</div>
+    <div class="sub2">LEERTASTE / TIPPEN ZUM STARTEN</div>
+    <div class="sub2">&#9664; &#9654; LAUFEN &nbsp; &#9650; SPRINGEN &nbsp; &#9650; HALTEN = GLEITEN</div>
+    <div class="sub2">M = TON &nbsp;·&nbsp; C = CRT</div>
+  </div>
+
+  <div id="scStory" class="screen dim hidden">
+    <div id="storyEmoji"></div>
+    <h2 id="storyTitle">—</h2>
+    <div class="sub" id="storyText">—</div>
+    <button class="btn" id="storyBtn">Weiter ▶</button>
+  </div>
+
+  <div id="scOver" class="screen dim hidden">
+    <h1>Game Over</h1>
+    <div class="sub" id="overText">—</div>
+    <button class="btn" id="btnRetry">Nochmal</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===================================================================
+   QUACKI — Die Entenrettung. Retro-Jump'n'Run (Mario-Stil), 1 Datei.
+   Story: Baron von Quak hat Goldi entführt. Quacki rettet sie durch
+   4 Welten mit je einem Boss (rivalisierende Gummienten). Gewaltfrei:
+   Gegner/Bosse werden nur übersprungen oder weggehüpft.
+   =================================================================== */
+
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+ctx.imageSmoothingEnabled=false;
+const VW=384, VH=224, TILE=16;
+
+/* ---------- Palette ---------- */
+const C={ dirt:"#c75c1c",dirtDk:"#8a3e10",grass:"#4ec03a",grassDk:"#2f8f24",
+  brick:"#c0641c",brickDk:"#7d3d10",qb:"#f0a81c",qbDk:"#a86a00",used:"#9a7b46",
+  pipe:"#1fa81f",pipeDk:"#0f6f10",pipeHi:"#7be07b",coin:"#ffd23f",coinDk:"#c9920f",
+  duck:"#ffd23f",duckDk:"#e0ad28",beak:"#ff8c42",eye:"#1b1b1b",cloud:"#ffffff",
+  foe:"#b05a2a",foeDk:"#7d3d18",star:"#ffe96b",flag:"#e23b3b",pole:"#d8d8d8" };
+
+/* ---------- Welten + Story ---------- */
+const HERO="Quacki", PRIN="Goldi", VILLAIN="Baron von Quak";
+const WORLDS=[
+ { name:"Welt 1 · Sonnenwiese",
+   story:"Baron von Quak hat Goldi, die goldene Gummiente, entführt! "+HERO+" watschelt mutig los über die Sonnenwiese.",
+   sky:["#5c94fc","#9bc0ff"], hill:"#3ec24a", hillDk:"#2f8f24", ground:"#c75c1c", grass:"#4ec03a",
+   boss:{name:"Hibbel, die Hüpf-Ente", color:"#e36b6b", emoji:"🐤", story:"Hibbel hüpft wild herum und versperrt den Weg. Spring ihr 3× auf den Kopf!"},
+   level:[
+     "                                                            ",
+     "                                                            ",
+     "                       o o o                                ",
+     "            ?          = = =                          *     ",
+     "                                            o o             ",
+     "       o o          ?      ?               = = =       |    ",
+     "      = = =                                            |    ",
+     "  @            E             H        E       o        |    ",
+     "             #####        ######    #####   #####     ###   ",
+     "##########  ##############        ################    ###   ",
+     "##########  ##############     ###################    ###   ",
+     "##########  ##############     ###################    ###   ",
+     "############################################################",
+     "############################################################",
+   ]},
+ { name:"Welt 2 · Seifenblasen-Bucht",
+   story:"Am glitzernden Wasser spannt Blubber-Ente ihre Seifenblasen-Fallen. "+HERO+" lässt sich nicht aufhalten.",
+   sky:["#2ea6cf","#bdeefb"], hill:"#e8c98a", hillDk:"#caa463", ground:"#caa05a", grass:"#e3c87a",
+   boss:{name:"Blubber-Ente", color:"#5cc8e0", emoji:"🫧", story:"Blubber wirft Seifenblasen. Weich ihnen aus und hüpf 3× drauf!"},
+   level:[
+     "                                                                ",
+     "                          o o o                                 ",
+     "             ?    =   ?    = = =          o o                   ",
+     "       o o                              = = =        *          ",
+     "      = = =       H          o o            H              |    ",
+     "                #####       = = =        P             o   |    ",
+     "  @      o o            H        P   P    P       = = =    |    ",
+     "        = = =   P     #####  P   P   P    P            E   |    ",
+     "             ## P    ##  P   P   P   P    ##   ##  #####   ##   ",
+     "######    ###  P  ## ##  ###############  ##   ##########       ",
+     "#####   #####  P  ## ###################  #############        ",
+     "#####  ######  P  ## ###################  #############        ",
+     "################################################################",
+     "################################################################",
+   ]},
+ { name:"Welt 3 · Frostzipfel",
+   story:"Im eisigen Frostzipfel ist der Boden glatt und Frost-Ente friert den Pfad ein. Warm anziehen, "+HERO+"!",
+   sky:["#8fb8e8","#e8f4ff"], hill:"#dff0ff", hillDk:"#a9c8e8", ground:"#bfe0ff", grass:"#eaf6ff",
+   boss:{name:"Frost-Ente", color:"#bfe0ff", emoji:"❄️", story:"Frost-Ente rutscht und wirft Schneebälle. 3 Sprünge auf den Kopf!"},
+   level:[
+     "                                                                ",
+     "               o o o            * o o                           ",
+     "       ?       = = =     ?      = = =          o o              ",
+     "                                            = = = =        |   ",
+     "      o o         H        H          o o         H        |   ",
+     "     = = =      #####    ####       = = =        ###       |   ",
+     "  @         H          ####     E          ####       E    |   ",
+     "         #####       ####    ####     ####     ####  #####  #  ",
+     "######        ####                ####                        ",
+     "#####   ##########       ##############      ###############   ",
+     "#####  ###########    #################      ###############   ",
+     "#####  ###########    #################      ###############   ",
+     "################################################################",
+     "################################################################",
+   ]},
+ { name:"Welt 4 · Wüstenei",
+   story:"Heißer Sand und fiese Kakteen — Sand-Ente wirbelt Staub auf. Bleib in Bewegung, "+HERO+"!",
+   sky:["#e8a64c","#ffe6b0"], hill:"#caa05a", hillDk:"#a87d3a", ground:"#e0b46a", grass:"#caa05a",
+   boss:{name:"Sand-Ente", color:"#d9b25a", emoji:"🏜️", story:"Sand-Ente schleudert Staubblasen. Weich aus und hüpf 3× auf den Kopf!"},
+   level:[
+     "                                                            ",
+     "                     o o o                                  ",
+     "        ?            = = =            o o          *        ",
+     "                                     = = =                  ",
+     "      o o      H            E              H               |",
+     "     = = =   #####       ?         o o    ####             |",
+     "  @       H        E            = = =          E   o o     |",
+     "       #####    #####   ###   #####    ###   ####  ####   ##",
+     "######       ##              ##           ##            ## ",
+     "#####   #########    ##########    ###########   ######### ",
+     "#####  ##########    ##########    ###########  ########## ",
+     "#####  ##########    ##########    ###########  ########## ",
+     "############################################################",
+     "############################################################",
+   ]},
+ { name:"Welt 5 · Wolkenburg",
+   story:"Hoch über den Wolken pfeift der Wind. Sturm-Ente fegt über die Plattformen — halt dich gut fest!",
+   sky:["#7fb0e8","#dff0ff"], hill:"#cfe0f5", hillDk:"#a9c4e0", ground:"#dfe9f5", grass:"#eef6ff",
+   boss:{name:"Sturm-Ente", color:"#bcd0ee", emoji:"🌪️", story:"Sturm-Ente wirbelt durch die Luft. Timing ist alles — 3× auf den Kopf!"},
+   level:[
+     "                          o o o                             ",
+     "             ?            = = =                       *     ",
+     "        o o        H              o o          H            ",
+     "       ===        ===           = = =        ===          | ",
+     "                          E              E                | ",
+     "   @     ===          ===     ===          ===     o o    | ",
+     "                 H                    H                   ##",
+     "      ===     ===     ===   ===     ===     ===   = = =    ",
+     "  ===                                                 ###  ",
+     "######      ####        ######       ####       #########  ",
+     "#####   #########    ##########    ###########  ########## ",
+     "#####  ##########    ##########    ###########  ########## ",
+     "############################################################",
+     "############################################################",
+   ]},
+ { name:"Welt 6 · Quakschloss",
+   story:"Im dunklen Quakschloss thront "+VILLAIN+" mit der gefangenen Goldi. Die letzte Etappe, "+HERO+"!",
+   sky:["#3a2a4a","#6a4f7a"], hill:"#5a3f6a", hillDk:"#3f2c4a", ground:"#6b5870", grass:"#8a6f9a",
+   boss:{name:VILLAIN, color:"#7a5a9a", emoji:"👑", story:"Der Baron selbst! Weich seinen Angriffen aus und hüpf 3× auf den Kopf — dann ist Goldi frei!"},
+   level:[
+     "                                                                ",
+     "            o o            ? ? ?          o o                   ",
+     "      ?     = =      H      = = =     H    = =        *         ",
+     "                                                          |    ",
+     "    o o          =====        E      =====       o o      |    ",
+     "   = = =     H        H              H       H  = = =      |    ",
+     "  @      ===      E       =====   E      ===        E      |    ",
+     "      ##     ##  ###  ##     ##  ###  ##    ##  ##  ####   ##   ",
+     "#####    ##                                              ##    ",
+     "####  ##########    ###########     ###########   #########    ",
+     "####  ###########  ############     ###########  ##########    ",
+     "####  ###########  ############     ###########  ##########    ",
+     "################################################################",
+     "################################################################",
+   ]},
+];
+
+/* ---------- Level build ---------- */
+function buildLevel(def){
+  const rows=def.slice(); let W=0; for(const r of rows) W=Math.max(W,r.length);
+  const grid=rows.map(r=>r.padEnd(W," ").split("")); const H=grid.length;
+  const coins=[],foes=[],powers=[],dragons=[],mounts=[]; let spawn={x:2*TILE,y:2*TILE},flag=null,checkpoint=null;
+  for(let ty=0;ty<H;ty++)for(let tx=0;tx<W;tx++){const ch=grid[ty][tx];
+    if(ch==="o"){coins.push({x:tx*TILE+8,y:ty*TILE+8,got:false,t:Math.random()*6});grid[ty][tx]=" ";}
+    else if(ch==="E"){foes.push(makeFoe(tx*TILE+1,ty*TILE,"walk"));grid[ty][tx]=" ";}
+    else if(ch==="H"){foes.push(makeFoe(tx*TILE+1,ty*TILE,"hop"));grid[ty][tx]=" ";}
+    else if(ch==="*"){powers.push({x:tx*TILE+8,y:ty*TILE+8,got:false,t:0,type:"star"});grid[ty][tx]=" ";}
+    else if(ch==="@"){spawn={x:tx*TILE,y:ty*TILE};grid[ty][tx]=" ";}
+    else if(ch==="|"){ if(!flag) flag={x:tx*TILE,y:ty*TILE}; }
+  }
+  const surfaceY=(tx)=>{for(let ty=0;ty<H;ty++){if(isSolidCh(grid[ty][tx])&&(ty===0||!isSolidCh(grid[ty-1][tx])))return ty;}return -1;};
+  [0.16,0.33,0.5,0.67,0.84].forEach(fr=>{const tx=Math.floor(W*fr);const sy=surfaceY(tx);if(sy>2)dragons.push({x:tx*TILE+8,y:(sy-3)*TILE+8,got:false,t:Math.random()*6});});
+  { const tx=Math.floor(W*0.42); const sy=surfaceY(tx); if(sy>1) checkpoint={x:tx*TILE,y:(sy-2)*TILE,taken:false}; }
+  { const tx=Math.floor(W*0.25); const sy=surfaceY(tx); if(sy>2) powers.push({x:tx*TILE+8,y:(sy-2)*TILE+8,got:false,t:0,type:"mush"}); }
+  { const tx=Math.floor(W*0.6); const sy=surfaceY(tx); if(sy>2) powers.push({x:tx*TILE+8,y:(sy-2)*TILE+8,got:false,t:0,type:"feather"}); }
+  { const tx=Math.floor(W*0.38); const sy=surfaceY(tx); if(sy>1) mounts.push({x:tx*TILE,y:(sy-1)*TILE,taken:false,t:0}); }
+  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins,foes,powers,dragons,mounts,spawn,flag,checkpoint,boss:false};
+}
+function buildArena(){
+  const W=26,H=14; const grid=[];
+  for(let y=0;y<H;y++){let row=[];for(let x=0;x<W;x++){
+    let ch=" "; if(y>=H-2) ch="#"; else if(x===0||x===W-1) ch="#"; row.push(ch);} grid.push(row);}
+  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:2*TILE,y:(H-4)*TILE},flag:null,checkpoint:null,boss:true};
+}
+function isSolidCh(ch){return ch==="#"||ch==="="||ch==="?"||ch==="P"||ch==="Q";}
+function solidAt(tx,ty){ if(tx<0||tx>=L.W) return true; if(ty<0||ty>=L.H) return false; return isSolidCh(L.grid[ty][tx]); }
+
+/* ---------- Entities ---------- */
+function makeFoe(x,y,kind){return {x,y,w:14,h:13,vx:(kind==="hop"?-16:-24),vy:0,alive:true,poof:0,kind:kind||"walk",hopT:Math.random(),t:Math.random()*6,hitWall:false};}
+const duck={x:0,y:0,w:12,h:14,vx:0,vy:0,onGround:false,face:1,coyote:0,buffer:0,jumpHeld:false,flutterT:0,runT:0,blink:0,star:0,big:false,feather:false,mounted:false};
+let boss=null; const bubbles=[]; const pops=[];
+
+/* ---------- State ---------- */
+const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6};
+let state=ST.TITLE, L=null, worldIdx=0, lives=3, coinsGot=0, score=0, unlocked=0, mapSel=0;
+let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, crt=true, musicT=0, musicI=0;
+let curWorld=WORLDS[0];
+
+/* ---------- Audio ---------- */
+let AC=null,muted=false;
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function blip(f,d,t,v,to){if(muted)return;const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();
+  o.type=t||"square";o.frequency.setValueAtTime(f,a.currentTime);if(to)o.frequency.exponentialRampToValueAtTime(Math.max(40,to),a.currentTime+d);
+  g.gain.setValueAtTime(v||0.06,a.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+d);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+d);}
+const SFX={jump(){blip(420,0.15,"square",0.06,760);},flap(){blip(520,0.06,"sine",0.03);},
+  coin(){blip(988,0.07,"square",0.05);setTimeout(()=>blip(1319,0.1,"square",0.05),55);},
+  star(){[660,880,1175,1568].forEach((f,i)=>setTimeout(()=>blip(f,0.1,"square",0.05),i*70));},
+  stomp(){blip(300,0.12,"square",0.06,120);},bump(){blip(170,0.12,"square",0.05,90);},
+  hurt(){blip(330,0.3,"sawtooth",0.07,90);},bubble(){blip(240,0.18,"sine",0.04,520);},
+  clear(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.14,"triangle",0.06),i*110));},
+  win(){[523,659,784,1047,1319,1047,1319,1568].forEach((f,i)=>setTimeout(()=>blip(f,0.16,"triangle",0.07),i*140));},
+  over(){[392,294,247,165].forEach((f,i)=>setTimeout(()=>blip(f,0.22,"triangle",0.07),i*150));}};
+const MELODY=[523,659,784,659,587,698,880,0,523,659,784,1047,988,784,659,0];
+function musicTick(dt){ if(muted||!AC)return; musicT-=dt; if(musicT<=0){ const f=MELODY[musicI%MELODY.length]; musicI++; musicT=0.19;
+  if(f>0){ const a=AC,o=a.createOscillator(),g=a.createGain(); o.type="square"; o.frequency.value=f; g.gain.setValueAtTime(0.022,a.currentTime); g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.17); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime+0.17); } } }
+
+/* ---------- Input ---------- */
+const keys={left:false,right:false,jump:false};
+addEventListener("keydown",e=>{
+  if(["ArrowLeft","KeyA"].includes(e.code))keys.left=true;
+  else if(["ArrowRight","KeyD"].includes(e.code))keys.right=true;
+  else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=true;pressJump();e.preventDefault();}
+  else if(e.code==="Enter"){screenConfirm();}
+  else if(e.code==="KeyM"){muted=!muted;}
+  else if(e.code==="KeyC"){crt=!crt;}
+  if(state===ST.TITLE&&(e.code==="Space"||e.code==="Enter"))startGame();
+  if(state===ST.OVERWORLD){ if(["ArrowLeft","KeyA"].includes(e.code))mapSel=Math.max(0,mapSel-1); else if(["ArrowRight","KeyD"].includes(e.code))mapSel=Math.min(unlocked,mapSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedWorld(); }
+});
+addEventListener("keyup",e=>{
+  if(["ArrowLeft","KeyA"].includes(e.code))keys.left=false;
+  else if(["ArrowRight","KeyD"].includes(e.code))keys.right=false;
+  else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=false;duck.jumpHeld=false;}
+});
+function bindBtn(id,on,off){const el=document.getElementById(id);
+  el.addEventListener("pointerdown",e=>{e.preventDefault();on();});
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off&&off();}));}
+bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else keys.left=true; },()=>keys.left=false);
+bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else keys.right=true; },()=>keys.right=false);
+bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
+cv.addEventListener("pointerdown",()=>{if(state===ST.TITLE)startGame();});
+function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
+function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)startGame(); }
+
+/* ---------- Cutscenes ---------- */
+const el=id=>document.getElementById(id);
+function showScreen(id){["scTitle","scStory","scOver"].forEach(s=>el(s).classList.add("hidden"));if(id)el(id).classList.remove("hidden");}
+function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||"Weiter ▶";storyNext=next;state=ST.STORY;showScreen("scStory");}
+function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
+el("storyBtn").addEventListener("click",storyAdvance);
+
+/* ---------- Flow ---------- */
+function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;
+  cutscene("","Die Entführung","In der ruhigen Quack-Bucht lebten "+HERO+" und "+PRIN+", die goldene Gummiente, in Frieden. Doch in einer stürmischen Nacht stürmte "+VILLAIN+" mit seiner Schergen-Bande heran und verschleppte "+PRIN+" in sein fernes Quakschloss! Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich "+HERO+" auf — mutig, klein und unaufhaltsam.","WEITER",()=>enterOverworld()); }
+function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null); }
+function enterSelectedWorld(){ if(state!==ST.OVERWORLD)return; beginWorld(mapSel); }
+function beginWorld(i){ worldIdx=i; curWorld=WORLDS[i];
+  cutscene("🗺️",curWorld.name,curWorld.story,"Start ▶",()=>loadPlatform(i)); }
+function loadPlatform(i){ L=buildLevel(WORLDS[i].level); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); }
+function startBossIntro(){ const b=curWorld.boss; cutscene(b.emoji,b.name,b.story,"Kampf! ▶",startBoss); }
+function startBoss(){ L=buildArena(); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0; bossWonT=0;
+  const b=curWorld.boss; boss={x:18*TILE,y:(L.H-4)*TILE,w:22,h:20,vx:-40,vy:0,hp:3,invuln:0,throwT:1.4,dir:-1,jumpT:1.0,color:b.color,name:b.name,defeated:0};
+  state=ST.BOSS; showScreen(null); }
+function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=false;duck.blink=1.0;duck.flutterT=0;duck.star=0;duck.big=false;duck.feather=false;duck.mounted=false;}
+function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
+function takeHit(){ const d=duck; if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
+function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
+function gameOver(){state=ST.OVER;el("overText").textContent="Münzen: "+coinsGot+" · Punkte: "+score;SFX.over();showScreen("scOver");}
+function levelToBoss(){ SFX.clear(); startBossIntro(); }
+function bossDefeated(){ SFX.clear();
+  if(worldIdx>=WORLDS.length-1){ cutscene("","Goldi gerettet!","Mit einem letzten beherzten Sprung stürzt "+HERO+" den Baron vom Thron — und "+PRIN+"s Käfig springt auf! Seite an Seite watscheln die beiden zurück in die Quack-Bucht, wo ganz Entenhausen sie mit Jubel und Konfetti empfängt. Held des Tages: "+HERO+"!   Endpunkte: "+score+" · Münzen: "+coinsGot,"NOCHMAL",startGame); }
+  else { if(worldIdx===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,worldIdx+1); cutscene("🎉",curWorld.name+" geschafft!","Boss besiegt! Zurück zur Weltkarte — die nächste Welt ist frei.","Zur Karte ▶",()=>enterOverworld()); } }
+el("btnRetry").addEventListener("click",startGame);
+
+/* ---------- Physik ---------- */
+const GRAV=1500,MOVE=132,ACC=900,FRIC=760,JUMP=-430,JUMPCUT=0.45,MAXFALL=520,COYOTE=0.09,FLUTTER=420,FLUTTER_MAX=0.7;
+
+function update(dt){
+  if(state===ST.DEAD){deadT-=dt;duck.vy+=GRAV*dt;duck.y+=duck.vy*dt;if(deadT<=0)afterDeath();return;}
+  if(state!==ST.PLAY&&state!==ST.BOSS)return;
+  const d=duck;
+  const want=(keys.right?1:0)-(keys.left?1:0);
+  if(want!==0){d.vx+=want*ACC*dt;d.face=want;if(Math.abs(d.vx)>MOVE)d.vx=MOVE*want;}
+  else {if(d.vx>0)d.vx=Math.max(0,d.vx-FRIC*dt);else d.vx=Math.min(0,d.vx+FRIC*dt);}
+  if(d.buffer>0)d.buffer-=dt; if(d.coyote>0)d.coyote-=dt;
+  if(d.buffer>0&&(d.onGround||d.coyote>0)){d.vy=JUMP*(d.mounted?1.18:1);d.onGround=false;d.coyote=0;d.buffer=0;d.jumpHeld=true;d.flutterT=FLUTTER_MAX;SFX.jump();}
+  if(!keys.jump&&d.vy<0&&d.jumpHeld){d.vy*=JUMPCUT;d.jumpHeld=false;}
+  // flatter: in der Luft fallend + Sprung gehalten
+  let g=GRAV;
+  if(!d.onGround&&d.vy>0&&keys.jump){ if(d.feather){g=240;if(Math.random()<0.3)SFX.flap();} else if(d.flutterT>0){g=FLUTTER;d.flutterT-=dt;if(Math.random()<0.3)SFX.flap();} }
+  d.vy+=g*dt; if(d.vy>MAXFALL)d.vy=MAXFALL;
+  moveX(d,d.vx*dt);
+  const wasG=d.onGround; d.onGround=false; moveY(d,d.vy*dt);
+  if(wasG&&!d.onGround&&d.vy>=0)d.coyote=COYOTE;
+  if(d.onGround)d.flutterT=FLUTTER_MAX;
+  if(d.vx!==0&&d.onGround)d.runT+=dt*Math.abs(d.vx)/40;
+  if(d.blink>0)d.blink-=dt; if(d.star>0)d.star-=dt;
+  if(d.y>L.pxH+40){loseLife();return;}
+
+  // coins / powerups
+  for(const c of L.coins){if(!c.got){c.t+=dt*6;if(Math.abs((d.x+d.w/2)-c.x)<11&&Math.abs((d.y+d.h/2)-c.y)<12){c.got=true;coinsGot++;score+=100;SFX.coin();}}}
+  for(const p of L.powers){if(!p.got){p.t+=dt;if(Math.abs((d.x+d.w/2)-p.x)<12&&Math.abs((d.y+d.h/2)-p.y)<13){p.got=true;score+=200;if(p.type==="mush"){d.big=true;}else if(p.type==="feather"){d.feather=true;}else{d.star=6;}SFX.star();}}}
+  for(const c of L.dragons){if(!c.got){c.t+=dt*5;if(Math.abs((d.x+d.w/2)-c.x)<13&&Math.abs((d.y+d.h/2)-c.y)<14){c.got=true;dragonGot++;score+=500;SFX.coin();if(L.dragons.length>0&&dragonGot===L.dragons.length){score+=2000;SFX.clear();}}}}
+  if(L.checkpoint&&!L.checkpoint.taken&&(d.x+d.w)>L.checkpoint.x+4){L.checkpoint.taken=true;L.spawn={x:L.checkpoint.x,y:Math.max(0,L.checkpoint.y)};SFX.coin();}
+  for(const mo of L.mounts){if(mo.taken)continue;mo.t+=dt;if(!d.mounted&&d.x<mo.x+16&&d.x+d.w>mo.x&&d.y+d.h>mo.y-2&&d.y<mo.y+14){mo.taken=true;d.mounted=true;score+=150;SFX.coin();}}
+
+  // foes
+  for(const f of L.foes){
+    if(!f.alive){if(f.poof>0){f.poof-=dt;f.y-=30*dt;}continue;}
+    f.t+=dt; f.vy+=GRAV*dt; if(f.vy>MAXFALL)f.vy=MAXFALL;
+    if(f.kind==="hop"){f.hopT-=dt;if(f.hopT<=0&&f.onG){f.vy=-300;f.hopT=1.1+Math.random()*0.6;}}
+    moveX(f,f.vx*dt); if(f.hitWall){f.vx*=-1;f.hitWall=false;}
+    f.onG=false; foeMoveY(f,f.vy*dt);
+    if(rectsOverlap(d,f)){
+      if(d.star>0){f.alive=false;f.poof=0.5;score+=200;SFX.stomp();}
+      else if(d.vy>0&&(d.y+d.h)-f.y<11){f.alive=false;f.poof=0.5;d.vy=-260;score+=200;SFX.stomp();}
+      else if(d.blink<=0){takeHit();return;}
+    }
+  }
+
+  // bubbles (boss-Projektile)
+  for(const b of bubbles){ b.t+=dt; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vy+=140*dt;
+    if(d.blink<=0&&d.star<=0&&Math.abs((d.x+d.w/2)-b.x)<10&&Math.abs((d.y+d.h/2)-b.y)<10){takeHit();return;} }
+  for(let i=bubbles.length-1;i>=0;i--){if(bubbles[i].y>L.pxH||bubbles[i].x<-20||bubbles[i].x>L.pxW+20||bubbles[i].t>6)bubbles.splice(i,1);}
+
+  if(state===ST.BOSS&&boss) updateBoss(dt,d);
+
+  // flag
+  if(state===ST.PLAY&&L.flag){ if(!gaveBonus){gBarY+=gDir*80*dt; if(gBarY>26){gBarY=26;gDir=-1;} if(gBarY<0){gBarY=0;gDir=1;}}
+    if((d.x+d.w)>L.flag.x+6){ if(!gaveBonus){gaveBonus=true;clearBonus=Math.round((26-gBarY)*40)+100;score+=clearBonus;SFX.clear();} flagT+=dt; if(flagT>0.8){levelToBoss();return;} } }
+
+  // camera
+  camX=Math.max(0,Math.min(L.pxW-VW,d.x+d.w/2-VW*0.42));
+  if(shake>0)shake-=dt;
+  for(let i=pops.length-1;i>=0;i--){pops[i].t-=dt;pops[i].y-=24*dt;if(pops[i].t<=0)pops.splice(i,1);}
+}
+
+function updateBoss(dt,d){
+  const b=boss;
+  if(b.defeated>0){b.defeated-=dt;b.y+=40*dt;if(b.defeated<=0){boss=null;bossDefeated();}return;}
+  if(b.invuln>0)b.invuln-=dt;
+  b.vy+=GRAV*dt; if(b.vy>MAXFALL)b.vy=MAXFALL;
+  // bewegen
+  b.x+=b.vx*dt;
+  if(b.x<TILE){b.x=TILE;b.vx=Math.abs(b.vx);b.dir=1;} if(b.x+b.w>L.pxW-TILE){b.x=L.pxW-TILE-b.w;b.vx=-Math.abs(b.vx);b.dir=-1;}
+  bMoveY(b,b.vy*dt);
+  // hüpfen
+  b.jumpT-=dt; if(b.jumpT<=0&&b.onG){b.vy=-340;b.jumpT=1.6+Math.random();}
+  // werfen
+  b.throwT-=dt; if(b.throwT<=0){const dx=(d.x-b.x);const dir=dx<0?-1:1;bubbles.push({x:b.x+b.w/2,y:b.y+6,vx:dir*90,vy:-60,t:0});SFX.bubble();b.throwT=1.6+Math.random()*0.8;}
+  // kollision mit Ente
+  if(rectsOverlap(d,b)){
+    if((d.star>0||(d.vy>0&&(d.y+d.h)-b.y<13))&&b.invuln<=0){
+      b.hp--; b.invuln=1.1; d.vy=-280; SFX.stomp(); shake=0.25; score+=300;
+      b.vx*=1.18;
+      if(b.hp<=0){b.defeated=0.8;SFX.clear();}
+    } else if(d.blink<=0&&d.star<=0&&b.invuln<=0){ takeHit(); return; }
+  }
+}
+
+/* ---------- Tile-Kollision ---------- */
+function moveX(e,dx){e.x+=dx;const top=Math.floor(e.y/TILE),bot=Math.floor((e.y+e.h-1)/TILE);
+  if(dx>0){const tx=Math.floor((e.x+e.w-1)/TILE);for(let ty=top;ty<=bot;ty++)if(solidAt(tx,ty)){e.x=tx*TILE-e.w;e.vx=0;e.hitWall=true;break;}}
+  else if(dx<0){const tx=Math.floor(e.x/TILE);for(let ty=top;ty<=bot;ty++)if(solidAt(tx,ty)){e.x=(tx+1)*TILE;e.vx=0;e.hitWall=true;break;}}}
+function moveY(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
+  if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onGround=true;break;}}
+  else if(dy<0){const ty=Math.floor(e.y/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=(ty+1)*TILE;e.vy=0;
+    if(L.grid[ty]&&L.grid[ty][tx]==="?"){L.grid[ty][tx]="Q";coinsGot++;score+=100;SFX.coin();pops.push({x:tx*TILE+8,y:ty*TILE,t:0.5});}else SFX.bump();break;}}}
+function foeMoveY(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
+  if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onG=true;break;}}}
+function bMoveY(e,dy){e.y+=dy;e.onG=false;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
+  if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onG=true;break;}}}
+function rectsOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+/* ---------- Render ---------- */
+function px(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(Math.round(x),Math.round(y),w,h);}
+function draw(){
+  let ox=0,oy=0; if(shake>0){ox=(Math.random()-0.5)*4*shake;oy=(Math.random()-0.5)*4*shake;}
+  ctx.save(); ctx.translate(ox,oy);
+  const w=curWorld;
+  const grd=ctx.createLinearGradient(0,0,0,VH); grd.addColorStop(0,w.sky[0]); grd.addColorStop(1,w.sky[1]);
+  ctx.fillStyle=grd; ctx.fillRect(0,0,VW,VH);
+  drawClouds(); drawHills(w);
+  if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
+  if(state===ST.TITLE){ drawTitleMascot(); ctx.restore(); return; }
+  if(L){ ctx.save(); ctx.translate(-Math.round(camX),0);
+    drawTiles(w); drawCoins(); drawDragons(); drawPowers(); drawCheckpoint(); drawGate(); drawFoes(); drawBubbles();
+    if(state===ST.BOSS&&boss)drawBoss(); drawDuck();
+    ctx.restore(); drawHUD(); }
+  ctx.restore();
+}
+function drawClouds(){const t=performance.now()/3000;
+  for(let i=0;i<4;i++){let x=((i*150-camX*0.3-t*10)%(VW+120));if(x<-80)x+=VW+120;const y=22+(i%2)*24;
+    px(x,y,22,8,C.cloud);px(x+8,y-6,18,8,C.cloud);px(x+18,y,16,8,C.cloud);}}
+function drawHills(w){const base=VH-30;
+  for(let i=0;i<6;i++){let x=((i*92-camX*0.5)%(VW+184));if(x<-92)x+=VW+184;
+    ctx.fillStyle=w.hillDk;ctx.beginPath();ctx.moveTo(x-30,base);ctx.lineTo(x+18,base-38);ctx.lineTo(x+66,base);ctx.fill();
+    ctx.fillStyle=w.hill;ctx.beginPath();ctx.moveTo(x-20,base);ctx.lineTo(x+18,base-32);ctx.lineTo(x+56,base);ctx.fill();}}
+function drawOverworld(){
+  ctx.fillStyle="#fff";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("WELTKARTE",VW/2,20);
+  ctx.font="8px monospace";ctx.fillStyle="rgba(255,255,255,.85)";ctx.fillText("◀ ▶ Welt wählen  ·  ▲ los",VW/2,34);
+  const n=WORLDS.length,y=118,x0=42,dx=(VW-84)/(n-1);
+  ctx.strokeStyle="rgba(255,255,255,.55)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+(n-1)*dx,y);ctx.stroke();
+  for(let i=0;i<n;i++){const x=x0+i*dx,done=i<unlocked,locked=i>unlocked,sel=i===mapSel;
+    ctx.fillStyle=done?"#4ec03a":(locked?"#5a6472":"#f0a81c");ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fill();
+    ctx.fillStyle="#1b1b1b";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText(String(i+1),x,y+3);
+    if(locked){px(x-3,y-17,6,4,"#9aa6b5");px(x-2,y-19,4,3,"#9aa6b5");}
+    else if(done){ctx.font="9px monospace";ctx.fillStyle="#bfe3a0";ctx.textAlign="center";ctx.fillText("✓",x,y-12);}
+    if(sel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
+      const dy=Math.sin(performance.now()/200)*2;px(x-6,y-32+dy,12,8,C.duck);px(x+2,y-36+dy,7,7,C.duck);px(x+8,y-34+dy,3,2,C.beak);px(x+6,y-35+dy,1,1,C.eye);}}
+  ctx.fillStyle="#fff";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText(WORLDS[mapSel].name,VW/2,VH-26);
+  ctx.fillStyle="#ffd23f";ctx.fillText("♥ "+lives+"    Punkte "+score,VW/2,VH-12);ctx.textAlign="left";}
+function drawTitleMascot(){ const cx=VW/2, by=150+Math.sin(performance.now()/400)*3;
+  ctx.fillStyle="rgba(0,0,0,.18)";ctx.beginPath();ctx.ellipse(cx,184,42,7,0,0,7);ctx.fill();
+  px(cx-22,by-10,44,30,C.duck);px(cx-22,by+14,44,6,C.duckDk);
+  px(cx-12,by+2,16,12,C.duckDk);
+  px(cx-26,by-6,8,8,C.duckDk);
+  px(cx+6,by-30,26,26,C.duck);px(cx+6,by-30,26,3,"#fff0b0");
+  px(cx+24,by-22,5,5,C.eye);
+  px(cx+31,by-18,12,8,C.beak);px(cx+31,by-11,9,3,"#d96a1e");
+}
+function drawCRT(){ if(!crt)return;
+  ctx.globalAlpha=0.10;ctx.fillStyle="#000";for(let y=0;y<VH;y+=2)ctx.fillRect(0,y,VW,1);ctx.globalAlpha=1;
+  const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.32,VW/2,VH/2,VH*0.78);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,"rgba(0,0,0,0.34)");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH); }
+function drawTiles(w){const x0=Math.floor(camX/TILE),x1=Math.min(L.W,x0+VW/TILE+2);
+  for(let tx=x0;tx<x1;tx++)for(let ty=0;ty<L.H;ty++){const ch=L.grid[ty][tx];if(ch===" "||ch==="|")continue;const X=tx*TILE,Y=ty*TILE;
+    if(ch==="#"){const top=(ty>0&&L.grid[ty-1][tx]===" ");px(X,Y,TILE,TILE,w.ground);px(X,Y+12,TILE,4,C.dirtDk);
+      if(top){px(X,Y,TILE,5,w.grass);px(X,Y+5,TILE,2,C.grassDk);}px(X,Y,1,TILE,"rgba(0,0,0,.15)");}
+    else if(ch==="="){px(X,Y,TILE,TILE,C.brick);px(X,Y,TILE,2,"#e0884a");px(X,Y+7,TILE,2,C.brickDk);px(X+7,Y,2,TILE,C.brickDk);}
+    else if(ch==="?"){const b=Math.sin(performance.now()/200)>0?C.qb:"#ffc24a";px(X,Y,TILE,TILE,b);px(X,Y,TILE,2,"#ffe08a");px(X+6,Y+4,4,5,C.qbDk);px(X+7,Y+10,2,2,C.qbDk);}
+    else if(ch==="Q"){px(X,Y,TILE,TILE,C.used);px(X,Y,TILE,2,"#b89a66");}
+    else if(ch==="P"){px(X,Y,TILE,TILE,C.pipe);px(X,Y,3,TILE,C.pipeHi);px(X+TILE-3,Y,3,TILE,C.pipeDk);
+      const top=(ty>0&&L.grid[ty-1][tx]!=="P");if(top){px(X-1,Y,TILE+2,5,C.pipe);px(X-1,Y,TILE+2,2,C.pipeHi);}}
+  }}
+function drawCoins(){for(const c of L.coins){if(c.got)continue;const ww=Math.abs(Math.cos(c.t))*5+2;
+  px(c.x-ww/2,c.y-6,ww,12,C.coin);px(c.x-ww/2,c.y-6,ww,2,"#fff2a8");px(c.x-1,c.y-3,1,6,C.coinDk);}}
+function drawDragons(){if(!L.dragons)return;for(const c of L.dragons){if(c.got)continue;const bob=Math.sin(c.t)*2;
+  px(c.x-7,c.y-8+bob,14,16,"#e2b33a");px(c.x-7,c.y-8+bob,14,2,"#ffe08a");px(c.x-7,c.y+6+bob,14,2,"#a8531c");px(c.x-2,c.y-3+bob,4,7,"#a8531c");}}
+function drawCheckpoint(){if(!L.checkpoint)return;const X=L.checkpoint.x,Y=L.checkpoint.y;px(X+7,Y-2,2,L.pxH-Y,C.pole);
+  ctx.fillStyle=L.checkpoint.taken?"#4ec03a":"#bcbcbc";ctx.beginPath();ctx.moveTo(X+9,Y);ctx.lineTo(X+20,Y+4);ctx.lineTo(X+9,Y+8);ctx.fill();}
+function drawPowers(){for(const p of L.powers){if(p.got)continue;p.t+=0.06;const yy=p.y+Math.sin(p.t)*2,x=p.x;
+  if(p.type==="mush"){px(x-6,yy-2,12,7,"#e24b4a");px(x-6,yy-2,12,2,"#ff7a78");px(x-4,yy,2,2,"#fff");px(x+2,yy,2,2,"#fff");px(x-3,yy+5,6,5,"#f0e2c0");}
+  else if(p.type==="feather"){px(x-1,yy-7,3,14,"#ffffff");px(x-4,yy-2,8,3,"#e24b6a");px(x-5,yy+1,10,2,"#cf3f58");}
+  else{ctx.save();ctx.translate(x,yy);ctx.rotate(p.t*0.5);ctx.fillStyle=C.star;
+  for(let i=0;i<5;i++){ctx.beginPath();const a=i*2.51-1.57;ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*6,Math.sin(a)*6);ctx.lineTo(Math.cos(a+0.6)*3,Math.sin(a+0.6)*3);ctx.fill();}
+  ctx.fillRect(-3,-3,6,6);ctx.restore();}}}
+function drawPops(){}
+function drawGate(){if(!L.flag)return;const X=L.flag.x,Y=L.flag.y,topY=Y-12,h=54;
+  px(X+4,topY,2,h,C.pole);px(X+30,topY,2,h,C.pole);
+  ctx.fillStyle="#e6c84f";ctx.beginPath();ctx.arc(X+5,topY,3,0,7);ctx.fill();ctx.beginPath();ctx.arc(X+31,topY,3,0,7);ctx.fill();
+  const by=topY+4+gBarY;px(X+6,by,24,4,C.flag);px(X+6,by,24,1,"#ff9a9a");}
+function drawFoes(){for(const f of L.foes){if(!f.alive){if(f.poof>0){ctx.globalAlpha=Math.max(0,f.poof*2);px(f.x,f.y+4,14,8,C.foe);ctx.globalAlpha=1;}continue;}
+  const X=f.x,Y=f.y,wob=Math.sin(f.t*9)<0?1:0,col=f.kind==="hop"?"#7a9a3a":C.foe,colD=f.kind==="hop"?"#566f24":C.foeDk;
+  px(X+1,Y+2,12,9,col);px(X+1,Y+2,12,2,"#c9743a");px(X+3,Y,8,3,colD);px(X+(f.vx<0?2:8),Y+4,2,2,C.eye);
+  px(X+1,Y+11,4,2,wob?colD:"#000");px(X+9,Y+11,4,2,wob?"#000":colD);}}
+function drawBubbles(){for(const b of bubbles){ctx.fillStyle="rgba(180,230,255,.85)";ctx.beginPath();ctx.arc(b.x,b.y,5,0,7);ctx.fill();ctx.fillStyle="#fff";px(b.x-2,b.y-3,2,2,"#fff");}}
+function drawBoss(){const b=boss;if(b.invuln>0&&Math.floor(b.invuln*12)%2===0&&b.defeated<=0)return;
+  const X=Math.round(b.x),Y=Math.round(b.y);
+  px(X,Y+6,b.w,b.h-6,b.color);px(X,Y+b.h-4,b.w,4,"rgba(0,0,0,.25)"); // Körper
+  px(X+4,Y,b.w-8,9,b.color);px(X+4,Y,b.w-8,1,"#ffffffaa"); // Kopf
+  px(X+b.w-7,Y+2,3,3,C.eye); // Auge
+  px(X+b.w-1,Y+3,5,3,C.beak); // Schnabel
+  px(X+5,Y-4,b.w-10,4,"#ffd23f"); // Krönchen
+  // HP-Pips
+  for(let i=0;i<3;i++)px(X+2+i*7,Y-9,5,3,i<b.hp?"#e23b3b":"rgba(255,255,255,.3)");}
+function drawDuck(){const d=duck;if(d.blink>0&&Math.floor(d.blink*16)%2===0)return;
+  const X=Math.round(d.x),Y=Math.round(d.y),f=d.face;
+  ctx.save();if(f<0){ctx.translate(X+d.w,0);ctx.scale(-1,1);ctx.translate(-X,0);}
+  if(d.star>0){const hue=(performance.now()/4)%360;ctx.fillStyle="hsl("+hue+",90%,65%)";px(X-1,Y-1,d.w+2,d.h+2,ctx.fillStyle);}
+  if(d.feather){px(X-4,Y+4,4,9,"#e24b6a");px(X-5,Y+7,3,5,"#c43a56");}
+  if(d.big){const o="rgba(255,255,255,.55)";px(X-2,Y-2,d.w+4,1,o);px(X-2,Y+d.h+1,d.w+4,1,o);px(X-2,Y-2,1,d.h+4,o);px(X+d.w+1,Y-2,1,d.h+4,o);}
+  if(d.mounted){px(X-3,Y+9,d.w+6,5,"#5fbf4a");px(X-3,Y+13,3,2,"#3a8f2f");px(X+d.w,Y+13,3,2,"#3a8f2f");px(X+d.w+1,Y+7,4,4,"#5fbf4a");px(X+d.w+3,Y+8,1,1,C.eye);}
+  const air=!d.onGround,step=air?2:(Math.sin(d.runT)>0?1:-1);
+  px(X+2,Y+12,3,2,C.beak);px(X+7,Y+12,3,2,C.beak);if(d.onGround){px(X+2+step,Y+13,3,1,C.beak);px(X+7-step,Y+13,3,1,C.beak);}
+  px(X+1,Y+5,11,8,C.duck);px(X+1,Y+11,11,2,C.duckDk);
+  const flap=(air&&keys.jump&&d.flutterT>0)?(Math.sin(performance.now()/40)*2):0;
+  px(X+3,Y+7+flap,5,4,C.duckDk);
+  px(X+6,Y,7,7,C.duck);px(X+6,Y,7,1,"#fff0b0");px(X+10,Y+2,2,2,C.eye);px(X+12,Y+3,3,3,C.beak);
+  ctx.restore();}
+function drawHUD(){
+  for(let i=0;i<3;i++){const hx=6+i*12,hy=6,on=i<lives,col=on?"#e23b3b":"rgba(255,255,255,.25)";
+    px(hx,hy+1,3,3,col);px(hx+4,hy+1,3,3,col);px(hx+1,hy+3,6,3,col);px(hx+2,hy+6,4,2,col);}
+  ctx.fillStyle="#fff";ctx.font="8px monospace";ctx.textBaseline="top";
+  px(VW-86,7,5,7,C.coin);ctx.fillStyle="#fff";ctx.fillText("x"+String(coinsGot).padStart(2,"0"),VW-78,7);
+  ctx.fillText(String(score).padStart(6,"0"),VW-52,7);
+  ctx.font="7px monospace";ctx.fillStyle="rgba(255,255,255,.9)";ctx.fillText("Welt "+(worldIdx+1)+"/"+WORLDS.length,6,17);
+  if(L&&L.dragons&&L.dragons.length){ctx.fillStyle="#e2b33a";ctx.textAlign="left";ctx.fillText("◈ "+dragonGot+"/"+L.dragons.length,60,17);}
+  if(duck.star>0){ctx.fillStyle="#ffe96b";ctx.fillText("★ "+Math.ceil(duck.star)+"s",6,26);}
+  if(duck.big){px(27,21,9,5,"#e24b4a");px(27,21,9,1,"#ff9a98");px(29,26,5,3,"#f0e2c0");}
+  if(duck.feather){px(41,20,2,9,"#ffffff");px(39,22,6,2,"#e24b6a");}
+  if(state===ST.PLAY&&gaveBonus){ctx.fillStyle="#fff";ctx.font="bold 14px monospace";ctx.textAlign="center";ctx.fillText("GESCHAFFT!  +"+clearBonus,VW/2,80);ctx.textAlign="left";}
+}
+
+/* ---------- Loop ---------- */
+function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)dt=0.05;update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
+showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
