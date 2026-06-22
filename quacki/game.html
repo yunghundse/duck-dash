@@ -767,6 +767,7 @@ function draw(){
   if(state===ST.TITLE){ drawTitleMascot(); ctx.restore(); return; }
   if(L){ ctx.save(); ctx.translate(-Math.round(camX),0);
     drawTiles(w); drawCoins(); drawDragons(); drawPowers(); drawCheckpoint(); drawGate(); drawFoes(); drawBubbles();
+    if(state===ST.BOSS)drawCastleCage();
     if(state===ST.BOSS&&boss)drawBoss(); drawDuck(); drawParts();
     ctx.restore(); drawHUD(); }
   ctx.restore();
@@ -837,6 +838,8 @@ function drawOverworld(){
   ctx.save();ctx.translate(-cam,0);
   drawOWTerrain();drawOWPath();
   for(let i=0;i<WORLDS.length;i++)drawOWNode(i);
+  // Cameo: Goldi winkt vom Quakschloss (letzter Knoten), solange nicht befreit
+  if(worldProgress[WORLDS.length-1] < nodeCount(WORLDS.length-1)){ const n=MAPNODES[WORLDS.length-1]; drawPrincess(n.x-6,n.y-44,{wave:true}); }
   drawOWDuck();
   ctx.restore();
   // Overlay/HUD (bildschirmfest)
@@ -1016,6 +1019,26 @@ function drawRubberDuck(X,Y,opts){opts=opts||{};const air=opts.air,flap=opts.fla
   px(X+12,Y+3,4,2,C.beak);px(X+12,Y+5,3,1,"#d96a1e");
   // angedeutete Fuesschen nur am Boden
   if(!air&&step!==undefined){px(X+3+step,Y+13,3,1,C.beak);px(X+7-step,Y+13,3,1,C.beak);}
+}
+/* ---------- Enten-Prinzessin Goldi (Krone, Kleid, freundlich) ---------- */
+function drawPrincess(X,Y,opts){opts=opts||{};const wave=opts.wave;
+  const body="#fff3d6",bodyDk="#e8d9ad",dress="#ff7bbf",dressDk="#d44e98",crown="#ffd23f";
+  px(X-1,Y+10,14,7,dress);px(X-1,Y+15,14,2,dressDk);px(X+1,Y+10,10,1,"#ffb6dd"); // Kleid
+  px(X+1,Y+6,11,6,body);px(X+1,Y+6,11,1,"#fffaf0");                                // Brust/Koerper
+  px(X+5,Y,8,7,body);px(X+5,Y,8,1,"#fffaf0");                                      // Kopf
+  px(X+10,Y+2,2,2,C.eye);px(X+12,Y+1,1,1,C.eye);                                   // Auge + Wimper
+  px(X+12,Y+3,3,2,C.beak);                                                          // Schnabel
+  px(X+5,Y-3,8,3,crown);px(X+5,Y-5,2,3,crown);px(X+8,Y-6,2,4,crown);px(X+11,Y-5,2,3,crown);px(X+8,Y-2,1,1,"#ff5a8a"); // Krone
+  if(wave){const w=Math.abs(Math.sin(performance.now()/130))*3;px(X-3,Y+2-w,3,6,body);px(X-3,Y+1-w,3,1,"#fffaf0");}
+  else{px(X-2,Y+8,3,4,bodyDk);}
+}
+/* Gefangene/befreite Prinzessin in der Baron-Arena (nur Welt 6) */
+function drawCastleCage(){ if(worldIdx!==5||!L)return; const cx=(L.W-6)*TILE, cy=2*TILE;
+  const freed=(boss==null)||(boss&&boss.defeated>0);
+  px(cx-6,cy+22,44,4,"#4a3458");px(cx-6,cy+22,44,1,"#6a4f7a"); // Podest
+  drawPrincess(cx+12,cy+4,{wave:freed});
+  if(!freed){ for(let i=0;i<5;i++)px(cx+2+i*8,cy-2,2,26,"rgba(220,222,238,.8)"); px(cx-2,cy-4,40,2,"#cfcfe0");px(cx-2,cy+22,40,2,"#cfcfe0"); px(cx-2,cy-4,2,28,"#cfcfe0");px(cx+36,cy-4,2,28,"#cfcfe0"); }
+  else { px(cx+4,cy-3,3,3,"#ff7bbf");px(cx+26,cy-5,3,3,"#ff7bbf");px(cx+16,cy-7,3,3,"#ff9ed0"); } // Herzchen
 }
 function drawDuck(){const d=duck;if(d.blink>0&&Math.floor(d.blink*16)%2===0)return;
   const X=Math.round(d.x),Y=Math.round(d.y),f=d.face;
