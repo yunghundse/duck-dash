@@ -48,6 +48,20 @@
     background:var(--ui-panel);color:var(--ui-edge);font-family:'Press Start 2P',monospace;font-size:14px;
     cursor:pointer;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;}
   .hudbtn:active{transform:scale(.92);}
+  .menugrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;width:100%;max-width:340px;}
+  .menugrid .btn{width:100%;font-size:clamp(8px,2.1vw,12px);padding:11px 6px;}
+  .menugrid .btn[disabled]{opacity:.4;pointer-events:none;}
+  @media(min-width:560px){.menugrid{grid-template-columns:repeat(4,1fr);max-width:600px;}}
+  .info{justify-content:flex-start;gap:8px;padding:16px 20px 14px;}
+  .infobody{overflow-y:auto;width:100%;max-width:620px;flex:1 1 auto;text-align:left;
+    font-family:"Courier New",monospace;font-size:clamp(11px,2.2vw,14px);line-height:1.7;color:var(--ui-text);
+    background:var(--ui-panel);border:3px solid var(--ui-edge);padding:14px 16px;}
+  .infobody h3{font-family:'Press Start 2P',monospace;font-size:clamp(10px,2.2vw,13px);color:var(--ui-edge);margin:14px 0 4px;}
+  .infobody h3:first-child{margin-top:0;}
+  .infobody .role{color:var(--ui-edge);opacity:.85;font-size:.85em;}
+  .infobody p{margin:4px 0 10px;}
+  .infobody .big{font-size:1.6em;color:var(--ui-edge);font-family:'Press Start 2P',monospace;}
+  .back{margin-top:4px;}
 </style>
 </head>
 <body>
@@ -74,8 +88,14 @@
       <span class="langpick" data-l="de">DE</span> <span class="langpick" data-l="en">EN</span>
       <span class="langpick" data-l="es">ES</span> <span class="langpick" data-l="fr">FR</span>
     </div>
-    <div style="margin-top:6px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    <div class="menugrid">
+      <button class="btn" id="btnNew">Neues Spiel</button>
+      <button class="btn" id="btnContinue">Weiter</button>
+      <button class="btn" id="btnMap">Weltkarte</button>
       <button class="btn" id="btnShop">Shop</button>
+      <button class="btn" id="btnLeader">Bestenliste</button>
+      <button class="btn" id="btnBios">Steckbriefe</button>
+      <button class="btn" id="btnHelp">Hilfe</button>
       <button class="btn" id="btnSettings">Einstellungen</button>
     </div>
   </div>
@@ -101,6 +121,22 @@
   </div>
 
   <button id="btnPause" class="hudbtn hidden" aria-label="Pause">II</button>
+
+  <div id="scHelp" class="screen dim hidden info">
+    <h2 id="hHelpTitle">Hilfe</h2>
+    <div class="infobody" id="helpBody"></div>
+    <button class="btn back" id="btnHelpBack">Zurueck</button>
+  </div>
+  <div id="scBios" class="screen dim hidden info">
+    <h2 id="hBiosTitle">Steckbriefe</h2>
+    <div class="infobody" id="biosBody"></div>
+    <button class="btn back" id="btnBiosBack">Zurueck</button>
+  </div>
+  <div id="scLeader" class="screen dim hidden info">
+    <h2 id="hLeaderTitle">Bestenliste</h2>
+    <div class="infobody" id="leaderBody"></div>
+    <button class="btn back" id="btnLeaderBack">Zurueck</button>
+  </div>
 </div>
 
 <script src="./i18n.js"></script>
@@ -460,6 +496,10 @@ function loadProgress(){ try{ const r=localStorage.getItem("quacki_progress"); i
   if(typeof o.u==="number")unlocked=Math.max(0,Math.min(WORLDS.length-1,o.u|0));
   if(Array.isArray(o.p))for(let i=0;i<worldProgress.length&&i<o.p.length;i++)worldProgress[i]=o.p[i]|0;} }catch(e){} }
 function hasSave(){ try{ return !!localStorage.getItem("quacki_progress"); }catch(e){ return false; } }
+let highscore=0;
+function loadHighscore(){ try{ highscore=parseInt(localStorage.getItem("quacki_highscore")||"0",10)||0; }catch(e){} }
+function saveHighscore(){ try{ if(score>highscore)highscore=score; localStorage.setItem("quacki_highscore",String(highscore)); }catch(e){} }
+function continueGame(){ if(ac()&&ac().state==="suspended")ac().resume(); loadProgress(); lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; mapSel=Math.min(mapSel,unlocked); enterOverworld(); }
 let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, musicT=0, musicI=0;
 let setSel=0, prevScreenState=ST.TITLE, howtoShown=false;
 let curWorld=WORLDS[0];
@@ -515,7 +555,14 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("startHint",t("pressStart"));set("tTap",t("tapStart"));
   set("tMove",t("ctrlMove"));set("tJump",t("ctrlJump"));set("tGlide",t("ctrlGlide"));
   set("tKeys",t("keysLine"));set("tBetaNote",t("betaNote"));set("tLangLabel",t("language"));
-  set("btnSettings",t("settings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnShop",sx("shop"));
+  set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnShop",t("menuShop"));
+  // Hauptmenue-Knoepfe
+  set("btnNew",t("menuPlay"));set("btnContinue",t("menuContinue"));set("btnMap",t("menuMap"));
+  set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));
+  const cont=document.getElementById("btnContinue"); if(cont){ if(hasSave())cont.removeAttribute("disabled"); else cont.setAttribute("disabled","1"); }
+  // Info-Screen-Titel + Zurueck
+  set("hHelpTitle",t("helpTitle"));set("hBiosTitle",t("biosTitle"));set("hLeaderTitle",t("leaderboardTitle"));
+  set("btnHelpBack",t("back"));set("btnBiosBack",t("back"));set("btnLeaderBack",t("back"));
   const picks=document.querySelectorAll&&document.querySelectorAll(".langpick");
   if(picks)picks.forEach(p=>p.classList.toggle("active",p.getAttribute("data-l")===SET.lang)); }
 function saveSettings(){ try{ localStorage.setItem("quacki_settings",JSON.stringify(SET)); }catch(e){} }
@@ -653,6 +700,7 @@ function musicTick(dt){ if(!SET.music||!AC)return; musicT-=dt; if(musicT<=0){ co
 /* ---------- Input ---------- */
 const keys={left:false,right:false,jump:false};
 addEventListener("keydown",e=>{
+  if(infoOpen){ if(["Escape","Backspace","Enter","Space"].includes(e.code)){closeInfo();e.preventDefault();} return; }
   if(paused){ if(["KeyP","Escape","Enter","Space"].includes(e.code)){pauseSet(false);e.preventDefault();} return; }
   if(e.code==="KeyP"&&isGameplay()){ pauseSet(true); return; }
   if(e.code==="Escape"&&(state===ST.PLAY||state===ST.BOSS)){ pauseSet(true); return; }
@@ -699,7 +747,7 @@ function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.ST
 
 /* ---------- Cutscenes ---------- */
 const el=id=>document.getElementById(id);
-function showScreen(id){["scTitle","scStory","scOver"].forEach(s=>el(s).classList.add("hidden"));if(id)el(id).classList.remove("hidden");}
+function showScreen(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden")); if(id){const e=document.getElementById(id); if(e)e.classList.remove("hidden");} }
 function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||t("cont");storyNext=next;state=ST.STORY;showScreen("scStory");}
 function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
 el("storyBtn").addEventListener("click",storyAdvance);
@@ -746,14 +794,14 @@ function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=
 function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
 function takeHit(){ const d=duck; if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
 function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
-function gameOver(){saveEconomy();state=ST.OVER;el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score});SFX.over();showScreen("scOver");}
+function gameOver(){saveEconomy();saveHighscore();state=ST.OVER;el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore;SFX.over();showScreen("scOver");}
 function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
   if(worldProgress[w]===li) worldProgress[w]=li+1; // naechsten Knoten freischalten
   saveProgress();
   const lastLevel=(li===levels-1);
   const txt=lastLevel ? t("clearLastText",{boss:bossName(w)}) : t("clearMidText");
   cutscene("",t("clearTitle",{world:worldName(w),n:(li+1)}),txt,t("toMap"),()=>enterSubmap(w)); }
-function bossDefeated(){ SFX.clear(); const w=worldIdx, levels=WORLDS[w].levels.length;
+function bossDefeated(){ SFX.clear(); saveHighscore(); const w=worldIdx, levels=WORLDS[w].levels.length;
   worldProgress[w]=levels+1; // Welt komplett
   if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; saveProgress();
   if(w>=WORLDS.length-1){ const fin=ta("finale")||[]; const beats=fin.map((b,i)=>({t:b.t,x:b.x,btn:i===fin.length-1?t("retry"):t("cont")}));
@@ -788,6 +836,29 @@ function settingsActivate(){ const r=settingsRows()[setSel]; if(r&&r.action){r.a
 el("btnSettings").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().state==="suspended")ac().resume();openSettings();});
 document.querySelectorAll(".langpick").forEach(p=>p.addEventListener("click",e=>{e.stopPropagation();setLang(p.getAttribute("data-l"));}));
 el("btnShop").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().state==="suspended")ac().resume();openShop();});
+/* ---------- Hauptmenue-Screens: Hilfe / Steckbriefe / Bestenliste ---------- */
+let infoOpen=false;
+function showInfo(id,fill){ fill(); infoOpen=true; showScreen(id); }
+function closeInfo(){ infoOpen=false; showScreen("scTitle"); }
+function fillHelp(){ el("helpBody").innerHTML =
+  "<p>"+t("helpRun")+"</p><p>"+t("helpJump")+"</p><p>"+t("helpGlide")+"</p><p>"+t("helpPause")+"</p><p>"+t("helpRestart")+"</p><p>"+t("helpGoal")+"</p>"+
+  "<h3>"+t("helpHero")+"</h3><p>"+t("bioQuacki")+"</p>"; }
+function fillBios(){ const chars=[
+    [HERO,t("bioRoleHero"),t("bioQuacki")],[PRIN,t("bioRolePrincess"),t("bioGoldi")],[VILLAIN,t("bioRoleVillain"),t("bioBaron")],
+    [bossName(0),t("bioRoleGuard"),t("bioFrosch")],[bossName(1),t("bioRoleGuard"),t("bioKroko")],[bossName(2),t("bioRoleGuard"),t("bioPinguin")],
+    [bossName(3),t("bioRoleGuard"),t("bioKamel")],[bossName(4),t("bioRoleGuard"),t("bioEule")]];
+  el("biosBody").innerHTML = chars.map(c=>"<h3>"+c[0]+" <span class='role'>- "+c[1]+"</span></h3><p>"+c[2]+"</p>").join(""); }
+function fillLeader(){ el("leaderBody").innerHTML = (highscore>0)
+  ? "<p>"+t("highscoreLabel")+":</p><p class='big'>"+String(highscore).padStart(6,"0")+"</p><p>"+t("secretHint")+"</p>"
+  : "<p>"+t("noScores")+"</p><p>"+t("secretHint")+"</p>"; }
+function clk(id,fn){const e=el(id); if(e)e.addEventListener("click",ev=>{ev.stopPropagation();fn();});}
+clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startGame(); });
+clk("btnContinue",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
+clk("btnMap",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); continueGame(); });
+clk("btnLeader",()=>showInfo("scLeader",fillLeader));
+clk("btnBios",()=>showInfo("scBios",fillBios));
+clk("btnHelp",()=>showInfo("scHelp",fillHelp));
+clk("btnHelpBack",closeInfo); clk("btnBiosBack",closeInfo); clk("btnLeaderBack",closeInfo);
 
 /* ---------- Physik ---------- */
 const GRAV=1500,MOVE=132,ACC=900,FRIC=760,JUMP=-430,JUMPCUT=0.45,MAXFALL=520,COYOTE=0.09,FLUTTER=420,FLUTTER_MAX=0.7;
@@ -1373,7 +1444,7 @@ function drawHUD(){
 function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)dt=0.05;
   const pb=document.getElementById("btnPause"); if(pb)pb.classList.toggle("hidden",!(isGameplay()&&!paused));
   update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
-applyTheme(); applyTitleI18n(); showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
+loadProgress(); loadHighscore(); applyTheme(); applyTitleI18n(); showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
 try{ if(typeof location!=="undefined"&&location.hash==="#shop"){ openShop(); } }catch(e){}
 /* PWA: Service Worker registrieren (nur ueber http/https, nicht file://) */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
