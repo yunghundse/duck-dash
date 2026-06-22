@@ -107,6 +107,15 @@ const probe = `
   try { g.ST = ST; } catch(e){}
   try { g.WORLDS = WORLDS; } catch(e){}
   try { g.t = t; } catch(e){}
+  try { Object.defineProperty(g,"wallet",{get:()=>wallet,set:v=>{wallet=v;}}); } catch(e){}
+  try { Object.defineProperty(g,"equippedSkin",{get:()=>equippedSkin}); } catch(e){}
+  try { Object.defineProperty(g,"shopSel",{get:()=>shopSel,set:v=>{shopSel=v;}}); } catch(e){}
+  try { g.owned = owned; } catch(e){}
+  try { g.SKINS = SKINS; } catch(e){}
+  try { g.openShop = openShop; } catch(e){}
+  try { g.shopAction = shopAction; } catch(e){}
+  try { g.shopList = shopList; } catch(e){}
+  try { g.closeShop = closeShop; } catch(e){}
   try { g.setLang = setLang; } catch(e){}
   try { g.worldName = worldName; } catch(e){}
   try { g.bossName = bossName; } catch(e){}
@@ -269,6 +278,24 @@ assert(deWorld && enWorld && deWorld !== enWorld, "Weltname wechselt mit Sprache
 assert(dePoints !== enPoints, "UI-Begriff wechselt (Punkte/Points)", "de=" + dePoints + " en=" + enPoints);
 assert(typeof esBoss === "string" && esBoss.length > 0, "ES Boss-Name vorhanden", "esBoss=" + esBoss);
 assert(typeof frPoints === "string" && frPoints.length > 0, "FR UI-Begriff vorhanden", "frPoints=" + frPoints);
+
+// Shop: kaufen + ausruesten + Geldboerse
+frameErr = null;
+G.openShop();
+assert(G.state === G.ST.SHOP, "openShop -> SHOP", "state=" + G.state);
+step(2);
+assert(!frameErr, "Shop-Frames laufen fehlerfrei", frameErr);
+const list = G.shopList();
+let idx = list.findIndex(id => G.SKINS[id] && G.SKINS[id].price > 0); // erster kaufbarer Skin
+const skinId = list[idx], price = G.SKINS[skinId].price;
+G.wallet = price + 50; const before = G.wallet;
+G.shopSel = idx; G.shopAction(); // kaufen
+assert(G.owned[skinId] === true, "Skin gekauft (owned)", "skinId=" + skinId);
+assert(G.wallet === before - price, "Geldboerse sinkt um Preis", "before=" + before + " now=" + G.wallet + " price=" + price);
+assert(G.equippedSkin === skinId, "Gekaufter Skin ist ausgeruestet", "equipped=" + G.equippedSkin);
+const w2 = G.wallet; G.shopAction(); // erneut: nur ausruesten, kein Abzug
+assert(G.wallet === w2, "Erneute Aktion zieht keine Muenzen ab", "w2=" + w2 + " now=" + G.wallet);
+G.closeShop();
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
