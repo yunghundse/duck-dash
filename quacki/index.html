@@ -25,10 +25,12 @@
     padding:12px 18px;color:#23180a;background:#ffd23f;box-shadow:4px 4px 0 #000;text-transform:uppercase;}
   .btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #000;}
   #pad{position:absolute;inset:0;pointer-events:none;}
-  .tb{position:absolute;bottom:14px;width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.16);
-    border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;
-    pointer-events:auto;user-select:none;touch-action:none;}
-  #bLeft{left:14px;} #bRight{left:96px;} #bJump{right:18px;background:rgba(255,210,63,.32);border-color:#ffd23f;}
+  .tb{position:absolute;bottom:18px;width:92px;height:92px;border-radius:50%;background:rgba(255,255,255,.18);
+    border:3px solid rgba(255,255,255,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:38px;color:#fff;
+    pointer-events:auto;user-select:none;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.35);}
+  .tb .lbl{font-family:'Press Start 2P',monospace;font-size:8px;line-height:1;margin-top:3px;letter-spacing:1px;}
+  .tb:active{transform:scale(.92);}
+  #bLeft{left:16px;} #bRight{left:120px;} #bJump{right:20px;background:rgba(255,210,63,.34);border-color:#ffd23f;}
   @media (hover:hover){#pad{display:none;}}
   .emoji{font-size:clamp(34px,9vw,64px);}
 </style>
@@ -36,7 +38,11 @@
 <body>
 <div id="wrap">
   <canvas id="cv" width="384" height="224"></canvas>
-  <div id="pad"><div class="tb" id="bLeft">◀</div><div class="tb" id="bRight">▶</div><div class="tb" id="bJump">▲</div></div>
+  <div id="pad">
+    <div class="tb" id="bLeft">◀<span class="lbl">LINKS</span></div>
+    <div class="tb" id="bRight">▶<span class="lbl">RECHTS</span></div>
+    <div class="tb" id="bJump">▲<span class="lbl">SPRINGEN</span></div>
+  </div>
 
   <div id="scTitle" class="screen">
     <h1>DUCK<br>DASH</h1>
@@ -348,7 +354,7 @@ function isSolidCh(ch){return ch==="#"||ch==="="||ch==="?"||ch==="P"||ch==="Q";}
 function solidAt(tx,ty){ if(tx<0||tx>=L.W) return true; if(ty<0||ty>=L.H) return false; return isSolidCh(L.grid[ty][tx]); }
 
 /* ---------- Entities ---------- */
-function makeFoe(x,y,kind){return {x,y,w:14,h:13,vx:(kind==="hop"?-16:-24),vy:0,alive:true,poof:0,kind:kind||"walk",hopT:Math.random(),t:Math.random()*6,hitWall:false};}
+function makeFoe(x,y,kind){const ef=(typeof SET!=="undefined"&&SET.easy)?0.66:1;return {x,y,w:14,h:13,vx:(kind==="hop"?-16:-24)*ef,vy:0,alive:true,poof:0,kind:kind||"walk",hopT:Math.random(),t:Math.random()*6,hitWall:false};}
 const duck={x:0,y:0,w:12,h:14,vx:0,vy:0,onGround:false,face:1,coyote:0,buffer:0,jumpHeld:false,flutterT:0,runT:0,blink:0,star:0,big:false,feather:false,mounted:false};
 let boss=null; const bubbles=[]; const pops=[];
 
@@ -359,14 +365,14 @@ let subSel=0, curLevelIdx=0;
 // worldProgress[w] = naechster spielbarer Knoten (0..levels.length=Boss). =levels.length+1 -> Welt fertig.
 const worldProgress=WORLDS.map(()=>0);
 let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, musicT=0, musicI=0;
-let setSel=0, prevScreenState=ST.TITLE;
+let setSel=0, prevScreenState=ST.TITLE, howtoShown=false;
 let curWorld=WORLDS[0];
 
 /* ---------- Audio ---------- */
 let AC=null;
 /* ---------- Einstellungen (persistiert via localStorage) ---------- */
-const SET={sfx:true,music:true,crt:true};
-function loadSettings(){ try{ const r=localStorage.getItem("quacki_settings"); if(r){const o=JSON.parse(r); if(typeof o.sfx==="boolean")SET.sfx=o.sfx; if(typeof o.music==="boolean")SET.music=o.music; if(typeof o.crt==="boolean")SET.crt=o.crt;} }catch(e){} }
+const SET={sfx:true,music:true,crt:true,easy:false};
+function loadSettings(){ try{ const r=localStorage.getItem("quacki_settings"); if(r){const o=JSON.parse(r); if(typeof o.sfx==="boolean")SET.sfx=o.sfx; if(typeof o.music==="boolean")SET.music=o.music; if(typeof o.crt==="boolean")SET.crt=o.crt; if(typeof o.easy==="boolean")SET.easy=o.easy;} }catch(e){} }
 function saveSettings(){ try{ localStorage.setItem("quacki_settings",JSON.stringify(SET)); }catch(e){} }
 loadSettings();
 function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
@@ -398,7 +404,7 @@ addEventListener("keydown",e=>{
   if(state===ST.TITLE&&(e.code==="Space"||e.code==="Enter"))startGame();
   if(state===ST.OVERWORLD){ if(["ArrowLeft","KeyA"].includes(e.code))mapSel=Math.max(0,mapSel-1); else if(["ArrowRight","KeyD"].includes(e.code))mapSel=Math.min(unlocked,mapSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedWorld(); }
   else if(state===ST.SUBMAP){ if(["ArrowLeft","KeyA"].includes(e.code))subSel=Math.max(0,subSel-1); else if(["ArrowRight","KeyD"].includes(e.code))subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedNode(); else if(["ArrowDown","KeyS","Escape","Backspace"].includes(e.code))enterOverworld(); }
-  else if(state===ST.SETTINGS){ if(["ArrowUp","KeyW"].includes(e.code))setSel=(setSel+3)%4; else if(["ArrowDown","KeyS"].includes(e.code))setSel=(setSel+1)%4; else if(["ArrowLeft","ArrowRight","KeyA","KeyD"].includes(e.code))settingsToggle(); else if(["Space","Enter"].includes(e.code))settingsActivate(); else if(["Escape","Backspace"].includes(e.code))closeSettings(); }
+  else if(state===ST.SETTINGS){ if(["ArrowUp","KeyW"].includes(e.code))setSel=(setSel+4)%5; else if(["ArrowDown","KeyS"].includes(e.code))setSel=(setSel+1)%5; else if(["ArrowLeft","ArrowRight","KeyA","KeyD"].includes(e.code))settingsToggle(); else if(["Space","Enter"].includes(e.code))settingsActivate(); else if(["Escape","Backspace"].includes(e.code))closeSettings(); }
 });
 addEventListener("keyup",e=>{
   if(["ArrowLeft","KeyA"].includes(e.code))keys.left=false;
@@ -408,8 +414,8 @@ addEventListener("keyup",e=>{
 function bindBtn(id,on,off){const el=document.getElementById(id);
   el.addEventListener("pointerdown",e=>{e.preventDefault();on();});
   ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off&&off();}));}
-bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else if(state===ST.SETTINGS)setSel=(setSel+3)%4; else keys.left=true; },()=>keys.left=false);
-bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(state===ST.SETTINGS)setSel=(setSel+1)%4; else keys.right=true; },()=>keys.right=false);
+bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else if(state===ST.SETTINGS)setSel=(setSel+4)%5; else keys.left=true; },()=>keys.left=false);
+bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(state===ST.SETTINGS)setSel=(setSel+1)%5; else keys.right=true; },()=>keys.right=false);
 bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} if(state===ST.SETTINGS){settingsActivate();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
 cv.addEventListener("pointerdown",()=>{if(state===ST.TITLE)startGame();});
 function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
@@ -427,7 +433,7 @@ function dialogSeq(beats,done){ let i=0; const next=()=>{ if(i>=beats.length){ i
   const b=beats[i++]; const last=(i>=beats.length); cutscene("",b.t,b.x,b.btn||(last?"Weiter ▶":"Weiter ▶"),next); }; next(); }
 
 /* ---------- Flow ---------- */
-function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
+function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=SET.easy?5:3;coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
   for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0;
   cutscene("","Die Entführung","In der ruhigen Quack-Bucht lebten "+HERO+" und "+PRIN+", die goldene Gummiente, in Frieden. Doch in einer stürmischen Nacht stürmte "+VILLAIN+" mit seiner Schergen-Bande heran und verschleppte "+PRIN+" in sein fernes Quakschloss! Über sechs Welten, vorbei an den Wächter-Enten des Barons, macht sich "+HERO+" auf — mutig, klein und unaufhaltsam.","WEITER",()=>enterOverworld()); }
 function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null); }
@@ -439,7 +445,13 @@ function enterSelectedNode(){ if(state!==ST.SUBMAP)return; const w=worldIdx, li=
   if(li<levels){ beginLevel(w,li); } else { startBossIntro(); } }
 function beginLevel(w,li){ worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
   const intro = li===0 ? curWorld.story : (curWorld.name+" · Abschnitt "+(li+1)+". "+HERO+" watschelt weiter!");
-  cutscene("",curWorld.name+" · Level "+(li+1),intro,"Start ▶",()=>loadPlatform(w,li)); }
+  const beats=[];
+  if(!howtoShown){ howtoShown=true; beats.push(
+    {t:"So spielst du",x:"Mit den Pfeiltasten (oder den grossen Tasten unten links) laeuft "+HERO+". Pfeil nach oben oder Leertaste laesst ihn springen."},
+    {t:"Gleiten & Muenzen",x:"Sprung in der Luft gedrueckt halten = sanft gleiten. Sammle Muenzen ein und huepfe Gegnern einfach oben auf den Kopf — niemand wird verletzt!"}
+  ); }
+  beats.push({t:curWorld.name+" · Level "+(li+1),x:intro,btn:"Start ▶"});
+  dialogSeq(beats,()=>loadPlatform(w,li)); }
 function loadPlatform(w,li){ if(li===undefined)li=curLevelIdx; worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
   L=buildLevel(WORLDS[w].levels[li]); resetDuckTo(L.spawn); bubbles.length=0;pops.length=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); }
 function startBossIntro(){ const b=curWorld.boss;
@@ -474,8 +486,8 @@ el("btnRetry").addEventListener("click",startGame);
 /* ---------- Einstellungen-Screen ---------- */
 function openSettings(){ prevScreenState=state; setSel=0; state=ST.SETTINGS; showScreen(null); }
 function closeSettings(){ saveSettings(); state=prevScreenState; showScreen(state===ST.TITLE?"scTitle":null); }
-function settingsToggle(){ if(setSel===0)SET.sfx=!SET.sfx; else if(setSel===1){SET.music=!SET.music; if(SET.music&&AC){musicI=0;musicT=0;}} else if(setSel===2)SET.crt=!SET.crt; saveSettings(); }
-function settingsActivate(){ if(setSel<3)settingsToggle(); else closeSettings(); }
+function settingsToggle(){ if(setSel===0)SET.sfx=!SET.sfx; else if(setSel===1){SET.music=!SET.music; if(SET.music&&AC){musicI=0;musicT=0;}} else if(setSel===2)SET.crt=!SET.crt; else if(setSel===3)SET.easy=!SET.easy; saveSettings(); }
+function settingsActivate(){ if(setSel<4)settingsToggle(); else closeSettings(); }
 el("btnSettings").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().state==="suspended")ac().resume();openSettings();});
 
 /* ---------- Physik ---------- */
@@ -666,12 +678,12 @@ function drawSubmap(){
 function drawSettings(){
   // abgedunkelte Box
   px(0,0,VW,VH,"rgba(9,16,30,.55)");
-  const pw=204,ph=146,x=Math.round((VW-pw)/2),y=Math.round((VH-ph)/2);
+  const pw=204,ph=160,x=Math.round((VW-pw)/2),y=Math.round((VH-ph)/2);
   px(x,y,pw,ph,"rgba(10,16,30,.92)");
   px(x,y,pw,3,"#ffd23f");px(x,y+ph-3,pw,3,"#ffd23f");px(x,y,3,ph,"#ffd23f");px(x+pw-3,y,3,ph,"#ffd23f");
   bmCenter("EINSTELLUNGEN",VW/2,y+12,"#ffd23f",2);
-  const rows=[["TON",SET.sfx],["MUSIK",SET.music],["CRT-FILTER",SET.crt],["ZURUECK",null]];
-  const ry=y+42, rh=21;
+  const rows=[["TON",SET.sfx],["MUSIK",SET.music],["CRT-FILTER",SET.crt],["EASY-MODUS",SET.easy],["ZURUECK",null]];
+  const ry=y+40, rh=20;
   for(let i=0;i<rows.length;i++){const cy=ry+i*rh,sel=i===setSel;
     if(sel){px(x+10,cy,pw-20,16,"rgba(255,210,63,.18)");bmText(">",x+14,cy+4,"#ffd23f",2);}
     bmText(rows[i][0],x+30,cy+4,sel?"#fff":"#cdd5e0",1);

@@ -218,6 +218,18 @@ for (let i = 0; i < 200 && !frameErr; i++) {
 G.keys.right = G.keys.left = false;
 assert(!frameErr, "Boss: 200 Frames Kampf fehlerfrei", frameErr);
 
+// Onboarding: How-to vor erstem Level -> PLAY
+frameErr = null;
+G.beginLevel(0, 0);
+assert(G.state === G.ST.STORY, "beginLevel zeigt How-to (STORY)", "state=" + G.state);
+let g2 = 0; while (G.state === G.ST.STORY && g2++ < 8) G.storyAdvance();
+step(1);
+assert(G.state === G.ST.PLAY, "How-to fuehrt ins Level (PLAY)", "state=" + G.state);
+// Easy-Modus: mehr Leben
+G.SET.easy = true; G.startGame(); G.storyAdvance();
+assert(G.lives === 5, "Easy-Modus startet mit 5 Leben", "lives=" + G.lives);
+G.SET.easy = false;
+
 // Einstellungen-Menue
 frameErr = null;
 G.enterOverworld();              // definierter Ausgangspunkt
