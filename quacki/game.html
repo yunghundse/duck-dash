@@ -48,10 +48,11 @@
     background:var(--ui-panel);color:var(--ui-edge);font-family:'Press Start 2P',monospace;font-size:14px;
     cursor:pointer;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;}
   .hudbtn:active{transform:scale(.92);}
-  .menugrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;width:100%;max-width:340px;}
-  .menugrid .btn{width:100%;font-size:clamp(8px,2.1vw,12px);padding:11px 6px;}
+  .menugrid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;width:100%;max-width:300px;}
+  .menugrid .btn{width:100%;min-width:0;font-size:clamp(9px,2.4vw,12px);padding:11px 6px;overflow:hidden;text-overflow:ellipsis;}
   .menugrid .btn[disabled]{opacity:.4;pointer-events:none;}
-  @media(min-width:560px){.menugrid{grid-template-columns:repeat(4,1fr);max-width:600px;}}
+  @media(min-width:440px){.menugrid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:400px;}}
+  @media(min-width:700px){.menugrid{grid-template-columns:repeat(4,minmax(0,1fr));max-width:640px;}}
   .info{justify-content:flex-start;gap:8px;padding:16px 20px 14px;}
   .infobody{overflow-y:auto;width:100%;max-width:620px;flex:1 1 auto;text-align:left;
     font-family:"Courier New",monospace;font-size:clamp(11px,2.2vw,14px);line-height:1.7;color:var(--ui-text);
