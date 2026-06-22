@@ -44,6 +44,10 @@
   .tb:active{transform:scale(.92);}
   #bLeft{left:16px;} #bRight{left:120px;} #bJump{right:20px;background:rgba(255,210,63,.34);border-color:#ffd23f;}
   @media (hover:hover){#pad{display:none;}}
+  .hudbtn{position:absolute;top:10px;right:12px;z-index:6;width:44px;height:44px;border:3px solid var(--ui-edge);
+    background:var(--ui-panel);color:var(--ui-edge);font-family:'Press Start 2P',monospace;font-size:14px;
+    cursor:pointer;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;}
+  .hudbtn:active{transform:scale(.92);}
 </style>
 </head>
 <body>
@@ -88,6 +92,15 @@
     <div class="sub" id="overText">—</div>
     <button class="btn" id="btnRetry">Nochmal</button>
   </div>
+
+  <div id="scPause" class="screen dim hidden">
+    <h2 id="tPauseTitle">Pause</h2>
+    <button class="btn" id="btnResume">Fortsetzen</button>
+    <button class="btn" id="btnPauseSettings">Einstellungen</button>
+    <button class="btn" id="btnPauseMenu">Hauptmenue</button>
+  </div>
+
+  <button id="btnPause" class="hudbtn hidden" aria-label="Pause">II</button>
 </div>
 
 <script src="./i18n.js"></script>
@@ -430,9 +443,23 @@ function burst(x,y,col,n,spd){ for(let i=0;i<n;i++){const a=Math.random()*6.283,
 /* ---------- State ---------- */
 const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7,SETTINGS:8,SHOP:9,HUB:10};
 let state=ST.TITLE, L=null, worldIdx=0, lives=3, coinsGot=0, score=0, unlocked=0, mapSel=0;
+let paused=false;
+function isGameplay(){ return state===ST.PLAY||state===ST.BOSS||state===ST.HUB; }
+function pauseSet(on){ const pad=document.getElementById("pad"); if(on){ if(!isGameplay()||paused)return; paused=true; keys.left=keys.right=keys.jump=false;
+    const e=document.getElementById("scPause"); if(e)e.classList.remove("hidden"); if(pad)pad.classList.add("hidden"); applyPauseI18n(); }
+  else { paused=false; const e=document.getElementById("scPause"); if(e)e.classList.add("hidden"); if(pad)pad.classList.remove("hidden"); } }
+function pauseToggle(){ paused?pauseSet(false):pauseSet(true); }
+function applyPauseI18n(){ const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set("tPauseTitle",t("paused"));set("btnResume",t("resume"));set("btnPauseSettings",t("menuSettings"));set("btnPauseMenu",t("toMenu")); }
 let subSel=0, curLevelIdx=0;
 // worldProgress[w] = naechster spielbarer Knoten (0..levels.length=Boss). =levels.length+1 -> Welt fertig.
 const worldProgress=WORLDS.map(()=>0);
+/* ---------- Fortschritt persistieren (fuer "Weiter") ---------- */
+function saveProgress(){ try{ localStorage.setItem("quacki_progress",JSON.stringify({u:unlocked,p:worldProgress.slice()})); }catch(e){} }
+function loadProgress(){ try{ const r=localStorage.getItem("quacki_progress"); if(r){const o=JSON.parse(r);
+  if(typeof o.u==="number")unlocked=Math.max(0,Math.min(WORLDS.length-1,o.u|0));
+  if(Array.isArray(o.p))for(let i=0;i<worldProgress.length&&i<o.p.length;i++)worldProgress[i]=o.p[i]|0;} }catch(e){} }
+function hasSave(){ try{ return !!localStorage.getItem("quacki_progress"); }catch(e){ return false; } }
 let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, musicT=0, musicI=0;
 let setSel=0, prevScreenState=ST.TITLE, howtoShown=false;
 let curWorld=WORLDS[0];
@@ -626,6 +653,9 @@ function musicTick(dt){ if(!SET.music||!AC)return; musicT-=dt; if(musicT<=0){ co
 /* ---------- Input ---------- */
 const keys={left:false,right:false,jump:false};
 addEventListener("keydown",e=>{
+  if(paused){ if(["KeyP","Escape","Enter","Space"].includes(e.code)){pauseSet(false);e.preventDefault();} return; }
+  if(e.code==="KeyP"&&isGameplay()){ pauseSet(true); return; }
+  if(e.code==="Escape"&&(state===ST.PLAY||state===ST.BOSS)){ pauseSet(true); return; }
   if(["ArrowLeft","KeyA"].includes(e.code))keys.left=true;
   else if(["ArrowRight","KeyD"].includes(e.code))keys.right=true;
   else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=true;pressJump();e.preventDefault();}
@@ -719,15 +749,25 @@ function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();}
 function gameOver(){saveEconomy();state=ST.OVER;el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score});SFX.over();showScreen("scOver");}
 function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
   if(worldProgress[w]===li) worldProgress[w]=li+1; // naechsten Knoten freischalten
+  saveProgress();
   const lastLevel=(li===levels-1);
   const txt=lastLevel ? t("clearLastText",{boss:bossName(w)}) : t("clearMidText");
   cutscene("",t("clearTitle",{world:worldName(w),n:(li+1)}),txt,t("toMap"),()=>enterSubmap(w)); }
 function bossDefeated(){ SFX.clear(); const w=worldIdx, levels=WORLDS[w].levels.length;
   worldProgress[w]=levels+1; // Welt komplett
+  if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; saveProgress();
   if(w>=WORLDS.length-1){ const fin=ta("finale")||[]; const beats=fin.map((b,i)=>({t:b.t,x:b.x,btn:i===fin.length-1?t("retry"):t("cont")}));
     dialogSeq(beats,startGame); }
   else { if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,w+1); cutscene("",t("worldDoneTitle",{world:worldName(w)}),t("worldDoneText"),t("toMap"),()=>enterOverworld()); } }
 el("btnRetry").addEventListener("click",startGame);
+/* ---------- Pause-Wiring ---------- */
+el("btnPause").addEventListener("click",e=>{e.stopPropagation();pauseSet(true);});
+el("btnResume").addEventListener("click",e=>{e.stopPropagation();pauseSet(false);});
+el("btnPauseSettings").addEventListener("click",e=>{e.stopPropagation();paused=false;el("scPause").classList.add("hidden");el("pad").classList.remove("hidden");openSettings();});
+el("btnPauseMenu").addEventListener("click",e=>{e.stopPropagation();pauseSet(false);goToMenu();});
+function goToMenu(){ saveProgress(); state=ST.TITLE; showScreen("scTitle"); }
+addEventListener("blur",()=>{ if(isGameplay()&&!paused)pauseSet(true); });
+document.addEventListener("visibilitychange",()=>{ if(document.hidden&&isGameplay()&&!paused)pauseSet(true); });
 
 /* ---------- Einstellungen-Screen ---------- */
 function openSettings(){ prevScreenState=state; setSel=0; state=ST.SETTINGS; showScreen(null); }
@@ -753,6 +793,7 @@ el("btnShop").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().sta
 const GRAV=1500,MOVE=132,ACC=900,FRIC=760,JUMP=-430,JUMPCUT=0.45,MAXFALL=520,COYOTE=0.09,FLUTTER=420,FLUTTER_MAX=0.7;
 
 function update(dt){
+  if(paused)return;
   if(state===ST.HUB){updateHub(dt);return;}
   if(state===ST.DEAD){deadT-=dt;duck.vy+=GRAV*dt;duck.y+=duck.vy*dt;if(deadT<=0)afterDeath();return;}
   if(state!==ST.PLAY&&state!==ST.BOSS)return;
@@ -1329,7 +1370,9 @@ function drawHUD(){
 }
 
 /* ---------- Loop ---------- */
-function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)dt=0.05;update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
+function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)dt=0.05;
+  const pb=document.getElementById("btnPause"); if(pb)pb.classList.toggle("hidden",!(isGameplay()&&!paused));
+  update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
 applyTheme(); applyTitleI18n(); showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
 try{ if(typeof location!=="undefined"&&location.hash==="#shop"){ openShop(); } }catch(e){}
 /* PWA: Service Worker registrieren (nur ueber http/https, nicht file://) */

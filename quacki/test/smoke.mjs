@@ -126,6 +126,11 @@ const probe = `
   try { g.worldName = worldName; } catch(e){}
   try { g.bossName = bossName; } catch(e){}
   try { g.startGame = startGame; } catch(e){}
+  try { g.pauseSet = pauseSet; } catch(e){}
+  try { g.isGameplay = isGameplay; } catch(e){}
+  try { Object.defineProperty(g,"paused",{get:()=>paused}); } catch(e){}
+  try { g.loadPlatform = loadPlatform; } catch(e){}
+  try { g.SET = SET; } catch(e){}
   try { g.storyAdvance = storyAdvance; } catch(e){}
   try { g.enterOverworld = enterOverworld; } catch(e){}
   try { g.enterSubmap = enterSubmap; } catch(e){}
@@ -323,6 +328,20 @@ assert(G.dlgActive === false, "Dialog laesst sich durchklicken", "haengt nach " 
 G.duck.x = 70 * 16; G.updateHub(0.016); // zum Wegweiser
 G.hubInteract();
 assert(G.state === G.ST.OVERWORLD, "Wegweiser fuehrt zur Weltkarte", "state=" + G.state);
+
+// Pause: einfrieren + fortsetzen, Position bleibt
+frameErr = null; G.SET.diff = 1;
+G.loadPlatform(0, 0); step(1);
+assert(G.state === G.ST.PLAY, "Vor Pause: PLAY", "state=" + G.state);
+G.keys.right = true; for (let i = 0; i < 30; i++) step(1); G.keys.right = false;
+const xBeforePause = G.duck.x;
+G.pauseSet(true);
+assert(G.paused === true, "pauseSet(true) pausiert", "paused=" + G.paused);
+for (let i = 0; i < 30; i++) step(1); // im Pause-Zustand frieren Frames ein
+assert(Math.abs(G.duck.x - xBeforePause) < 0.001, "Pause friert Spielwelt ein", "dx=" + (G.duck.x - xBeforePause));
+assert(!frameErr, "Pause-Frames laufen fehlerfrei", frameErr);
+G.pauseSet(false);
+assert(G.paused === false, "Fortsetzen hebt Pause auf", "paused=" + G.paused);
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
