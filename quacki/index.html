@@ -45,6 +45,11 @@
   .btn:hover{filter:brightness(1.05);}
   .btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 #000;}
   .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);box-shadow:none;}
+  .badge{display:inline-block;font-size:.5em;color:#23180a;background:var(--gold);border:2px solid #23180a;
+    padding:3px 7px;letter-spacing:1px;vertical-align:middle;margin-left:6px;box-shadow:2px 2px 0 #000;}
+  .betabar{background:var(--panel2);border:2px solid var(--line);padding:14px 16px;margin-top:18px;}
+  .betabar p{font-size:9px;color:var(--ink-dim);line-height:1.8;}
+  .betabar b{color:var(--gold);}
 
   /* ----- Hero ----- */
   header.hero{position:relative;text-align:center;padding:clamp(40px,9vw,90px) 0 clamp(30px,6vw,60px);overflow:hidden;}
@@ -91,13 +96,16 @@
   <header class="hero">
     <div class="wrap">
       <h1>DUCK<br>DASH</h1>
-      <div class="sub">Die Entenrettung</div>
+      <div class="sub">Die Entenrettung <span class="badge">Beta</span></div>
       <img class="mascot" src="./icon-512.png" width="200" height="200" alt="Quacki, die kleine gelbe Pixel-Ente" />
       <div class="cta">
         <a class="btn" href="./game.html">▶ Spielen</a>
         <a class="btn ghost" href="#welten">Welten ansehen</a>
       </div>
       <div class="claim">6 Welten · Gewaltfrei · Kinderfreundlich · Retro-Pixel</div>
+      <div class="betabar wrap" style="max-width:560px">
+        <p><b>Beta-Version.</b> Duck Dash ist schon voll spielbar und wird laufend weiter ausgebaut. Weitere Welten, Gegner und Funktionen folgen Schritt für Schritt.</p>
+      </div>
     </div>
   </header>
 
