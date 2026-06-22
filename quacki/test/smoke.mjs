@@ -68,7 +68,8 @@ const sandbox = {
     body: { appendChild(){}, classList: { add(){}, remove(){} } },
   },
   localStorage: (() => { const m = new Map(); return { getItem:k=>m.has(k)?m.get(k):null, setItem:(k,v)=>m.set(k,String(v)), removeItem:k=>m.delete(k) }; })(),
-  navigator: { serviceWorker: { register: () => ({ then: () => ({ catch: () => {} }) }) } },
+  navigator: { serviceWorker: { register: () => Promise.resolve() } },
+  location: { protocol: "file:", hash: "", href: "file:///quacki/index.html" },
 };
 sandbox.window = sandbox;
 sandbox.window.AudioContext = ACStub;

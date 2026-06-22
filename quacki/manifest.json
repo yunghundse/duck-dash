@@ -1,0 +1,17 @@
+{
+  "name": "Quacki - Die Entenrettung",
+  "short_name": "Quacki",
+  "description": "Retro-Jump'n'Run: Hilf Quacki, die goldene Gummiente Goldi aus dem Quakschloss des Barons zu retten. 6 Welten, gewaltfrei und kinderfreundlich.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "lang": "de",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
