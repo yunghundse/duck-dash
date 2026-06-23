@@ -36,16 +36,18 @@ const ctxStub = new Proxy({}, {
 const els = new Map();
 function makeEl(id) {
   const listeners = {};
+  const attrs = {};
   return {
     id, width: 384, height: 224, textContent: "", style: {},
     classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);}, toggle(c,f){f?this._s.add(c):this._s.delete(c);} },
     getContext() { return ctxStub; },
     addEventListener(t, fn) { (listeners[t] || (listeners[t] = [])).push(fn); },
-    setAttribute() {}, getAttribute() { return null; },
-    _fire(t, e) { (listeners[t] || []).forEach(fn => fn(e || { preventDefault(){} })); },
+    setAttribute(k, v) { attrs[k] = String(v); }, getAttribute(k) { return (k in attrs) ? attrs[k] : null; }, removeAttribute(k) { delete attrs[k]; }, hasAttribute(k) { return k in attrs; },
+    _fire(t, e) { (listeners[t] || []).forEach(fn => fn(e || { preventDefault(){}, stopPropagation(){} })); },
   };
 }
 function getEl(id) { if (!els.has(id)) els.set(id, makeEl(id)); return els.get(id); }
+const htmlEl = makeEl("__html");  // document.documentElement-Stub (data-portrait-Tracking)
 
 let clock = 0;
 let pendingRaf = null;
@@ -69,6 +71,7 @@ const sandbox = {
     querySelectorAll: () => [],
     createElement: () => makeEl("dyn"),
     addEventListener: (t, fn) => { (winListeners[t] || (winListeners[t] = [])).push(fn); },
+    documentElement: htmlEl,
     body: { appendChild(){}, classList: { add(){}, remove(){} } },
   },
   localStorage: (() => { const m = new Map(); return { getItem:k=>m.has(k)?m.get(k):null, setItem:(k,v)=>m.set(k,String(v)), removeItem:k=>m.delete(k) }; })(),
@@ -155,6 +158,8 @@ const probe = `
   try { g.drawDuck = drawDuck; } catch(e){}
   try { g.checkOrientation = checkOrientation; } catch(e){}
   try { g.isPortraitPhone = isPortraitPhone; } catch(e){}
+  try { g.dismissPortHint = dismissPortHint; } catch(e){}
+  try { Object.defineProperty(g,"portHintDismissed",{get:()=>portHintDismissed,set:v=>{portHintDismissed=v;}}); } catch(e){}
   try { g.BGS = BGS; } catch(e){}
   try { g.startArcade = startArcade; } catch(e){}
   try { g.levelCleared = levelCleared; } catch(e){}
@@ -530,25 +535,69 @@ for (let wi=0; wi<6 && playBgOk; wi++){ frameErr=null; G.loadPlatform(wi, 0); st
 assert(playBgOk, "Alle 6 Welten als Vollbild (Kulisse + Vordergrund) rendern fehlerfrei", playBgDetail);
 
 /* ===================================================================
-   VIEWPORTS / ORIENTIERUNG — Querformat ist Hauptformat. Der
-   "Bitte drehen"-Hinweis erscheint NUR im Handy-Hochformat (kleine
-   Kante < 560px). Desktop, Phone-Querformat und Tablet-Hochformat
-   spielen normal; Handy-Hochformat pausiert bis zum Drehen.
+   VIEWPORTS / ORIENTIERUNG — Hochformat ist VOLL spielbar. Es gibt
+   keinen Dreh-Zwang und keine Pause mehr. Im Handy-Hochformat erscheint
+   nur ein dezenter, WEGKLICKBARER Hinweis ("Querformat empfohlen").
+   Desktop, Phone-Quer und Tablet-Hoch zeigen keinen Hinweis. Das
+   Layout schaltet im Hochformat auf eine Portrait-Anordnung (Canvas
+   oben, Touch-Tasten unten) via data-portrait am <html>.
    =================================================================== */
 if (typeof G.checkOrientation === "function") {
-  const rot = getEl("scRotate");
-  const hidden = () => rot.classList.contains("hidden");
+  const hint = getEl("portHint");
+  const hintShown = () => !hint.classList.contains("hidden");
+  const portraitLayout = () => htmlEl.getAttribute("data-portrait") === "1";
   function setVP(w, h) { sandbox.innerWidth = w; sandbox.innerHeight = h; G.checkOrientation(); }
-  // ins Gameplay, damit der Pause-bei-Drehen-Pfad mitgeprueft wird
+  // ins Gameplay, damit der (frueher pausierende) Pfad mitgeprueft wird
   G.SET.diff = 1; G.loadPlatform(0, 0); step(1);
-  setVP(1280, 720); assert(hidden(), "Viewport Desktop (1280x720): kein Dreh-Hinweis");
-  setVP(844, 390);  assert(hidden(), "Viewport Phone-Querformat (844x390): kein Dreh-Hinweis");
-  setVP(768, 1024); assert(hidden(), "Viewport Tablet-Hochformat (768x1024): kein Dreh-Hinweis (kein Handy)");
-  setVP(390, 844);  assert(!hidden(), "Viewport Handy-Hochformat (390x844): Dreh-Hinweis sichtbar");
-  assert(G.paused === true, "Handy-Hochformat pausiert das Spiel bis zum Drehen", "paused=" + G.paused);
-  setVP(844, 390);  assert(hidden(), "Zurueck auf Querformat: Dreh-Hinweis weg");
-  assert(G.paused === false, "Nach dem Drehen laeuft das Spiel wieder", "paused=" + G.paused);
+  G.portHintDismissed = false;
+
+  setVP(1280, 720); assert(!hintShown(), "Desktop (1280x720): kein Hinweis"); assert(!portraitLayout(), "Desktop: kein Portrait-Layout");
+  setVP(844, 390);  assert(!hintShown(), "Phone-Querformat (844x390): kein Hinweis"); assert(!portraitLayout(), "Querformat: kein Portrait-Layout");
+  assert(G.paused === false, "Querformat: Spiel laeuft (nicht pausiert)", "paused=" + G.paused);
+  setVP(768, 1024); assert(!hintShown(), "Tablet-Hochformat (768x1024): kein Hinweis (kein Handy)");
+
+  // Handy-Hochformat: spielbar (KEINE Pause), dezenter Hinweis sichtbar, Portrait-Layout aktiv
+  setVP(390, 844);
+  assert(hintShown(), "Handy-Hochformat (390x844): dezenter Hinweis sichtbar");
+  assert(portraitLayout(), "Handy-Hochformat: Portrait-Layout aktiv (data-portrait)");
+  assert(G.paused === false, "Handy-Hochformat: Spiel laeuft VOLL weiter (keine Pause)", "paused=" + G.paused);
+
+  // Hochformat ist wirklich spielbar: Frames laufen + Ente bewegt sich per Touch-Eingabe
+  frameErr = null; const pX0 = G.duck.x;
+  for (let i = 0; i < 120 && !frameErr; i++) { G.keys.right = true; if (i % 30 === 0) G.pressJump(); step(1); }
+  G.keys.right = false;
+  assert(!frameErr, "Hochformat: 120 Frames Gameplay fehlerfrei", frameErr);
+  assert(G.duck.x > pX0, "Hochformat: Ente bewegt sich (Steuerung funktioniert)", "dx=" + (G.duck.x - pX0));
+
+  // Hinweis ist wegklickbar und bleibt dann weg (auch bei erneutem Hochformat-Check)
+  getEl("portHintClose")._fire("click");
+  assert(!hintShown(), "Hinweis ist wegklickbar (X schliesst ihn)");
+  setVP(844, 390); setVP(390, 844);
+  assert(!hintShown(), "Weggeklickter Hinweis bleibt weg (Session-Merker)");
+  assert(portraitLayout(), "Nach Wiederkehr ins Hochformat: Portrait-Layout weiterhin aktiv");
+
+  // Drehen zurueck ins Querformat: Hinweis weg, Portrait-Layout aus, Spiel laeuft
+  setVP(844, 390);
+  assert(!hintShown(), "Zurueck auf Querformat: kein Hinweis");
+  assert(!portraitLayout(), "Zurueck auf Querformat: Portrait-Layout aus");
+  assert(G.paused === false, "Querformat: Spiel laeuft", "paused=" + G.paused);
+
+  // Mehrere Viewports rendern fehlerfrei (kein Layout-Bruch / kein Frame-Fehler)
+  let vpErr = "";
+  for (const [w, h] of [[320,568],[375,667],[390,844],[414,896],[768,1024],[844,390],[1024,768],[1280,720]]) {
+    frameErr = null; setVP(w, h); step(2);
+    if (frameErr) { vpErr = w + "x" + h + ": " + frameErr; break; }
+  }
+  assert(!vpErr, "Mehrere Viewports (Hoch + Quer, Phone + Tablet + Desktop) rendern fehlerfrei", vpErr);
+  // Quell-Garantie: kein Dreh-Zwang/Pause mehr im Orientierungs-Pfad
+  setVP(844, 390);
 } else { bad("checkOrientation instrumentiert", "checkOrientation nicht exponiert"); }
+
+/* Source-Guard: der erzwungene "Bitte drehen"-Blocker darf NICHT zurueckkehren. */
+assert(!/scRotate/.test(html), "Source-Guard: kein erzwungener Dreh-Overlay (#scRotate) mehr");
+assert(!/rotatePaused/.test(html), "Source-Guard: keine Pause-bei-Hochformat-Logik (rotatePaused) mehr");
+assert(/data-portrait/.test(html), "Source-Guard: Portrait-Layout per data-portrait vorhanden");
+assert(/portHint/.test(html), "Source-Guard: dezenter, wegklickbarer Portrait-Hinweis vorhanden");
 
 /* ===================================================================
    ANTI-FLACKER — der Kern-Fix: Ente (und Boss) duerfen waehrend der
