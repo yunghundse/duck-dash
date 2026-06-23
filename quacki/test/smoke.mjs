@@ -53,7 +53,9 @@ const htmlEl = makeEl("__html");  // document.documentElement-Stub (data-portrai
 
 let clock = 0;
 let pendingRaf = null;
+let activeIntervals = 0;   // verfolgt setInterval/clearInterval (Polling-Lifecycle-Tests)
 const winListeners = {};
+function fireWin(type, e) { (winListeners[type] || []).forEach(fn => fn(e || { preventDefault(){}, stopPropagation(){} })); }
 
 class GainStub { constructor(){ this.gain = { setValueAtTime(){}, exponentialRampToValueAtTime(){}, value:0 }; } connect(){ return this; } }
 class OscStub { constructor(){ this.frequency = { value:0, setValueAtTime(){}, exponentialRampToValueAtTime(){} }; this.type=""; } connect(){ return this; } start(){} stop(){} }
@@ -63,6 +65,7 @@ const sandbox = {
   console,
   Math, JSON, Date, Object, Array, String, Number, Boolean, isNaN, parseInt, parseFloat, Promise,
   setTimeout: () => 0, clearTimeout: () => {},
+  setInterval: () => { activeIntervals++; return activeIntervals; }, clearInterval: () => { if (activeIntervals > 0) activeIntervals--; },
   performance: { now: () => clock },
   requestAnimationFrame: (cb) => { pendingRaf = cb; return 1; },
   cancelAnimationFrame: () => {},
@@ -101,6 +104,8 @@ const probe = `
   try { Object.defineProperty(g,"lives",{get:()=>lives,set:v=>{lives=v;}}); } catch(e){}
   try { g.retryGame = retryGame; } catch(e){}
   try { g.showSubmit = showSubmit; } catch(e){}
+  try { g.closeNameInput = closeNameInput; } catch(e){}
+  try { Object.defineProperty(g,"nameOpen",{get:()=>nameOpen}); } catch(e){}
   try { g.doSubmit = doSubmit; } catch(e){}
   try { g.skipSubmit = skipSubmit; } catch(e){}
   try { g.openLeaderboard = openLeaderboard; } catch(e){}
@@ -905,6 +910,7 @@ assert(/respawnAtLevelStart/.test(html) && /else respawnAtLevelStart\(\)/.test(h
    =================================================================== */
 if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
   const LB = sandbox.Leaderboard, LS = sandbox.localStorage;
+  if (typeof G.closeNameInput === "function") G.closeNameInput(); // Erststart-Namens-Prompt wie ein Spieler schliessen
   LS.removeItem("quacki_scores");
   assert(LB.configured() === false, "Leaderboard: ohne Config -> Offline-Modus", "configured=" + LB.configured());
   // Wortfilter / Sicherheits-Bereinigung
@@ -933,6 +939,17 @@ if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
   const lbHtml = String(getEl("leaderBody").innerHTML);
   assert(lbHtml.indexOf("<script>") === -1 && lbHtml.indexOf("&lt;script&gt;") !== -1, "Bestenliste: Namen werden escaped gerendert (kein XSS)", lbHtml.slice(0, 70));
   assert(/9999/.test(lbHtml), "Bestenliste: Score wird angezeigt");
+  // Kein Doppel-Submit: nach dem Senden ist der Zustand nicht mehr SUBMIT, erneutes doSubmit() ist No-op
+  assert(G.state !== G.ST.SUBMIT, "Nach Senden: nicht mehr im Submit-State", "state=" + G.state);
+  const cntBefore = JSON.parse(LS.getItem("quacki_scores") || "[]").length;
+  G.doSubmit();
+  const cntAfter = JSON.parse(LS.getItem("quacki_scores") || "[]").length;
+  assert(cntAfter === cntBefore, "Score-Senden: erneutes Senden verhindert (keine Duplikate)", "before=" + cntBefore + " after=" + cntAfter);
+  // Live-Polling laeuft auf der Bestenliste und stoppt beim Verlassen (kein Leak)
+  assert(activeIntervals >= 1, "Bestenliste: Live-Polling aktiv (setInterval)", "intervals=" + activeIntervals);
+  fireWin("keydown", { code: "Escape", preventDefault() {}, stopPropagation() {} });
+  assert(activeIntervals === 0, "Bestenliste verlassen (Esc): Polling gestoppt (kein Leak)", "intervals=" + activeIntervals);
+  assert(G.infoOpenId === "" && G.state === G.ST.OVER, "Bestenliste verlassen -> zurueck zum Game-Over-Screen", "info=" + G.infoOpenId + " state=" + G.state);
   G.applyDuckName("");
 }
 

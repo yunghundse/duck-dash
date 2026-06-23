@@ -1028,7 +1028,8 @@ function gameOver(){ saveEconomy(); saveHighscore();
   overStatsText=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore+(gameMode==="story"?("   "+t("gameOverHint")):"");
   SFX.over();
   if(score>0 && typeof window!=="undefined" && window.Leaderboard){ showSubmit(score,gameMode); } else { showOver(); } }
-function showOver(){ state=ST.OVER; const e=el("overText"); if(e)e.textContent=overStatsText; showScreen("scOver"); }
+function stopLB(){ if(typeof window!=="undefined"&&window.Leaderboard&&Leaderboard.stopPolling)Leaderboard.stopPolling(); }
+function showOver(){ stopLB(); state=ST.OVER; const e=el("overText"); if(e)e.textContent=overStatsText; showScreen("scOver"); }
 // Score-Senden-Screen: Name vorbelegt mit Enten-Name, Wortfilter + max 20, sauber escaped.
 function showSubmit(sc,mode){ pendingScore=sc|0; pendingMode=(mode==="arcade"?"arcade":"story"); lastEntry=null; state=ST.SUBMIT;
   const set=(id,v)=>{const e=el(id);if(e)e.textContent=v;};
@@ -1038,11 +1039,12 @@ function showSubmit(sc,mode){ pendingScore=sc|0; pendingMode=(mode==="arcade"?"a
   const inp=el("submitName"); if(inp){ inp.value=heroName(); inp.setAttribute("placeholder",t("namePlaceholder")); }
   showScreen("scSubmit");
   try{ setTimeout(()=>{ const i=el("submitName"); if(i){i.focus&&i.focus(); i.select&&i.select();} },30); }catch(e){} }
-function doSubmit(){ const inp=el("submitName"); const raw=inp?inp.value:"";
+function doSubmit(){ if(state!==ST.SUBMIT)return; // nur einmal senden (kein Doppel-Submit)
+  const inp=el("submitName"); const raw=inp?inp.value:"";
   const nm=(window.Leaderboard&&Leaderboard.clean)?Leaderboard.clean(raw):(sanitizeName(raw)||"Quacki");
   lastEntry={name:nm,score:pendingScore,mode:pendingMode};
   if(window.Leaderboard&&Leaderboard.submit){ try{ Leaderboard.submit(nm,pendingScore,pendingMode); }catch(e){} }
-  openLeaderboard(); }
+  openLeaderboard("scOver"); }
 function skipSubmit(){ showOver(); }
 function levelCleared(){ SFX.clear();
   if(gameMode==="arcade"){ // Score-Attack: Runde geschafft -> sofort dieselbe Runde erneut, Score laeuft weiter
@@ -1066,7 +1068,7 @@ el("btnPause").addEventListener("click",e=>{e.stopPropagation();pauseSet(true);}
 el("btnResume").addEventListener("click",e=>{e.stopPropagation();pauseSet(false);});
 el("btnPauseSettings").addEventListener("click",e=>{e.stopPropagation();paused=false;el("scPause").classList.add("hidden");el("pad").classList.remove("hidden");openSettings();});
 el("btnPauseMenu").addEventListener("click",e=>{e.stopPropagation();pauseSet(false);goToMenu();});
-function goToMenu(){ saveProgress(); state=ST.TITLE; showScreen("scTitle"); }
+function goToMenu(){ stopLB(); saveProgress(); state=ST.TITLE; showScreen("scTitle"); }
 addEventListener("blur",()=>{ if(isGameplay()&&!paused)pauseSet(true); });
 document.addEventListener("visibilitychange",()=>{ if(document.hidden&&isGameplay()&&!paused)pauseSet(true); });
 
@@ -1124,7 +1126,10 @@ function showInfo(id,fill){ infoOpenId=id; fill(); infoOpen=true; showScreen(id)
 function closeInfo(){ infoOpen=false; infoOpenId=""; if(window.Leaderboard&&Leaderboard.stopPolling)Leaderboard.stopPolling(); showScreen("scTitle"); }
 // Bestenliste mit Rueckkehr-Ziel (vom Titel -> Titel; nach Game Over -> Game-Over-Screen)
 let leaderReturn="scTitle";
-function openLeaderboard(ret){ leaderReturn=ret||(state===ST.SUBMIT?"scOver":"scTitle"); showInfo("scLeader",fillLeader); }
+function openLeaderboard(ret){ leaderReturn=ret||(state===ST.SUBMIT?"scOver":"scTitle");
+  // SUBMIT verlassen, damit Tasten ueber den infoOpen/Bestenlisten-Zweig laufen (Escape -> closeLeader -> stopPolling, kein Doppel-Submit)
+  if(state===ST.SUBMIT)state=ST.OVER;
+  showInfo("scLeader",fillLeader); }
 function closeLeader(){ infoOpen=false; infoOpenId=""; if(window.Leaderboard&&Leaderboard.stopPolling)Leaderboard.stopPolling();
   if(leaderReturn==="scOver"){ showOver(); } else { state=ST.TITLE; showScreen("scTitle"); } }
 function escLB(s){ return (window.Leaderboard&&Leaderboard.escapeHtml)?Leaderboard.escapeHtml(s):String(s); }
