@@ -41,6 +41,7 @@ function makeEl(id) {
     id, width: 384, height: 224, textContent: "", style: {},
     classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);}, toggle(c,f){f?this._s.add(c):this._s.delete(c);} },
     getContext() { return ctxStub; },
+    getBoundingClientRect() { return { left: 0, top: 0, width: 384, height: 224, right: 384, bottom: 224 }; },
     addEventListener(t, fn) { (listeners[t] || (listeners[t] = [])).push(fn); },
     setAttribute(k, v) { attrs[k] = String(v); }, getAttribute(k) { return (k in attrs) ? attrs[k] : null; }, removeAttribute(k) { delete attrs[k]; }, hasAttribute(k) { return k in attrs; },
     _fire(t, e) { (listeners[t] || []).forEach(fn => fn(e || { preventDefault(){}, stopPropagation(){} })); },
@@ -607,6 +608,30 @@ if (typeof G.moveY === "function") {
 } else { bad("moveY instrumentiert", "moveY nicht exponiert"); }
 // Source-Guard: Substep-Aufloesung vorhanden
 assert(/moveYStep/.test(html) && /Substep/.test(html), "Source-Guard: Kollisions-Substepping (moveYStep) vorhanden");
+
+/* ===================================================================
+   TOUCH-ZURUECK auf Weltkarte/Sub-Map — frueher gab es per Touch keinen
+   Rueckweg (mobile Sackgasse). Jetzt: Canvas-Zurueck-Chip oben links +
+   Tipp-Trefferflaeche. Wir feuern einen Touch auf den Chip.
+   =================================================================== */
+{
+  const cvEl = getEl("cv");
+  const tapCanvas = (x, y) => cvEl._fire("pointerdown", { clientX: x, clientY: y, preventDefault(){}, stopPropagation(){} });
+  // Weltkarte -> Zurueck fuehrt ins Hauptmenue
+  G.SET.diff = 1; G.startGame(); let gg=0; while (G.state === G.ST.STORY && gg++ < 10) G.storyAdvance();
+  G.enterOverworld(); step(1);
+  assert(G.state === G.ST.OVERWORLD, "Setup: Weltkarte offen", "state=" + G.state);
+  tapCanvas(9, 10);
+  assert(G.state === G.ST.TITLE, "Weltkarte: Touch-Zurueck-Chip fuehrt ins Hauptmenue", "state=" + G.state);
+  // Sub-Map -> Zurueck fuehrt zur Weltkarte
+  G.startGame(); gg=0; while (G.state === G.ST.STORY && gg++ < 10) G.storyAdvance();
+  G.enterOverworld(); G.enterSubmap(0); step(1);
+  assert(G.state === G.ST.SUBMAP, "Setup: Sub-Map offen", "state=" + G.state);
+  tapCanvas(9, 10);
+  assert(G.state === G.ST.OVERWORLD, "Sub-Map: Touch-Zurueck-Chip fuehrt zur Weltkarte", "state=" + G.state);
+}
+// Source-Guard: Zurueck-Pfade verdrahtet
+assert(/inBackChip/.test(html) && /drawBackChip/.test(html), "Source-Guard: Touch-Zurueck-Chip (inBackChip/drawBackChip) vorhanden");
 
 /* ===================================================================
    VIEWPORTS / ORIENTIERUNG — Hochformat ist VOLL spielbar. Es gibt
