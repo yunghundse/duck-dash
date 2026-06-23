@@ -994,6 +994,12 @@ if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
   await LB2.top(20).then(r => { topRows = r.rows; topOnline = r.online; });
   assert(topOnline === true && topRows && topRows.length === 2, "Leaderboard online: top() holt Eintraege vom Server (GET)", "n=" + (topRows && topRows.length));
   assert(calls.some(c => /\/rest\/v1\/scores\?/.test(c.url) && /order=score\.desc/.test(c.url)), "Leaderboard online: GET /rest/v1/scores mit order=score.desc&limit");
+  // Modus-Trennung: top(n,"story") filtert serverseitig per mode=eq.story
+  await LB2.top(20, "story").then(() => {});
+  assert(calls.some(c => /mode=eq\.story/.test(c.url)), "Leaderboard online: Modus-Filter im GET (mode=eq.story)");
+  // mini-Modus normalisiert (arcade -> mini)
+  await LB2.top(20, "arcade").then(() => {});
+  assert(calls.some(c => /mode=eq\.mini/.test(c.url)), "Leaderboard online: Modus arcade wird zu mini normalisiert");
   let subRes = null;
   await LB2.submit("Player One", 1234, "story").then(r => { subRes = r; });
   assert(subRes && subRes.online === true, "Leaderboard online: submit() sendet erfolgreich (POST)", JSON.stringify(subRes));
@@ -1005,7 +1011,13 @@ if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
 }
 // Source-Guard: Leaderboard self-contained (keine fest verdrahtete http-URL im Client)
 { const lbSrc = readFileSync(join(__dir, "..", "leaderboard.js"), "utf8");
-  assert(!/https?:\/\//.test(lbSrc), "Self-Containment: leaderboard.js ohne fest verdrahtete http-URL (Basis kommt aus Config)"); }
+  assert(!/https?:\/\//.test(lbSrc), "Self-Containment: leaderboard.js ohne fest verdrahtete http-URL (Basis kommt aus Config)");
+  assert(/QUACKI_LEADERBOARD/.test(lbSrc), "Leaderboard liest window.QUACKI_LEADERBOARD (Config-Name)");
+  const cfgSrc = readFileSync(join(__dir, "..", "leaderboard-config.js"), "utf8");
+  assert(/QUACKI_LEADERBOARD/.test(cfgSrc) && /SUPABASE_URL/.test(cfgSrc) && /TABLE/.test(cfgSrc), "Config: QUACKI_LEADERBOARD mit URL/Key/TABLE gesetzt");
+  // Config in beiden HTML eingebunden
+  const idxSrc = readFileSync(join(__dir, "..", "index.html"), "utf8");
+  assert(/leaderboard-config\.js/.test(html) && /leaderboard-config\.js/.test(idxSrc), "leaderboard-config.js in game.html UND index.html eingebunden"); }
 
 /* ===================================================================
    PLATTFORM-TRENNUNG — Desktop (Tastatur/Maus, KEIN Touch-Pad) vs. Touch

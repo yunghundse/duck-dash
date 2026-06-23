@@ -10,10 +10,10 @@
    =================================================================== */
 (function () {
   "use strict";
-  var CFG = (typeof window !== "undefined" && window.LEADERBOARD_CONFIG) || {};
+  var CFG = (typeof window !== "undefined" && (window.QUACKI_LEADERBOARD || window.LEADERBOARD_CONFIG)) || {};
   var BASE = String(CFG.SUPABASE_URL || "").replace(/\/+$/, "");
   var ANON = String(CFG.SUPABASE_ANON_KEY || "");
-  var TABLE = "scores";
+  var TABLE = String(CFG.TABLE || "scores");
   var LOCAL_KEY = "quacki_scores";
   var MAX_NAME = 20;
   var hasFetch = (typeof fetch === "function");
@@ -52,10 +52,12 @@
     a.sort(function (x, y) { return (y.score | 0) - (x.score | 0); });
     localSave(a); return a;
   }
-  function localTop(n) { return localAll().slice(0, n || 20); }
+  function localTop(n, mode) { var a = localAll(); if (mode) a = a.filter(function (r) { return r.mode === mode; }); return a.slice(0, n || 20); }
   function nowISO() { try { return new Date().toISOString(); } catch (e) { return ""; } }
+  // Modus normalisieren: Story bleibt "story", alles andere (arcade/mini) -> "mini".
+  function normMode(mode) { return mode === "story" ? "story" : "mini"; }
   function makeRec(name, score, mode) {
-    return { name: clean(name), score: Math.max(0, score | 0), mode: (mode === "arcade" ? "arcade" : "story") };
+    return { name: clean(name), score: Math.max(0, score | 0), mode: normMode(mode) };
   }
   function headers() {
     return { "apikey": ANON, "Authorization": "Bearer " + ANON, "Content-Type": "application/json" };
@@ -76,28 +78,30 @@
 
   /* ---------- Top-N abrufen ---------- */
   // Promise auf { rows:[{name,score,mode,created_at}], online }.
-  function top(n) {
-    n = n || 20;
-    if (!configured()) return Promise.resolve({ rows: localTop(n), online: false });
-    var url = BASE + "/rest/v1/" + TABLE + "?select=name,score,mode,created_at&order=score.desc&limit=" + n;
+  // Top-N je Modus ("story" | "mini"); ohne mode = alle.
+  function top(n, mode) {
+    n = n || 20; mode = mode ? normMode(mode) : null;
+    if (!configured()) return Promise.resolve({ rows: localTop(n, mode), online: false, mode: mode });
+    var url = BASE + "/rest/v1/" + TABLE + "?select=name,score,mode,created_at" +
+      (mode ? ("&mode=eq." + encodeURIComponent(mode)) : "") + "&order=score.desc&limit=" + n;
     return fetch(url, { headers: headers() })
       .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
-      .then(function (rows) { return { rows: Array.isArray(rows) ? rows : [], online: true }; })
-      .catch(function () { return { rows: localTop(n), online: false }; });
+      .then(function (rows) { return { rows: Array.isArray(rows) ? rows : [], online: true, mode: mode }; })
+      .catch(function () { return { rows: localTop(n, mode), online: false, mode: mode }; });
   }
 
   /* ---------- Echtzeit via Polling ---------- */
   var pollId = null;
-  function startPolling(cb, ms) {
+  function startPolling(cb, ms, mode) {
     stopPolling();
-    var tick = function () { top(20).then(function (res) { if (cb) cb(res); }); };
+    var tick = function () { top(20, mode).then(function (res) { if (cb) cb(res); }); };
     tick();
     pollId = setI(tick, ms || 5000);
   }
   function stopPolling() { if (pollId) { clrI(pollId); pollId = null; } }
 
   window.Leaderboard = {
-    configured: configured, clean: clean, escapeHtml: escapeHtml,
+    configured: configured, clean: clean, escapeHtml: escapeHtml, normMode: normMode,
     submit: submit, top: top, startPolling: startPolling, stopPolling: stopPolling,
     _localTop: localTop, _localAll: localAll
   };
