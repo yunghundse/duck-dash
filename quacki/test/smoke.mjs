@@ -5,7 +5,7 @@
    prueft die Boss-Arena. Exit 0 = gruen, Exit 1 = Fehler.
    Aufruf:  node quacki/test/smoke.mjs
    =================================================================== */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import vm from "node:vm";
@@ -756,6 +756,12 @@ assert(/b\.invuln>0&&b\.defeated<=0\)ctx\.globalAlpha=/.test(html), "Source-Guar
   assert(fontOk, "Self-Containment: lokale Schrift-Datei pressstart2p.woff2 vorhanden (gueltiges wOF2)");
   assert(swSrc.includes("pressstart2p.woff2"), "Self-Containment: Service Worker cacht die Schrift (App-Shell offline)");
   assert(manifest.orientation === "any", "manifest orientation=any (Hoch- UND Querformat erlaubt)", "orientation=" + manifest.orientation);
+  // keine verwaisten Screenshot-/Scratch-Dateien mehr im Auslieferungsordner
+  const stray = readdirSync(join(__dir, "..")).filter(f => /^_.*\.html$/.test(f));
+  assert(stray.length === 0, "Aufgeraeumt: keine verwaisten _*.html im quacki-Ordner", stray.join(", "));
+  // keine geschuetzten Markennamen im ausgelieferten Code (Urheberrecht)
+  assert(!/\bMario\b/i.test(html), "Kein geschuetzter Markenname (Mario) in game.html");
+  assert(!/\b4 Welten\b/.test(html), "Kommentar aktuell: 6 Welten (kein veraltetes '4 Welten')");
 }
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);

@@ -5,3 +5,6 @@ build/
 *.log
 .env
 .env.local
+
+# Quacki: Screenshot-/Scratch-Artefakte nicht ausliefern
+quacki/_*.html
