@@ -951,7 +951,9 @@ function screenConfirm(){ if(state===ST.TITLE){ hasSave()?continueGame():startGa
 /* ---------- Cutscenes ---------- */
 const el=id=>document.getElementById(id);
 function showScreen(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden")); if(id){const e=document.getElementById(id); if(e)e.classList.remove("hidden");} }
-function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||t("cont");storyNext=next;state=ST.STORY;showScreen("scStory");}
+function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||t("cont");
+  { const sk=el("storySkip"); if(sk)sk.textContent=t("skip"); } // Skip-Label zuruecksetzen (nach 'Neues Spiel?'-Abbrechen war es 'Abbrechen')
+  storyNext=next;state=ST.STORY;showScreen("scStory");}
 function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
 el("storyBtn").addEventListener("click",storyAdvance);
 let seqDone=null; // Ziel-Callback der aktuellen Cutscene-Sequenz (fuer "Ueberspringen")
@@ -1134,7 +1136,10 @@ function openLeaderboard(ret){ leaderReturn=ret||(state===ST.SUBMIT?"scOver":"sc
 function closeLeader(){ infoOpen=false; infoOpenId=""; if(window.Leaderboard&&Leaderboard.stopPolling)Leaderboard.stopPolling();
   if(leaderReturn==="scOver"){ showOver(); } else { state=ST.TITLE; showScreen("scTitle"); } }
 function escLB(s){ return (window.Leaderboard&&Leaderboard.escapeHtml)?Leaderboard.escapeHtml(s):String(s); }
-function renderLeader(res){ const rows=(res&&res.rows)||[]; const online=res&&res.online;
+function renderLeader(res){ let rows=((res&&res.rows)||[]).slice(); const online=res&&res.online;
+  // Eigenen frisch gesendeten Eintrag optimistisch zeigen, bis der naechste Poll ihn vom Server bringt.
+  if(lastEntry&&!rows.some(r=>r.name===lastEntry.name&&(r.score|0)===(lastEntry.score|0))){
+    rows.push({name:lastEntry.name,score:lastEntry.score|0,mode:lastEntry.mode}); rows.sort((a,b)=>(b.score|0)-(a.score|0)); rows=rows.slice(0,20); }
   let html="<p>"+escLB(online?t("lbOnline"):t("lbOffline"))+"</p>";
   if(!rows.length){ html+="<p>"+escLB(t("noScores"))+"</p>"; }
   else { html+="<table style='width:100%;border-collapse:collapse;font-size:.95em'>";
