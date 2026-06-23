@@ -146,6 +146,8 @@ const probe = `
   try { g.SET = SET; } catch(e){}
   try { g.storyAdvance = storyAdvance; } catch(e){}
   try { g.enterOverworld = enterOverworld; } catch(e){}
+  try { g.continueGame = continueGame; } catch(e){}
+  try { g.goToMenu = goToMenu; } catch(e){}
   try { g.enterSubmap = enterSubmap; } catch(e){}
   try { g.enterSelectedNode = enterSelectedNode; } catch(e){}
   try { g.beginLevel = beginLevel; } catch(e){}
@@ -474,6 +476,23 @@ assert(G.state === G.ST.PLAY && G.gameMode === "arcade", "Mini-Game: Runde gesch
 assert(G.score >= 1234 && G.worldIdx === arcW, "Mini-Game: Score laeuft weiter, selber Level", "score=" + G.score + " w=" + G.worldIdx);
 G.startGame();
 assert(G.gameMode === "story", "startGame setzt Modus story (Trennung der Modi)", "mode=" + G.gameMode);
+
+// (Modi-Leak) Arcade -> Menue -> Weltkarte (continueGame) darf NICHT als Arcade weiterlaufen.
+// Sonst nimmt levelCleared() den Arcade-Zweig und die Story-Welt loopt = Progressions-Softlock.
+if (typeof G.continueGame === "function") {
+  frameErr = null;
+  G.startArcade();                       // gameMode = arcade
+  assert(G.gameMode === "arcade", "Leak-Setup: Arcade aktiv", "mode=" + G.gameMode);
+  if (typeof G.goToMenu === "function") G.goToMenu();   // wie 'Hauptmenue' im Pause-Menue
+  G.continueGame();                      // wie 'Weltkarte'/'Weiter' im Hauptmenue
+  assert(G.gameMode === "story", "continueGame setzt Modus zurueck auf story (kein Arcade-Leak)", "mode=" + G.gameMode);
+  G.loadPlatform(0, 0); step(1);
+  assert(G.state === G.ST.PLAY && !G.L.boss, "Story-Level nach continueGame aktiv", "state=" + G.state);
+  G.levelCleared();                      // Level geschafft
+  assert(G.state !== G.ST.PLAY, "Story-Level schreitet fort (kein Arcade-Loop in PLAY)", "state=" + G.state);
+  assert(G.gameMode === "story", "Nach Level-Clear weiterhin Story-Modus", "mode=" + G.gameMode);
+  G.startGame();
+} else { bad("continueGame instrumentiert", "continueGame nicht exponiert"); }
 
 // (Name) Enten-Name: setzen, persistieren, kindersicher filtern, anzeigen, mehrsprachig
 G.applyDuckName("Donald");
