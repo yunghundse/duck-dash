@@ -27,7 +27,7 @@ const ctxStub = new Proxy({}, {
     if (p in t) return t[p];
     if (p === "createLinearGradient" || p === "createRadialGradient" || p === "createPattern") return () => grad;
     if (p === "measureText") return () => ({ width: 0 });
-    if (p === "fillRect") return (x, y, w, h) => { if (recordOn) drawRects.push([x, y, w, h, t.fillStyle]); };
+    if (p === "fillRect") return (x, y, w, h) => { if (recordOn) drawRects.push([x, y, w, h, t.fillStyle, (t.globalAlpha == null ? 1 : t.globalAlpha)]); };
     return () => {};
   },
   set(t, p, v) { t[p] = v; if (recordOn && p === "fillStyle" && typeof v === "string") fillStyles.push(v); return true; },
@@ -152,6 +152,7 @@ const probe = `
   try { g.pressJump = pressJump; } catch(e){}
   try { g.buildLevel = buildLevel; } catch(e){}
   try { g.drawWorldBG = drawWorldBG; } catch(e){}
+  try { g.drawDuck = drawDuck; } catch(e){}
   try { g.BGS = BGS; } catch(e){}
   try { g.startArcade = startArcade; } catch(e){}
   try { g.levelCleared = levelCleared; } catch(e){}
@@ -525,6 +526,48 @@ frameErr = null; let playBgOk = true, playBgDetail = "";
 for (let wi=0; wi<6 && playBgOk; wi++){ frameErr=null; G.loadPlatform(wi, 0); step(2);
   if (frameErr){ playBgOk=false; playBgDetail = "W"+(wi+1)+": "+frameErr; } }
 assert(playBgOk, "Alle 6 Welten als Vollbild (Kulisse + Vordergrund) rendern fehlerfrei", playBgDetail);
+
+/* ===================================================================
+   ANTI-FLACKER — der Kern-Fix: Ente (und Boss) duerfen waehrend der
+   Unverwundbarkeit NICHT hart blinken/verschwinden. Wir rendern drawDuck
+   isoliert ueber eine volle Puls-Periode und pruefen pro Frame:
+   (1) die Ente wird IMMER gezeichnet (>=1 Rect, nie komplett weg),
+   (2) das Alpha faellt nie unter den Boden (sichtbar), bleibt <=1,
+   (3) der Alpha-Verlauf ist weich (kein harter Sprung Frame-zu-Frame).
+   =================================================================== */
+if (typeof G.drawDuck === "function") {
+  G.loadPlatform(0, 0); step(1);                 // gueltiges Level -> Ente platziert
+  G.duck.blink = 1.0; G.duck.onGround = true; G.duck.vx = 0;
+  const FLOOR = 0.5;                             // Sichtbarkeits-Boden (Alpha)
+  let minA = 1, maxA = 0, maxJump = 0, prevA = null, everEmpty = false;
+  for (let i = 0; i < 60; i++) {                 // 60 Frames a 16ms = ~960ms > eine Puls-Periode (~754ms)
+    clock += 16; ctxStub.globalAlpha = 1;
+    drawRects.length = 0; recordOn = true;
+    try { G.drawDuck(); } catch (e) { frameErr = e.message; }
+    recordOn = false;
+    if (drawRects.length === 0) { everEmpty = true; continue; }
+    // Alpha, mit dem der Enten-Koerper gezeichnet wurde (alle Rects in drawDuck teilen das Invuln-Alpha)
+    const a = drawRects.reduce((m, r) => Math.min(m, r[5] == null ? 1 : r[5]), 1);
+    minA = Math.min(minA, a); maxA = Math.max(maxA, a);
+    if (prevA != null) maxJump = Math.max(maxJump, Math.abs(a - prevA));
+    prevA = a;
+  }
+  assert(!everEmpty, "Anti-Flacker: Ente waehrend Unverwundbarkeit in JEDEM Frame gezeichnet (verschwindet nie)");
+  assert(minA >= FLOOR, "Anti-Flacker: Ente nie fast unsichtbar (Alpha-Boden >= " + FLOOR + ")", "minAlpha=" + minA.toFixed(3));
+  assert(maxA <= 1.000001, "Anti-Flacker: Alpha bleibt im gueltigen Bereich (<=1)", "maxAlpha=" + maxA.toFixed(3));
+  assert(maxJump <= 0.12, "Anti-Flacker: weicher Alpha-Verlauf, kein harter Sprung Frame-zu-Frame", "maxJump=" + maxJump.toFixed(3));
+  // Nicht-invulnerable Ente: voll sichtbar (Alpha == 1), kein Rest-Schimmern
+  G.duck.blink = 0; clock += 16; ctxStub.globalAlpha = 1;
+  drawRects.length = 0; recordOn = true; try { G.drawDuck(); } catch (e) { frameErr = e.message; } recordOn = false;
+  const solidA = drawRects.reduce((m, r) => Math.min(m, r[5] == null ? 1 : r[5]), 1);
+  assert(drawRects.length > 0 && solidA >= 0.999, "Anti-Flacker: Ente ohne Treffer voll deckend gezeichnet", "alpha=" + solidA.toFixed(3));
+} else { bad("drawDuck instrumentiert", "drawDuck nicht exponiert"); }
+
+// Source-Guard: die alten harten Stroboskop-Muster duerfen NICHT zurueckkehren
+assert(!/Math\.floor\(\s*d\.blink\s*\*\s*\d+\s*\)\s*%\s*2/.test(html), "Source-Guard: kein hartes Enten-Blink-Toggle (d.blink%2) mehr");
+assert(!/Math\.floor\(\s*b\.invuln\s*\*\s*\d+\s*\)\s*%\s*2/.test(html), "Source-Guard: kein hartes Boss-Blink-Toggle (b.invuln%2) mehr");
+assert(/d\.blink>0\)ctx\.globalAlpha=/.test(html), "Source-Guard: Ente nutzt weichen Alpha-Puls bei Unverwundbarkeit");
+assert(/b\.invuln>0&&b\.defeated<=0\)ctx\.globalAlpha=/.test(html), "Source-Guard: Boss nutzt weichen Alpha-Puls bei Unverwundbarkeit");
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
