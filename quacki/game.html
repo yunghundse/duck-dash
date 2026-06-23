@@ -549,7 +549,14 @@ let owCam=0, owDuckX=MAPNODES[0].x, owDuckY=MAPNODES[0].y, owWalk=0, owLastSel=0
 /* ---------- Level build ---------- */
 function buildLevel(def){
   const rows=def.slice(); let W=0; for(const r of rows) W=Math.max(W,r.length);
-  const grid=rows.map(r=>r.padEnd(W," ").split("")); const H=grid.length;
+  // Die untersten zwei Reihen sind der Boden. Wenn eine Boden-Reihe kuerzer ist als die
+  // Maximalbreite, mit ihrem eigenen Boden-Tile auffuellen (statt mit Luft) - sonst entsteht
+  // am rechten Rand ein unsichtbarer 1-Tile-Pit hinter der Flagge (Durchfall = unfairer Tod).
+  const grid=rows.map((r,ri)=>{ let pad=" ";
+    if(ri>=rows.length-2){ const trimmed=r.replace(/\s+$/,""); const last=trimmed[trimmed.length-1];
+      if(last==="#"||last==="=") pad=last; }
+    return r.padEnd(W,pad).split(""); });
+  const H=grid.length;
   const coins=[],foes=[],powers=[],dragons=[],mounts=[]; let spawn={x:2*TILE,y:2*TILE},flag=null,checkpoint=null;
   for(let ty=0;ty<H;ty++)for(let tx=0;tx<W;tx++){const ch=grid[ty][tx];
     if(ch==="o"){coins.push({x:tx*TILE+8,y:ty*TILE+8,got:false,t:Math.random()*6});grid[ty][tx]=" ";}

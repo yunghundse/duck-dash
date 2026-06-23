@@ -554,6 +554,25 @@ for (let wi=0; wi<6 && playBgOk; wi++){ frameErr=null; G.loadPlatform(wi, 0); st
 assert(playBgOk, "Alle 6 Welten als Vollbild (Kulisse + Vordergrund) rendern fehlerfrei", playBgDetail);
 
 /* ===================================================================
+   BODEN-INTEGRITAET — kein unsichtbarer Rand-Pit. Frueher fuellte
+   buildLevel kurze Boden-Reihen mit Luft auf -> in 5/6 L2-Leveln ein
+   1-Tile-Loch in der letzten Spalte hinter der Flagge (Durchfall = Tod).
+   =================================================================== */
+if (typeof G.buildLevel === "function") {
+  const isSolid = (ch) => ch === "#" || ch === "=" || ch === "?" || ch === "P" || ch === "Q";
+  let pitDetail = "";
+  for (let w = 0; w < G.WORLDS.length && !pitDetail; w++) for (let li = 0; li < G.WORLDS[w].levels.length; li++) {
+    const lvl = G.buildLevel(G.WORLDS[w].levels[li]);
+    const b = lvl.grid[lvl.H - 1], b2 = lvl.grid[lvl.H - 2];
+    // jede Spalte muss in mindestens einer der zwei Bodenreihen solide sein -> kein Durchfall-Loch
+    for (let tx = 0; tx < lvl.W; tx++) {
+      if (!isSolid(b[tx]) && !isSolid(b2[tx])) { pitDetail = "W" + (w+1) + "-L" + (li+1) + ": Boden-Loch in Spalte " + tx; break; }
+    }
+  }
+  assert(!pitDetail, "Boden-Integritaet: kein Durchfall-Loch in allen 12 Leveln (auch rechter Rand)", pitDetail);
+} else { bad("buildLevel instrumentiert", "buildLevel nicht exponiert"); }
+
+/* ===================================================================
    VIEWPORTS / ORIENTIERUNG — Hochformat ist VOLL spielbar. Es gibt
    keinen Dreh-Zwang und keine Pause mehr. Im Handy-Hochformat erscheint
    nur ein dezenter, WEGKLICKBARER Hinweis ("Querformat empfohlen").
