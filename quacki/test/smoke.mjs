@@ -1016,6 +1016,12 @@ assert(/html:not\(\[data-touch\]\) #pad\{display:none;?\}/.test(html), "Source-G
   let fontOk = true; try { const st = readFileSync(join(__dir, "..", "pressstart2p.woff2")); fontOk = st.length > 1000 && st.slice(0,4).toString() === "wOF2"; } catch(e){ fontOk = false; }
   assert(fontOk, "Self-Containment: lokale Schrift-Datei pressstart2p.woff2 vorhanden (gueltiges wOF2)");
   assert(swSrc.includes("pressstart2p.woff2"), "Self-Containment: Service Worker cacht die Schrift (App-Shell offline)");
+  // Jede lokale <script src="./x.js"> aus game.html muss im SW-Precache stehen (Offline-Vollstaendigkeit)
+  const scriptSrcs = [...html.matchAll(/<script\s+src="\.\/([^"]+)"/g)].map(m => m[1]);
+  const missing = scriptSrcs.filter(s => !swSrc.includes(s));
+  assert(missing.length === 0, "Self-Containment: alle game.html-Skripte sind im SW-Precache", "fehlt: " + missing.join(", "));
+  // SW darf Fremd-Origins (Supabase-Leaderboard) NICHT cachen -> Live-Polling bleibt live
+  assert(/origin\s*!==\s*self\.location\.origin/.test(swSrc), "SW: Fremd-Origin-Requests werden nicht gecacht (Leaderboard bleibt echtzeit)");
   assert(manifest.orientation === "any", "manifest orientation=any (Hoch- UND Querformat erlaubt)", "orientation=" + manifest.orientation);
   // keine verwaisten Screenshot-/Scratch-Dateien mehr im Auslieferungsordner
   const stray = readdirSync(join(__dir, "..")).filter(f => /^_.*\.html$/.test(f));
