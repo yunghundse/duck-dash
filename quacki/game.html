@@ -1542,8 +1542,8 @@ function drawTitleMascot(){ const cx=VW/2, by=158+Math.sin(performance.now()/400
   ctx.restore();
 }
 function drawCRT(){ if(!SET.crt)return;
-  ctx.globalAlpha=0.10;ctx.fillStyle="#000";for(let y=0;y<VH;y+=2)ctx.fillRect(0,y,VW,1);ctx.globalAlpha=1;
-  const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.32,VW/2,VH/2,VH*0.78);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,"rgba(0,0,0,0.34)");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH); }
+  ctx.globalAlpha=0.07;ctx.fillStyle="#000";for(let y=0;y<VH;y+=2)ctx.fillRect(0,y,VW,1);ctx.globalAlpha=1; // dezentere Scanlines
+  const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.32,VW/2,VH/2,VH*0.78);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,"rgba(0,0,0,0.24)");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH); }
 function drawTiles(w){const x0=Math.floor(camX/TILE),x1=Math.min(L.W,x0+VW/TILE+2);
   for(let tx=x0;tx<x1;tx++)for(let ty=0;ty<L.H;ty++){const ch=L.grid[ty][tx];if(ch===" "||ch==="|")continue;const X=tx*TILE,Y=ty*TILE;
     if(ch==="#"){const top=(ty>0&&L.grid[ty-1][tx]===" ");px(X,Y,TILE,TILE,w.ground);px(X,Y+12,TILE,4,C.dirtDk);
@@ -1636,9 +1636,11 @@ function drawBossShape(b,X,Y,dk){const W=b.w,H=b.h,col=b.color,lite=shade(col,28
     px(X-3,Y+4,4,3,C.beak);px(X-3,Y+6,3,1,"#d96a1e"); // Schnabel
   }
 }
-function drawBoss(){const b=boss;if(b.invuln>0&&Math.floor(b.invuln*12)%2===0&&b.defeated<=0)return;
+function drawBoss(){const b=boss;
   const X=Math.round(b.x),Y=Math.round(b.y),dk=shade(b.color,-34);
-  ctx.save(); if(b.dir>0){ctx.translate(X+b.w,0);ctx.scale(-1,1);ctx.translate(-X,0);}
+  ctx.save(); // Boss-Trefferblitz ebenfalls sanft pulsieren statt hart flackern
+  if(b.invuln>0&&b.defeated<=0)ctx.globalAlpha=0.55+0.3*Math.sin(performance.now()/80);
+  if(b.dir>0){ctx.translate(X+b.w,0);ctx.scale(-1,1);ctx.translate(-X,0);}
   ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(X+b.w/2,Y+b.h+1,b.w/2,4,0,0,7);ctx.fill();
   drawBossShape(b,X,Y,dk);
   if(b.shape==="baron"){ // Kroenchen nur fuer den Baron
@@ -1694,12 +1696,14 @@ function drawCastleCage(){ if(worldIdx!==5||!L)return; const cx=(L.W-6)*TILE, cy
   if(!freed){ for(let i=0;i<5;i++)px(cx+2+i*8,cy-2,2,26,"rgba(220,222,238,.8)"); px(cx-2,cy-4,40,2,"#cfcfe0");px(cx-2,cy+22,40,2,"#cfcfe0"); px(cx-2,cy-4,2,28,"#cfcfe0");px(cx+36,cy-4,2,28,"#cfcfe0"); }
   else { px(cx+4,cy-3,3,3,"#ff7bbf");px(cx+26,cy-5,3,3,"#ff7bbf");px(cx+16,cy-7,3,3,"#ff9ed0"); } // Herzchen
 }
-function drawDuck(){const d=duck;if(d.blink>0&&Math.floor(d.blink*16)%2===0)return;
+function drawDuck(){const d=duck;
   const X=Math.round(d.x),Y=Math.round(d.y),f=d.face;
   ctx.save();
+  // Unverwundbarkeit nach Treffer: sanftes Pulsieren (nie ganz unsichtbar) statt hartem Stroboskop
+  if(d.blink>0)ctx.globalAlpha=0.5+0.32*Math.sin(performance.now()/90);
   if(d.big){const cx=X+d.w/2,cy=Y+d.h;ctx.translate(cx,cy);ctx.scale(1.25,1.25);ctx.translate(-cx,-cy);}
   if(f<0){ctx.translate(X+d.w,0);ctx.scale(-1,1);ctx.translate(-X,0);}
-  if(d.star>0){const hue=(performance.now()/4)%360;px(X-2,Y-2,d.w+4,d.h+4,"hsl("+hue+",90%,65%)");}
+  if(d.star>0){const hue=(performance.now()/14)%360;px(X-2,Y-2,d.w+4,d.h+4,"hsl("+hue+",78%,62%)");} // langsamer, weicher Regenbogen
   if(d.mounted){px(X-3,Y+10,d.w+6,5,"#5fbf4a");px(X-3,Y+14,3,2,"#3a8f2f");px(X+d.w,Y+14,3,2,"#3a8f2f");px(X+d.w+1,Y+8,4,4,"#5fbf4a");px(X+d.w+3,Y+9,1,1,C.eye);}
   const air=!d.onGround,step=air?0:(Math.sin(d.runT)>0?1:-1);
   const flap=(air&&keys.jump&&(d.flutterT>0||d.feather))?(Math.abs(Math.sin(performance.now()/40))*2|0):0;
