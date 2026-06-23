@@ -151,6 +151,12 @@ const probe = `
   try { g.goToMenu = goToMenu; } catch(e){}
   try { g.moveY = moveY; } catch(e){}
   try { g.TILE = TILE; } catch(e){}
+  try { g.FONT = FONT; } catch(e){}
+  try { g.ACCMAP = ACCMAP; } catch(e){}
+  try { g.bmExpand = bmExpand; } catch(e){}
+  try { g.SHOPTXT = SHOPTXT; } catch(e){}
+  try { g.ITEMNAMES = ITEMNAMES; } catch(e){}
+  try { g.HUBTXT = HUBTXT; } catch(e){}
   try { g.enterSubmap = enterSubmap; } catch(e){}
   try { g.enterSelectedNode = enterSelectedNode; } catch(e){}
   try { g.beginLevel = beginLevel; } catch(e){}
@@ -763,6 +769,51 @@ assert(/b\.invuln>0&&b\.defeated<=0\)ctx\.globalAlpha=/.test(html), "Source-Guar
   assert(!/\bMario\b/i.test(html), "Kein geschuetzter Markenname (Mario) in game.html");
   assert(!/\b4 Welten\b/.test(html), "Kommentar aktuell: 6 Welten (kein veraltetes '4 Welten')");
 }
+
+/* ===================================================================
+   SONDERZEICHEN — jeder anzeigbare Text (alle 4 Sprachen, alle Tabellen)
+   muss vom Canvas-Pixel-Font darstellbar sein (FONT oder ACCMAP), sonst
+   erscheinen Kaestchen/Luecken. Zusaetzlich: ES/FR MUESSEN echte Akzente
+   bzw. ES die umgedrehten Satzzeichen nutzen (Kriterium 3).
+   =================================================================== */
+if (G.FONT && G.ACCMAP && typeof G.bmExpand === "function") {
+  const FONT = G.FONT, ACC = G.ACCMAP, exp = G.bmExpand;
+  // Replik der bmText-Glyphaufloesung: ist ein Zeichen renderbar?
+  function badChar(s) {
+    // {platzhalter} werden zur Laufzeit ersetzt -> nie woertlich gerendert
+    const text = String(s).replace(/\{[^}]*\}/g, "");
+    for (const raw of exp(text)) {
+      if (raw === " ") continue;
+      const ch = raw.toUpperCase();
+      if (ACC[ch]) continue;                       // Akzent -> Basis + Diakritikum
+      if (FONT[ch] || FONT[raw]) continue;         // direktes Glyph (auch ß via FONT[raw])
+      return raw;
+    }
+    return null;
+  }
+  // Alle Strings aus allen i18n-Tabellen + Inline-Tabellen einsammeln
+  const tables = [sandbox.I18N, sandbox.I18N_EXTRA, G.SHOPTXT, G.ITEMNAMES, G.HUBTXT];
+  const strings = [];
+  function collect(v) {
+    if (v == null) return;
+    if (typeof v === "string") { strings.push(v); return; }
+    if (Array.isArray(v)) { v.forEach(collect); return; }
+    if (typeof v === "object") { for (const k in v) collect(v[k]); }
+  }
+  tables.forEach(collect);
+  let uncovered = "";
+  for (const s of strings) { const b = badChar(s); if (b) { uncovered = JSON.stringify(b) + " in: " + s.slice(0, 48); break; } }
+  assert(strings.length > 200, "Sonderzeichen: viele i18n-Strings eingesammelt", "n=" + strings.length);
+  assert(!uncovered, "Sonderzeichen: JEDER i18n-Text ist im Pixel-Font darstellbar (keine Kaestchen/Luecken)", uncovered);
+
+  // ES/FR muessen Akzente tragen (kein flaches ASCII); ES zusaetzlich ¡/¿
+  const EX = sandbox.I18N_EXTRA;
+  const esBlob = JSON.stringify(EX.es), frBlob = JSON.stringify(EX.fr);
+  assert(/[áéíóúñü]/.test(esBlob), "Sonderzeichen ES: echte Akzente vorhanden");
+  assert(/[¡¿]/.test(esBlob), "Sonderzeichen ES: umgedrehte Satzzeichen (¡/¿) vorhanden");
+  assert(/[àâäéèêëîïôûùç]/.test(frBlob), "Sonderzeichen FR: echte Akzente vorhanden");
+  assert(/[äöüß]/.test(JSON.stringify(EX.de)), "Sonderzeichen DE: echte Umlaute/ß vorhanden");
+} else { bad("FONT/ACCMAP instrumentiert", "FONT/ACCMAP/bmExpand nicht exponiert"); }
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
