@@ -468,12 +468,12 @@ WORLDS.forEach((w,i)=>{ w.levels=[w.level, L2[i]]; });
    Jeder Boss ist eine Waechter-Ente des Barons. Kurzer Wortwechsel vor
    dem Huepf-Duell. Welt 6 = dramatisches Finale mit dem Baron. */
 const BANTER=[
- [ "Halt! Niemand watschelt hier vorbei!", "Ich bin Hibbel, schnellste Huepf-Ente weit und breit. Fang mich doch!" ],
- [ "Pscht... hoerst du die Blasen platzen?", "Blubber laesst keine kleine Ente durch. Pass auf meine Seifenblasen auf!" ],
- [ "Brrr! Hier ist alles spiegelglatt.", "Frost-Ente friert jeden Weg ein. Komm doch naeher, wenn du dich traust!" ],
- [ "Heisser Sand, kleine Ente!", "Sand-Ente wirbelt Staub, dass dir Hoeren und Sehen vergeht. Kehr lieber um!" ],
+ [ "Halt! Niemand watschelt hier vorbei!", "Ich bin Hibbel, schnellste Hüpf-Ente weit und breit. Fang mich doch!" ],
+ [ "Pscht... hörst du die Blasen platzen?", "Blubber lässt keine kleine Ente durch. Pass auf meine Seifenblasen auf!" ],
+ [ "Brrr! Hier ist alles spiegelglatt.", "Frost-Ente friert jeden Weg ein. Komm doch näher, wenn du dich traust!" ],
+ [ "Heißer Sand, kleine Ente!", "Sand-Ente wirbelt Staub, dass dir Hören und Sehen vergeht. Kehr lieber um!" ],
  [ "Festhalten! Der Wind nimmt zu!", "Sturm-Ente fegt alles von den Wolken. Dich gleich mit!" ],
- [ "So weit bist du also gekommen, "+HERO+".", "Ich, "+VILLAIN+", habe sechs Welten zwischen dich und "+PRIN+" gelegt — und doch stehst du hier.", "Genug geplaudert. Ein letztes Huepf-Duell entscheidet alles!" ],
+ [ "So weit bist du also gekommen, "+HERO+".", "Ich, "+VILLAIN+", habe sechs Welten zwischen dich und "+PRIN+" gelegt — und doch stehst du hier.", "Genug geplaudert. Ein letztes Hüpf-Duell entscheidet alles!" ],
 ];
 WORLDS.forEach((w,i)=>{ w.boss.banter=BANTER[i]; });
 
@@ -712,7 +712,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("tHi", highscore>0 ? (t("highscoreShort")+": "+String(highscore).padStart(6,"0")) : "");
   set("tDuck", t("yourDuck",{name:heroName()}));
   set("portHintText",t("rotateText"));
-  set("storySkip",{de:"Ueberspringen",en:"Skip",es:"Saltar",fr:"Passer"}[SET.lang]||"Skip");set("storyBtn",t("cont"));
+  set("storySkip",{de:"Überspringen",en:"Skip",es:"Saltar",fr:"Passer"}[SET.lang]||"Skip");set("storyBtn",t("cont"));
   set("hHelpTitle",t("helpTitle"));set("hBiosTitle",t("biosTitle"));set("hLeaderTitle",t("leaderboardTitle"));
   set("lbTabStory",t("menuStory"));set("lbTabMini",t("menuArcade"));
   set("btnHelpBack",t("back"));set("btnBiosBack",t("back"));set("btnLeaderBack",t("back"));
