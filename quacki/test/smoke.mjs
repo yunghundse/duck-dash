@@ -130,6 +130,7 @@ const probe = `
   try { g.bossName = bossName; } catch(e){}
   try { g.startGame = startGame; } catch(e){}
   try { g.pauseSet = pauseSet; } catch(e){}
+  try { g.skipScene = skipScene; } catch(e){}
   try { g.toggleTheme = toggleTheme; } catch(e){}
   try { g.settingsRows = settingsRows; } catch(e){}
   try { g.DIFFNAME = DIFFNAME; } catch(e){}
@@ -421,6 +422,15 @@ assert(G.WORLDS.length === 6, "Genau 6 Welten");
 let bossesOk = true; for (let i = 0; i < 6; i++) if (!G.bossName(i) || !G.WORLDS[i].levels || G.WORLDS[i].levels.length < 1) bossesOk = false;
 assert(bossesOk, "Jede Welt hat Level + benannten Boss");
 assert(!!G.t("introText") && !!G.t("bioBaron") && !!G.t("bioGoldi"), "Story-Bogen vorhanden (Intro + Baron + Goldi)");
+
+// Intro ueberspringbar: startGame -> STORY -> skipScene -> direkt im Hub
+frameErr = null;
+G.startGame();
+assert(G.state === G.ST.STORY, "Intro zeigt Cutscene (STORY)", "state=" + G.state);
+G.skipScene();
+assert(G.state === G.ST.HUB, "Intro ueberspringbar -> direkt im Hub", "state=" + G.state);
+step(2);
+assert(!frameErr, "Nach Intro-Skip laufen Frames fehlerfrei", frameErr);
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();

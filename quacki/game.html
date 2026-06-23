@@ -109,7 +109,10 @@
     <div id="storyEmoji"></div>
     <h2 id="storyTitle">—</h2>
     <div class="sub" id="storyText">—</div>
-    <button class="btn" id="storyBtn">Weiter ▶</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="storyBtn">Weiter</button>
+      <button class="btn ghost" id="storySkip" style="background:transparent;color:var(--ui-sub);border-color:var(--ui-edge);box-shadow:none">Ueberspringen</button>
+    </div>
   </div>
 
   <div id="scOver" class="screen dim hidden">
@@ -571,6 +574,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   const cont=document.getElementById("btnContinue"); if(cont){ if(hasSave())cont.removeAttribute("disabled"); else cont.setAttribute("disabled","1"); }
   // Info-Screen-Titel + Zurueck
   set("tHi", highscore>0 ? (t("highscoreShort")+": "+String(highscore).padStart(6,"0")) : "");
+  set("storySkip",{de:"Ueberspringen",en:"Skip",es:"Saltar",fr:"Passer"}[SET.lang]||"Skip");set("storyBtn",t("cont"));
   set("hHelpTitle",t("helpTitle"));set("hBiosTitle",t("biosTitle"));set("hLeaderTitle",t("leaderboardTitle"));
   set("btnHelpBack",t("back"));set("btnBiosBack",t("back"));set("btnLeaderBack",t("back"));
   const picks=document.querySelectorAll&&document.querySelectorAll(".langpick");
@@ -721,6 +725,7 @@ addEventListener("keydown",e=>{
   else if(["ArrowRight","KeyD"].includes(e.code))keys.right=true;
   else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=true;pressJump();e.preventDefault();}
   else if(e.code==="Enter"){screenConfirm();}
+  else if(e.code==="Escape"&&state===ST.STORY){skipScene();}
   else if(e.code==="KeyM"){const on=!(SET.sfx&&SET.music);SET.sfx=on;SET.music=on;saveSettings();}
   else if(e.code==="KeyC"){SET.crt=!SET.crt;saveSettings();}
   else if(e.code==="KeyO"&&(state===ST.TITLE||state===ST.OVERWORLD||state===ST.SUBMAP)){openSettings();}
@@ -764,9 +769,13 @@ function showScreen(id){ document.querySelectorAll(".screen").forEach(s=>s.class
 function cutscene(emoji,title,text,btn,next){el("storyEmoji").textContent="";el("storyTitle").textContent=title;el("storyText").textContent=text;el("storyBtn").textContent=btn||t("cont");storyNext=next;state=ST.STORY;showScreen("scStory");}
 function storyAdvance(){const n=storyNext;storyNext=null;if(n)n();}
 el("storyBtn").addEventListener("click",storyAdvance);
+let seqDone=null; // Ziel-Callback der aktuellen Cutscene-Sequenz (fuer "Ueberspringen")
+function skipScene(){ if(state!==ST.STORY)return; // ganze Sequenz ueberspringen
+  if(seqDone){ const d=seqDone; seqDone=null; storyNext=null; d(); } else { storyAdvance(); } }
+el("storySkip").addEventListener("click",e=>{e.stopPropagation();skipScene();});
 /* Spielt mehrere Cutscene-Beats nacheinander, dann done().
    beats: [{t:Titel, x:Text, btn?:Buttontext}] */
-function dialogSeq(beats,done){ let i=0; const next=()=>{ if(i>=beats.length){ if(done)done(); return; }
+function dialogSeq(beats,done){ seqDone=done||null; let i=0; const next=()=>{ if(i>=beats.length){ const d=seqDone; seqDone=null; if(d)d(); return; }
   const b=beats[i++]; cutscene("",b.t,b.x,b.btn||t("cont"),next); }; next(); }
 
 /* ---------- Flow ---------- */
