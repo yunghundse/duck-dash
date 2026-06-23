@@ -1951,19 +1951,21 @@ checkOrientation();
 /* ---------- Plattform-Erkennung: echtes Desktop (Tastatur/Maus) vs. Touch (On-Screen) ----------
    Setzt data-touch am <html>. CSS blendet das Touch-Pad nur im Touch-Modus ein. Auf Hybrid-
    Geraeten schaltet die zuletzt genutzte Eingabeart um (Maus -> Desktop, Finger -> Touch). */
-let touchMode=false;
+let touchMode=false, userChoseInput=false;
+function mm(q){ try{ return !!(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia(q).matches); }catch(e){ return false; } }
 function inputIsTouch(){ try{
+  if(mm("(pointer:coarse)"))return true;                 // primaerer Zeiger ist grob (Handy/Tablet) -> Touch
+  if(mm("(hover:hover) and (pointer:fine)"))return false; // klassischer Desktop mit Maus -> kein Touch-Pad
   if(typeof navigator!=="undefined"&&navigator.maxTouchPoints>0)return true;
   if(typeof window!=="undefined"&&"ontouchstart" in window)return true;
-  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(pointer:coarse)").matches)return true;
   }catch(e){} return false; }
 function setTouchMode(on){ touchMode=!!on; const de=(typeof document!=="undefined")&&document.documentElement;
   if(de&&de.setAttribute){ if(on)de.setAttribute("data-touch","1"); else if(de.removeAttribute)de.removeAttribute("data-touch"); } }
-function detectInputMode(){ setTouchMode(inputIsTouch()); }
+function detectInputMode(){ if(userChoseInput)return; setTouchMode(inputIsTouch()); } // nach Nutzerwahl nicht ueberschreiben
 detectInputMode();
 addEventListener("resize",detectInputMode);
-// Hybrid: zuletzt genutzte Eingabeart bestimmt den Modus
-addEventListener("pointerdown",e=>{ if(e&&e.pointerType==="touch")setTouchMode(true); else if(e&&e.pointerType==="mouse")setTouchMode(false); }, true);
+// Hybrid (Touchscreen-Laptop): zuletzt GENUTZTE Eingabeart bestimmt den Modus und friert ihn ein.
+addEventListener("pointerdown",e=>{ if(e&&e.pointerType==="touch"){userChoseInput=true;setTouchMode(true);} else if(e&&e.pointerType==="mouse"){userChoseInput=true;setTouchMode(false);} }, true);
 // iOS: Pinch-Zoom-Geste unterbinden (Vollbild-App-Gefuehl)
 ["gesturestart","gesturechange","gestureend"].forEach(ev=>{ try{ addEventListener(ev,e=>{e.preventDefault&&e.preventDefault();}, {passive:false}); }catch(_){} });
 // Audio erst nach erster Nutzergeste starten (iOS/Autoplay-Policy)

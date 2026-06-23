@@ -54,6 +54,7 @@ const htmlEl = makeEl("__html");  // document.documentElement-Stub (data-portrai
 let clock = 0;
 let pendingRaf = null;
 let activeIntervals = 0;   // verfolgt setInterval/clearInterval (Polling-Lifecycle-Tests)
+let mediaState = {};       // matchMedia-Query -> bool (Plattform-Tests)
 const winListeners = {};
 function fireWin(type, e) { (winListeners[type] || []).forEach(fn => fn(e || { preventDefault(){}, stopPropagation(){} })); }
 
@@ -66,6 +67,7 @@ const sandbox = {
   Math, JSON, Date, Object, Array, String, Number, Boolean, isNaN, parseInt, parseFloat, Promise,
   setTimeout: () => 0, clearTimeout: () => {},
   setInterval: () => { activeIntervals++; return activeIntervals; }, clearInterval: () => { if (activeIntervals > 0) activeIntervals--; },
+  matchMedia: (q) => ({ matches: !!mediaState[q], media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }),
   performance: { now: () => clock },
   requestAnimationFrame: (cb) => { pendingRaf = cb; return 1; },
   cancelAnimationFrame: () => {},
@@ -1010,14 +1012,19 @@ if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
    (On-Screen-Pad). Multitouch: laufen + springen gleichzeitig, kein Verschlucken.
    =================================================================== */
 if (typeof G.detectInputMode === "function") {
-  // Desktop (kein Touch): kein data-touch -> CSS blendet das Touch-Pad aus
-  sandbox.navigator.maxTouchPoints = 0;
+  // Desktop (Maus): kein data-touch -> CSS blendet das Touch-Pad aus
+  mediaState = {}; sandbox.navigator.maxTouchPoints = 0;
   G.setTouchMode(false); G.detectInputMode();
   assert(htmlEl.getAttribute("data-touch") === null && G.touchMode === false, "Desktop-Modus: kein data-touch (Touch-Pad ausgeblendet)", "attr=" + htmlEl.getAttribute("data-touch"));
-  // Touch-Geraet: data-touch gesetzt -> Touch-Pad sichtbar
-  sandbox.navigator.maxTouchPoints = 5;
+  // Handy/Tablet (pointer:coarse): data-touch gesetzt -> Touch-Pad sichtbar
+  mediaState = { "(pointer:coarse)": true }; sandbox.navigator.maxTouchPoints = 5;
   G.detectInputMode();
-  assert(htmlEl.getAttribute("data-touch") === "1" && G.touchMode === true, "Touch-Modus: data-touch=1 (Touch-Pad sichtbar)", "attr=" + htmlEl.getAttribute("data-touch"));
+  assert(htmlEl.getAttribute("data-touch") === "1" && G.touchMode === true, "Touch-Modus (pointer:coarse): data-touch=1 (Touch-Pad sichtbar)", "attr=" + htmlEl.getAttribute("data-touch"));
+  // Hybrid: Touchscreen-Laptop mit Maus (hover:hover + pointer:fine, aber maxTouchPoints>0) -> startet als DESKTOP, kein Pad
+  mediaState = { "(hover:hover) and (pointer:fine)": true }; sandbox.navigator.maxTouchPoints = 5;
+  G.detectInputMode();
+  assert(htmlEl.getAttribute("data-touch") === null && G.touchMode === false, "Hybrid (Touchscreen-Laptop, Maus): startet als Desktop ohne Touch-Pad", "attr=" + htmlEl.getAttribute("data-touch"));
+  mediaState = { "(pointer:coarse)": true }; G.detectInputMode();   // zurueck in Touch fuer Multitouch-Test
   // Multitouch: links + springen GLEICHZEITIG, ohne Verschlucken
   G.SET.diff = 1; G.loadPlatform(0, 0); step(1);
   G.keys.left = G.keys.right = G.keys.jump = false;
@@ -1025,7 +1032,7 @@ if (typeof G.detectInputMode === "function") {
   assert(G.keys.left === true && G.keys.jump === true, "Multitouch: laufen + springen gleichzeitig erkannt (kein Verschlucken)", "left=" + G.keys.left + " jump=" + G.keys.jump);
   getEl("bLeft")._fire("pointerup"); getEl("bJump")._fire("pointerup");
   assert(G.keys.left === false && G.keys.jump === false, "Touch: Loslassen beendet beide Eingaben sauber", "left=" + G.keys.left + " jump=" + G.keys.jump);
-  sandbox.navigator.maxTouchPoints = 0; G.setTouchMode(false);
+  mediaState = {}; sandbox.navigator.maxTouchPoints = 0; G.setTouchMode(false);
 } else { bad("detectInputMode instrumentiert", "detectInputMode nicht exponiert"); }
 // Source-Guards Plattform-Trennung
 assert(/data-touch/.test(html) && /detectInputMode/.test(html), "Source-Guard: JS-Plattform-Erkennung (data-touch) vorhanden");
