@@ -156,6 +156,11 @@ const probe = `
   try { g.startArcade = startArcade; } catch(e){}
   try { g.levelCleared = levelCleared; } catch(e){}
   try { Object.defineProperty(g,"gameMode",{get:()=>gameMode}); } catch(e){}
+  try { g.applyDuckName = applyDuckName; } catch(e){}
+  try { g.heroName = heroName; } catch(e){}
+  try { g.sanitizeName = sanitizeName; } catch(e){}
+  try { g.fillBios = fillBios; } catch(e){}
+  try { g.applyTitleI18n = applyTitleI18n; } catch(e){}
   return g;
 })();
 `;
@@ -289,7 +294,9 @@ assert(G.state === G.ST.SETTINGS, "openSettings -> SETTINGS", "state=" + G.state
 step(2);
 assert(!frameErr, "Settings-Frames laufen fehlerfrei", frameErr);
 const sfxBefore = G.SET.sfx;
-G.setSel = 0; G.settingsToggle();
+// Sound ist Zeile 1 (Zeile 0 = Enten-Name)
+const soundRow = G.settingsRows().findIndex(r => r.label === G.t("sound"));
+G.setSel = soundRow >= 0 ? soundRow : 1; G.settingsToggle();
 assert(G.SET.sfx === !sfxBefore, "Ton-Toggle wirkt", "sfx=" + G.SET.sfx);
 const stored = JSON.parse(sandbox.localStorage.getItem("quacki_settings") || "{}");
 assert(stored.sfx === G.SET.sfx, "Einstellung in localStorage persistiert", "stored=" + JSON.stringify(stored));
@@ -459,6 +466,24 @@ assert(G.state === G.ST.PLAY && G.gameMode === "arcade", "Mini-Game: Runde gesch
 assert(G.score >= 1234 && G.worldIdx === arcW, "Mini-Game: Score laeuft weiter, selber Level", "score=" + G.score + " w=" + G.worldIdx);
 G.startGame();
 assert(G.gameMode === "story", "startGame setzt Modus story (Trennung der Modi)", "mode=" + G.gameMode);
+
+// (Name) Enten-Name: setzen, persistieren, kindersicher filtern, anzeigen, mehrsprachig
+G.applyDuckName("Donald");
+assert(G.heroName() === "Donald", "Enten-Name gesetzt (heroName)", "name=" + G.heroName());
+assert(G.SET.duckName === "Donald", "Name in SET", "SET.duckName=" + G.SET.duckName);
+const namedStore = JSON.parse(sandbox.localStorage.getItem("quacki_settings") || "{}");
+assert(namedStore.duckName === "Donald", "Name in localStorage persistiert", "stored=" + JSON.stringify(namedStore.duckName));
+assert(sandbox.localStorage.getItem("quacki_named") === "1", "Erststart-Namensflag gesetzt");
+G.applyTitleI18n();
+assert(String(getEl("tDuck").textContent).includes("Donald"), "Name auf dem Titel sichtbar", "tDuck=" + getEl("tDuck").textContent);
+G.fillBios();
+assert(String(getEl("biosBody").innerHTML).includes("Donald"), "Name im Steckbrief sichtbar");
+G.applyDuckName("fuck");
+assert(G.heroName() === "Quacki", "Wortfilter: unangemessener Name -> Standard 'Quacki'", "name=" + G.heroName());
+assert(!/[^\p{L}\p{N} ]/u.test(G.sanitizeName("Lo@@tt!!")), "Name wird gesaeubert (Sonderzeichen weg)", "san=" + G.sanitizeName("Lo@@tt!!"));
+assert(G.sanitizeName("ABCDEFGHIJKLMNOP").length <= 12, "Name auf 12 Zeichen begrenzt", "len=" + G.sanitizeName("ABCDEFGHIJKLMNOP").length);
+G.setLang("fr"); assert(typeof G.t("nameTitle") === "string" && G.t("nameTitle").length > 0, "FR Namens-Frage vorhanden"); G.setLang("de");
+G.applyDuckName(""); // zuruecksetzen auf Standard fuer Folgetests
 
 // (7) Welten-Kulissen: jede der 6 Welten hat eine eigene, atmosphaerische Parallax-Kulisse (datengetrieben)
 assert(Array.isArray(G.BGS) && G.BGS.length === 6, "6 Welten-Kulissen definiert (BGS)", "len=" + (G.BGS && G.BGS.length));

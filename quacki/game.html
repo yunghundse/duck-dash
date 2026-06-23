@@ -34,6 +34,10 @@
   .btn{cursor:pointer;border:3px solid #23180a;border-radius:0;font-family:'Press Start 2P',monospace;font-size:clamp(10px,2vw,14px);
     padding:12px 18px;color:#23180a;background:#ffd23f;box-shadow:4px 4px 0 #000;text-transform:uppercase;}
   .btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #000;}
+  .txtin{font-family:'Press Start 2P',monospace;font-size:clamp(12px,3vw,18px);text-align:center;letter-spacing:1px;
+    padding:12px 14px;width:min(86vw,300px);color:#23180a;background:#fff;border:3px solid #23180a;border-radius:0;
+    box-shadow:4px 4px 0 #000;text-transform:none;outline:none;}
+  .txtin::placeholder{color:#9aa6b5;}
   .langpick{cursor:pointer;display:inline-block;padding:2px 5px;border:2px solid rgba(255,255,255,.3);margin:0 1px;color:#cdd5e0;font-size:.95em;}
   .langpick.active{background:#ffd23f;color:#23180a;border-color:#23180a;}
   #pad{position:absolute;inset:0;pointer-events:none;}
@@ -88,6 +92,7 @@
     <div class="sub2" id="tKeys">M = Ton · C = CRT · O = Einstellungen</div>
     <div class="sub2" style="color:#ffd23f" id="tBetaNote">Wird laufend erweitert · Weitere Funktionen folgen</div>
     <div class="sub2" id="tHi" style="color:#7be07b"></div>
+    <div class="sub2" id="tDuck" style="color:#ffd23f"></div>
     <div class="sub2" style="margin-top:4px">
       <span id="tLangLabel">Sprache</span>:
       <span class="langpick" data-l="de">DE</span> <span class="langpick" data-l="en">EN</span>
@@ -103,6 +108,16 @@
       <button class="btn" id="btnBios">Steckbriefe</button>
       <button class="btn" id="btnHelp">Hilfe</button>
       <button class="btn" id="btnSettings">Einstellungen</button>
+    </div>
+  </div>
+
+  <div id="scName" class="screen dim hidden">
+    <h2 id="nameTitle">Wie heisst deine Ente?</h2>
+    <input id="nameInput" class="txtin" type="text" maxlength="12" autocomplete="off" autocapitalize="words"
+      spellcheck="false" enterkeyhint="done" inputmode="text" placeholder="Quacki" />
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="nameOk">OK</button>
+      <button class="btn ghost" id="nameSkip" style="background:transparent;color:var(--ui-sub);border-color:var(--ui-edge);box-shadow:none">Spaeter</button>
     </div>
   </div>
 
@@ -575,7 +590,7 @@ let curWorld=WORLDS[0];
 /* ---------- Audio ---------- */
 let AC=null;
 /* ---------- Einstellungen (persistiert via localStorage) ---------- */
-const SET={sfx:true,music:true,crt:true,diff:1,theme:"dark",lang:"de"};
+const SET={sfx:true,music:true,crt:true,diff:1,theme:"dark",lang:"de",duckName:""};
 // Schwierigkeit: 0=Einfach, 1=Normal, 2=Schwer. Fair balanciert, jede Stufe loesbar.
 const DIFF=[
   {lives:5, foe:0.66, boss:0.78}, // Einfach: mehr Leben, langsamere Gegner/Bosse
@@ -596,7 +611,8 @@ function toggleTheme(){ SET.theme=(SET.theme==="light")?"dark":"light"; applyThe
 function loadSettings(){ try{ const r=localStorage.getItem("quacki_settings"); if(r){const o=JSON.parse(r); if(typeof o.sfx==="boolean")SET.sfx=o.sfx; if(typeof o.music==="boolean")SET.music=o.music; if(typeof o.crt==="boolean")SET.crt=o.crt;
       if(typeof o.diff==="number"&&o.diff>=0&&o.diff<=2)SET.diff=o.diff|0; else if(o.easy===true)SET.diff=0; // Migration alter Saves
       if(o.theme==="light"||o.theme==="dark")SET.theme=o.theme;
-      if(typeof o.lang==="string"&&I18N[o.lang])SET.lang=o.lang;}
+      if(typeof o.lang==="string"&&I18N[o.lang])SET.lang=o.lang;
+      if(typeof o.duckName==="string")SET.duckName=sanitizeName(o.duckName);}
   // Sprache/Theme evtl. von Landing-Page gesetzt
   const ls=localStorage.getItem("quacki_lang"); if(ls&&I18N[ls])SET.lang=ls;
   const tt=localStorage.getItem("quacki_theme"); if(tt==="light"||tt==="dark")SET.theme=tt; }catch(e){} }
@@ -630,6 +646,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   const cont=document.getElementById("btnContinue"); if(cont){ if(hasSave())cont.removeAttribute("disabled"); else cont.setAttribute("disabled","1"); }
   // Info-Screen-Titel + Zurueck
   set("tHi", highscore>0 ? (t("highscoreShort")+": "+String(highscore).padStart(6,"0")) : "");
+  set("tDuck", t("yourDuck",{name:heroName()}));
   set("storySkip",{de:"Ueberspringen",en:"Skip",es:"Saltar",fr:"Passer"}[SET.lang]||"Skip");set("storyBtn",t("cont"));
   set("hHelpTitle",t("helpTitle"));set("hBiosTitle",t("biosTitle"));set("hLeaderTitle",t("leaderboardTitle"));
   set("btnHelpBack",t("back"));set("btnBiosBack",t("back"));set("btnLeaderBack",t("back"));
@@ -771,6 +788,7 @@ function musicTick(dt){ if(!SET.music||!AC)return; musicT-=dt; if(musicT<=0){ co
 /* ---------- Input ---------- */
 const keys={left:false,right:false,jump:false};
 addEventListener("keydown",e=>{
+  if(nameOpen){ if(e.code==="Escape"){closeNameInput();} return; } // Namens-Eingabe: Tasten gehen ins Textfeld
   if(infoOpen){ if(["Escape","Backspace","Enter","Space"].includes(e.code)){closeInfo();e.preventDefault();} return; }
   if(paused){ if(["KeyP","Escape","Enter","Space"].includes(e.code)){pauseSet(false);e.preventDefault();} return; }
   if(e.code==="KeyP"&&isGameplay()){ pauseSet(true); return; }
@@ -846,7 +864,7 @@ function startGame(){ gameMode="story"; if(ac()&&ac().state==="suspended")ac().r
   for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0; curWorld=WORLDS[0];
   // Kurzer, ueberspringbarer Einstieg -> DIREKT Welt 1 Level 1 (kein Hub/NPC-Gate davor).
   // Eine einzige Cutscene-Sequenz: Premise (+ einmalig How-to) + Welt-1-Titel -> Level.
-  const beats=[{t:t("introTitle"),x:t("introText")}];
+  const beats=[{t:heroName()+"!",x:t("namedIntro",{name:heroName(),prin:PRIN})}];
   if(!howtoShown){ howtoShown=true; beats.push({t:t("howToTitle"),x:t("howToText")},{t:t("howToTitle2"),x:t("howToText2")}); }
   beats.push({t:worldName(0)+" - "+t("level")+" 1",x:worldStory(0),btn:t("start")});
   dialogSeq(beats,()=>loadPlatform(0,0)); }
@@ -910,11 +928,31 @@ function goToMenu(){ saveProgress(); state=ST.TITLE; showScreen("scTitle"); }
 addEventListener("blur",()=>{ if(isGameplay()&&!paused)pauseSet(true); });
 document.addEventListener("visibilitychange",()=>{ if(document.hidden&&isGameplay()&&!paused)pauseSet(true); });
 
+/* ---------- Enten-Name: eigener Name fuer die Spieler-Ente ---------- */
+function heroName(){ return SET.duckName || HERO; }
+// Saeubert + kindersicher: nur Buchstaben/Ziffern/Space, max 12, Wortfilter -> sonst Standardname
+function sanitizeName(raw){ let s=String(raw==null?"":raw).replace(/[^\p{L}\p{N} ]/gu,"").replace(/\s+/g," ").trim().slice(0,12);
+  const low=s.toLowerCase().replace(/\s+/g,"");
+  const bad=["scheiss","arsch","fuck","shit","bitch","nazi","hitler","penis","vagina","porno","hure","fotze","wichs","schlampe","fick"];
+  if(bad.some(b=>low.includes(b))) return "";
+  return s; }
+let nameOpen=false, nameReturn="scTitle";
+function applyDuckName(raw){ SET.duckName=sanitizeName(raw); try{localStorage.setItem("quacki_named","1");}catch(e){} saveSettings(); applyTitleI18n(); return SET.duckName; }
+function applyNameI18n(){ const set=(id,v)=>{const e=el(id);if(e)e.textContent=v;};
+  set("nameTitle",t("nameTitle")); set("nameOk",t("nameOk")); set("nameSkip",t("nameSkip"));
+  const inp=el("nameInput"); if(inp)inp.setAttribute("placeholder",t("namePlaceholder")); }
+function openNameInput(){ nameOpen=true; nameReturn=(state===ST.TITLE?"scTitle":null);
+  const inp=el("nameInput"); if(inp)inp.value=SET.duckName||""; applyNameI18n(); showScreen("scName");
+  try{ setTimeout(()=>{ const i=el("nameInput"); if(i){i.focus(); i.select&&i.select();} },30); }catch(e){} }
+function closeNameInput(){ nameOpen=false; showScreen(nameReturn); }
+function submitName(){ applyDuckName(el("nameInput")?el("nameInput").value:""); closeNameInput(); }
+
 /* ---------- Einstellungen-Screen ---------- */
 function openSettings(){ prevScreenState=state; setSel=0; state=ST.SETTINGS; showScreen(null); }
 function closeSettings(){ saveSettings(); state=prevScreenState; showScreen(state===ST.TITLE?"scTitle":null); }
 // Datengetriebene Settings-Zeilen: toggle (An/Aus), cycle (Wert), action (Knopf)
 function settingsRows(){ return [
+  {label:t("settingsName"), text:()=>heroName(), action:()=>openNameInput()},
   {label:t("sound"), val:()=>SET.sfx, toggle:()=>{SET.sfx=!SET.sfx;}},
   {label:t("music"), val:()=>SET.music, toggle:()=>{SET.music=!SET.music; if(SET.music&&AC){musicI=0;musicT=0;}}},
   {label:t("crt"), val:()=>SET.crt, toggle:()=>{SET.crt=!SET.crt;}},
@@ -937,7 +975,7 @@ function fillHelp(){ el("helpBody").innerHTML =
   "<p>"+t("helpRun")+"</p><p>"+t("helpJump")+"</p><p>"+t("helpGlide")+"</p><p>"+t("helpPause")+"</p><p>"+t("helpRestart")+"</p><p>"+t("helpGoal")+"</p>"+
   "<h3>"+t("helpHero")+"</h3><p>"+t("bioQuacki")+"</p>"; }
 function fillBios(){ const chars=[
-    [HERO,t("bioRoleHero"),t("bioQuacki")],[PRIN,t("bioRolePrincess"),t("bioGoldi")],[VILLAIN,t("bioRoleVillain"),t("bioBaron")],
+    [heroName(),t("bioRoleHero"),t("bioQuacki")],[PRIN,t("bioRolePrincess"),t("bioGoldi")],[VILLAIN,t("bioRoleVillain"),t("bioBaron")],
     [bossName(0),t("bioRoleGuard"),t("bioFrosch")],[bossName(1),t("bioRoleGuard"),t("bioKroko")],[bossName(2),t("bioRoleGuard"),t("bioPinguin")],
     [bossName(3),t("bioRoleGuard"),t("bioKamel")],[bossName(4),t("bioRoleGuard"),t("bioEule")]];
   el("biosBody").innerHTML = chars.map(c=>"<h3>"+c[0]+" <span class='role'>- "+c[1]+"</span></h3><p>"+c[2]+"</p>").join(""); }
@@ -955,6 +993,10 @@ clk("btnLeader",()=>showInfo("scLeader",fillLeader));
 clk("btnBios",()=>showInfo("scBios",fillBios));
 clk("btnHelp",()=>showInfo("scHelp",fillHelp));
 clk("btnHelpBack",closeInfo); clk("btnBiosBack",closeInfo); clk("btnLeaderBack",closeInfo);
+// Enten-Name-Overlay
+clk("nameOk",submitName);
+clk("nameSkip",()=>{ applyDuckName(SET.duckName||""); closeNameInput(); });
+{ const inp=el("nameInput"); if(inp)inp.addEventListener("keydown",e=>{ if(e.code==="Enter"){submitName();} else if(e.code==="Escape"){closeNameInput();} e.stopPropagation(); }); }
 
 /* ---------- Physik ---------- */
 const GRAV=1500,MOVE=132,ACC=900,FRIC=760,JUMP=-430,JUMPCUT=0.45,MAXFALL=520,COYOTE=0.09,FLUTTER=420,FLUTTER_MAX=0.7;
@@ -1677,6 +1719,8 @@ function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)
   const pb=document.getElementById("btnPause"); if(pb)pb.classList.toggle("hidden",!(isGameplay()&&!paused));
   update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
 loadProgress(); loadHighscore(); applyTheme(); applyTitleI18n(); showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
+// Erststart: einmalig nach dem Namen der Ente fragen (spaeter in Einstellungen aenderbar)
+try{ if(!localStorage.getItem("quacki_named")) openNameInput(); }catch(e){}
 try{ if(typeof location!=="undefined"&&location.hash==="#shop"){ openShop(); } }catch(e){}
 /* PWA: Service Worker registrieren (nur ueber http/https, nicht file://) */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
