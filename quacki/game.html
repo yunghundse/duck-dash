@@ -984,6 +984,9 @@ function sanitizeName(raw){ let s=String(raw==null?"":raw).replace(/[^\p{L}\p{N}
     "hurensohn","nutte","pimmel","kacke","schwuchtel","missgeburt","spasti",
     "nigger","nigga","fag","faggot","cunt","cock","pussy","slut","whore","asshole","dick","kkk","sex"];
   if(bad.some(b=>norm.includes(b))) return "";
+  // Nur Zeichen behalten, die der Pixel-Font sicher zeichnen kann (sonst Luecke im Canvas-Namen).
+  // Latein inkl. DE/ES/FR-Akzente ist via FONT+ACCMAP voll abgedeckt; exotische Schriften werden gestrippt.
+  s=bmExpand(s).split("").filter(ch=>{ if(ch===" ")return true; const u=ch.toUpperCase(); return !!(ACCMAP[u]||FONT[u]||FONT[ch]); }).join("").replace(/\s+/g," ").trim().slice(0,12);
   return s; }
 let nameOpen=false, nameReturn="scTitle";
 function applyDuckName(raw){ SET.duckName=sanitizeName(raw); try{localStorage.setItem("quacki_named","1");}catch(e){} saveSettings(); applyTitleI18n(); return SET.duckName; }

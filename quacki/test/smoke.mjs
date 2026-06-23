@@ -529,6 +529,17 @@ assert(G.sanitizeName("ABCDEFGHIJKLMNOP").length <= 12, "Name auf 12 Zeichen beg
   let fp = "";
   for (const n of kept) { if (G.sanitizeName(n) === "") { fp = n; break; } }
   assert(!fp, "Wortfilter: echte (auch akzentuierte) Namen bleiben erhalten", "faelschlich geblockt: " + fp);
+  // Angezeigter Name ist IMMER im Pixel-Font darstellbar (keine Luecke), auch bei exotischer Eingabe
+  if (G.FONT && G.ACCMAP && typeof G.bmExpand === "function") {
+    const cover = (s) => { for (const raw of G.bmExpand(String(s))) { if (raw === " ") continue; const u = raw.toUpperCase(); if (!(G.ACCMAP[u] || G.FONT[u] || G.FONT[raw])) return raw; } return null; };
+    let nameGap = "";
+    for (const n of ["José", "Müller", "Niño", "Søren", "Łukasz", "太郎", "Анна", "Þór", "ÖZGÜR"]) {
+      const san = G.sanitizeName(n); const b = cover(san);
+      if (b) { nameGap = JSON.stringify(n) + " -> " + JSON.stringify(san) + " (" + JSON.stringify(b) + ")"; break; }
+    }
+    assert(!nameGap, "Name: angezeigter Entenname ist immer im Pixel-Font darstellbar (keine Luecke)", nameGap);
+    assert(G.sanitizeName("José") === "José", "Name: akzentuierter Name 'José' bleibt unveraendert", G.sanitizeName("José"));
+  }
 }
 G.setLang("fr"); assert(typeof G.t("nameTitle") === "string" && G.t("nameTitle").length > 0, "FR Namens-Frage vorhanden"); G.setLang("de");
 G.applyDuckName(""); // zuruecksetzen auf Standard fuer Folgetests
