@@ -1167,7 +1167,14 @@ const FONT={
  " ":["000","000","000","000","000"],"-":["000","000","111","000","000"],".":["000","000","000","000","010"],
  ":":["000","010","000","010","000"],"/":["001","001","010","100","100"],"!":["010","010","010","000","010"],
  "+":["000","010","111","010","000"],"'":["010","010","000","000","000"],"\"":["101","101","000","000","000"],
+ // Erweiterung: Satzzeichen/Sonderzeichen, damit DE/ES/FR-Texte nie als Luecke erscheinen
+ "?":["110","001","010","000","010"],"¿":["010","000","010","100","011"],"¡":["010","000","010","010","010"],
+ "ß":["110","101","110","101","100"],"·":["000","000","010","000","000"],
+ "×":["000","101","010","101","000"],"—":["000","000","111","000","000"],",":["000","000","000","010","100"],
+ "=":["000","111","000","111","000"],"(":["010","100","100","100","010"],")":["010","001","001","001","010"],"&":["010","101","010","101","011"],
 };
+/* Ligaturen/Mehrzeichen: vor dem Rendern expandieren (Breite bleibt korrekt, da bmW dieselbe Expansion nutzt). */
+function bmExpand(s){ return String(s).replace(/[Œœ]/g,"OE"); }
 /* Akzent-Buchstaben -> [Basisbuchstabe, Markierungstyp]. Marke wird ueber/unter
    das Basisglyph gezeichnet, damit DE/ES/FR-Sonderzeichen auch in der Pixel-Schrift erscheinen. */
 const ACCMAP={
@@ -1186,9 +1193,9 @@ function bmMark(cx,y,sc,m){ // Diakritikum zeichnen (oberhalb; Cedille unterhalb
   else if(m==="ti"){ctx.fillRect(cx,y-2*sc,sc,sc);ctx.fillRect(cx+sc,y-3*sc+sc,sc,sc);ctx.fillRect(cx+2*sc,y-2*sc,sc,sc);}
   else if(m==="ce"){ctx.fillRect(cx+sc,y+5*sc,sc,sc);}
 }
-function bmW(s,sc){sc=sc||1;return String(s).length*4*sc;}
+function bmW(s,sc){sc=sc||1;return bmExpand(s).length*4*sc;}
 function bmText(s,x,y,col,sc){sc=sc||1;ctx.fillStyle=col;let cx=Math.round(x);y=Math.round(y);
-  for(const raw of String(s)){const ch=raw.toUpperCase();const a=ACCMAP[ch];const base=a?a[0]:ch;const g=FONT[base]||FONT[raw]||FONT[" "];
+  for(const raw of bmExpand(s)){const ch=raw.toUpperCase();const a=ACCMAP[ch];const base=a?a[0]:ch;const g=FONT[base]||FONT[raw]||FONT[" "];
     for(let r=0;r<5;r++){const row=g[r];for(let c=0;c<3;c++)if(row[c]==="1")ctx.fillRect(cx+c*sc,y+r*sc,sc,sc);}
     if(a)bmMark(cx,y,sc,a[1]);
     cx+=4*sc;} return cx;}
