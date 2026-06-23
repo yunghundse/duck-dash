@@ -326,6 +326,14 @@ G.enterHub();
 assert(G.state === G.ST.HUB, "enterHub -> HUB", "state=" + G.state);
 step(2);
 assert(!frameErr, "Hub-Frames laufen fehlerfrei", frameErr);
+// Bug-Fix: Ente muss im Hub sichtbar sein (drawDuck darf nicht per Blink-Skip verschwinden)
+function duckVisible(){ const b=G.duck.blink; return !(b>0 && Math.floor(b*16)%2===0); }
+assert(G.duck.blink <= 0.0001, "Hub: Blink abgebaut (Ente nicht dauerhaft unsichtbar)", "blink=" + G.duck.blink);
+assert(duckVisible(), "Hub: Spieler-Ente ist sichtbar (kein Blink-Skip)", "blink=" + G.duck.blink);
+// auch waehrend Dialog sichtbar
+G.duck.x = (G.HUB_NPCS.find(n=>n.kind==="elder").x)*16; G.updateHub(0.016); G.hubInteract();
+assert(G.dlgActive===true && duckVisible(), "Hub: Ente bleibt im Dialog sichtbar", "dlg="+G.dlgActive+" blink="+G.duck.blink);
+while(G.dlgActive){ G.hubInteract(); }
 const elder = G.HUB_NPCS.find(n => n.kind === "elder");
 G.duck.x = elder.x * 16; // direkt zum Aeltesten
 G.updateHub(0.016);

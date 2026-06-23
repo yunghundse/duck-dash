@@ -662,7 +662,7 @@ let hubL=null, hubNear=null;
 function buildHub(){const W=82,H=14,grid=[];for(let y=0;y<H;y++){const row=[];for(let x=0;x<W;x++)row.push(y>=H-2?"#":" ");grid.push(row);}
   [[19,9,4],[34,8,3],[52,9,5],[63,10,3]].forEach(p=>{for(let i=0;i<p[2];i++)grid[p[1]][p[0]+i]="=";});
   return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:6*TILE,y:(H-4)*TILE},flag:null,checkpoint:null,boss:false};}
-function enterHub(){ if(!hubL)hubL=buildHub(); L=hubL; resetDuckTo(L.spawn); camX=0; hubNear=null; dlgActive=false; state=ST.HUB; showScreen(null); saveEconomy(); }
+function enterHub(){ if(!hubL)hubL=buildHub(); L=hubL; resetDuckTo(L.spawn); duck.blink=0; camX=0; hubNear=null; dlgActive=false; state=ST.HUB; showScreen(null); saveEconomy(); }
 // Dialog
 let dlgActive=false, dlgLines=[], dlgIdx=0, dlgName="";
 function openDialog(name,lines){ dlgName=name; dlgLines=lines||[]; dlgIdx=0; dlgActive=dlgLines.length>0; }
@@ -674,6 +674,7 @@ function hubInteract(){ if(dlgActive){advanceDialog();return;}
   if(hubNear.kind==="shop"){ openDialog(hx("shopName"),hx("shopHi")); openShop(); return; }
   openDialog(hubNpcName(hubNear), hubNear.kind==="elder"?hx("elder"):hx("kid")); }
 function updateHub(dt){ const d=duck;
+  if(d.blink>0)d.blink-=dt; // Blink immer abbauen, sonst bliebe die Ente unsichtbar
   // Idle-Atmen, wenn im Dialog/still
   if(dlgActive)return;
   const want=(keys.right?1:0)-(keys.left?1:0);
