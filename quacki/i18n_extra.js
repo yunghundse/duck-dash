@@ -6,6 +6,10 @@ window.I18N_EXTRA = {
   de: {
     menuHeading: "Hauptmenue",
     menuPlay: "Neues Spiel",
+    menuStory: "Story",
+    menuArcade: "Mini-Game",
+    arcadeLabel: "Mini-Game",
+    arcadeCleared: "Runde geschafft!",
     menuContinue: "Weiter",
     menuMap: "Weltkarte",
     menuShop: "Shop",
@@ -58,6 +62,10 @@ window.I18N_EXTRA = {
   en: {
     menuHeading: "Main Menu",
     menuPlay: "New Game",
+    menuStory: "Story",
+    menuArcade: "Mini-Game",
+    arcadeLabel: "Mini-Game",
+    arcadeCleared: "Round cleared!",
     menuContinue: "Continue",
     menuMap: "World Map",
     menuShop: "Shop",
@@ -110,6 +118,10 @@ window.I18N_EXTRA = {
   es: {
     menuHeading: "Menu principal",
     menuPlay: "Nueva partida",
+    menuStory: "Historia",
+    menuArcade: "Mini-Juego",
+    arcadeLabel: "Mini-Juego",
+    arcadeCleared: "Ronda superada!",
     menuContinue: "Continuar",
     menuMap: "Mapa del mundo",
     menuShop: "Tienda",
@@ -162,6 +174,10 @@ window.I18N_EXTRA = {
   fr: {
     menuHeading: "Menu principal",
     menuPlay: "Nouvelle partie",
+    menuStory: "Histoire",
+    menuArcade: "Mini-Jeu",
+    arcadeLabel: "Mini-Jeu",
+    arcadeCleared: "Manche reussie !",
     menuContinue: "Continuer",
     menuMap: "Carte du monde",
     menuShop: "Boutique",

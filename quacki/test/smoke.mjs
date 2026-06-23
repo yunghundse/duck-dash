@@ -94,7 +94,7 @@ const probe = `
   try { Object.defineProperty(g,"L",{get:()=>L}); } catch(e){}
   try { Object.defineProperty(g,"worldIdx",{get:()=>worldIdx}); } catch(e){}
   try { Object.defineProperty(g,"lives",{get:()=>lives}); } catch(e){}
-  try { Object.defineProperty(g,"score",{get:()=>score}); } catch(e){}
+  try { Object.defineProperty(g,"score",{get:()=>score,set:v=>{score=v;}}); } catch(e){}
   try { Object.defineProperty(g,"boss",{get:()=>boss}); } catch(e){}
   try { Object.defineProperty(g,"subSel",{get:()=>subSel}); } catch(e){}
   try { Object.defineProperty(g,"setSel",{get:()=>setSel,set:(v)=>{setSel=v;}}); } catch(e){}
@@ -153,6 +153,9 @@ const probe = `
   try { g.buildLevel = buildLevel; } catch(e){}
   try { g.drawWorldBG = drawWorldBG; } catch(e){}
   try { g.BGS = BGS; } catch(e){}
+  try { g.startArcade = startArcade; } catch(e){}
+  try { g.levelCleared = levelCleared; } catch(e){}
+  try { Object.defineProperty(g,"gameMode",{get:()=>gameMode}); } catch(e){}
   return g;
 })();
 `;
@@ -439,6 +442,23 @@ assert(!frameErr, "Nach Intro-Skip laufen Frames fehlerfrei", frameErr);
 frameErr = null; G.startGame();
 let gi = 0; while (G.state === G.ST.STORY && gi++ < 10) G.storyAdvance();
 assert(G.state === G.ST.PLAY && G.worldIdx === 0, "Intro durchklicken -> Welt 1 Level 1 (kein Hub davor)", "state=" + G.state + " w=" + G.worldIdx);
+
+// (Modi) Mini-Game / Arcade: sofort spielbar, eigener Modus, Highscore-Loop, schneller Restart
+frameErr = null;
+G.startArcade();
+assert(G.gameMode === "arcade", "startArcade setzt Modus arcade", "mode=" + G.gameMode);
+assert(G.state === G.ST.PLAY, "Mini-Game startet sofort im Level (PLAY, kein Intro/Karte)", "state=" + G.state);
+assert(G.L && !G.L.boss, "Mini-Game laedt Einzel-Level (keine Boss-Arena)");
+const ax0 = G.duck.x;
+for (let i=0;i<150 && !frameErr;i++){ G.keys.right=true; if(i%30===0)G.pressJump(); step(1); }
+G.keys.right=false;
+assert(!frameErr && G.duck.x > ax0, "Mini-Game spielbar (Bewegung, kein Fehler)", frameErr || ("dx="+(G.duck.x-ax0)));
+G.score = 1234; const arcW = G.worldIdx;
+G.levelCleared(); // Runde geschafft -> Score-Attack-Loop
+assert(G.state === G.ST.PLAY && G.gameMode === "arcade", "Mini-Game: Runde geschafft -> sofort weiter (PLAY)", "state=" + G.state);
+assert(G.score >= 1234 && G.worldIdx === arcW, "Mini-Game: Score laeuft weiter, selber Level", "score=" + G.score + " w=" + G.worldIdx);
+G.startGame();
+assert(G.gameMode === "story", "startGame setzt Modus story (Trennung der Modi)", "mode=" + G.gameMode);
 
 // (7) Welten-Kulissen: jede der 6 Welten hat eine eigene, atmosphaerische Parallax-Kulisse (datengetrieben)
 assert(Array.isArray(G.BGS) && G.BGS.length === 6, "6 Welten-Kulissen definiert (BGS)", "len=" + (G.BGS && G.BGS.length));

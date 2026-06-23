@@ -94,7 +94,8 @@
       <span class="langpick" data-l="es">ES</span> <span class="langpick" data-l="fr">FR</span>
     </div>
     <div class="menugrid">
-      <button class="btn" id="btnNew">Neues Spiel</button>
+      <button class="btn" id="btnNew">Story</button>
+      <button class="btn" id="btnArcade">Mini-Game</button>
       <button class="btn" id="btnContinue">Weiter</button>
       <button class="btn" id="btnMap">Weltkarte</button>
       <button class="btn" id="btnShop">Shop</button>
@@ -624,7 +625,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("tKeys",t("keysLine"));set("tBetaNote",t("betaNote"));set("tLangLabel",t("language"));
   set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnShop",t("menuShop"));
   // Hauptmenue-Knoepfe
-  set("btnNew",t("menuPlay"));set("btnContinue",t("menuContinue"));set("btnMap",t("menuMap"));
+  set("btnNew",t("menuStory"));set("btnArcade",t("menuArcade"));set("btnContinue",t("menuContinue"));set("btnMap",t("menuMap"));
   set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));
   const cont=document.getElementById("btnContinue"); if(cont){ if(hasSave())cont.removeAttribute("disabled"); else cont.setAttribute("disabled","1"); }
   // Info-Screen-Titel + Zurueck
@@ -774,7 +775,7 @@ addEventListener("keydown",e=>{
   if(paused){ if(["KeyP","Escape","Enter","Space"].includes(e.code)){pauseSet(false);e.preventDefault();} return; }
   if(e.code==="KeyP"&&isGameplay()){ pauseSet(true); return; }
   if(e.code==="Escape"&&(state===ST.PLAY||state===ST.BOSS)){ pauseSet(true); return; }
-  if(e.code==="KeyR"&&(state===ST.PLAY||state===ST.BOSS)){ comboReset(); if(state===ST.BOSS)startBoss(); else loadPlatform(worldIdx,curLevelIdx); return; }
+  if(e.code==="KeyR"&&(state===ST.PLAY||state===ST.BOSS)){ comboReset(); if(gameMode==="arcade")startArcade(); else if(state===ST.BOSS)startBoss(); else loadPlatform(worldIdx,curLevelIdx); return; }
   if(/^Key[A-Z]$/.test(e.code)){ secretBuf=(secretBuf+e.code.slice(3)).slice(-5); if(secretBuf==="QUACK"){secretBuf="";unlockSecret();} }
   if(["ArrowLeft","KeyA"].includes(e.code))keys.left=true;
   else if(["ArrowRight","KeyD"].includes(e.code))keys.right=true;
@@ -816,7 +817,7 @@ cv.addEventListener("pointerdown",e=>{
       if(p.x>=lx-2&&p.x<=lx+148&&p.y>=cy-2&&p.y<=cy+rh-2){ if(i===shopSel)shopAction(); else shopSel=i; return; } } }
 });
 function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
-function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)startGame(); }
+function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)retryGame(); }
 
 /* ---------- Cutscenes ---------- */
 const el=id=>document.getElementById(id);
@@ -835,6 +836,12 @@ function dialogSeq(beats,done){ seqDone=done||null; let i=0; const next=()=>{ if
 
 /* ---------- Flow ---------- */
 let gameMode="story"; // "story" = Kampagne, "arcade" = Mini-Game/Schnellspiel
+const ARCADE_W=0, ARCADE_LI=0; // Mini-Game nutzt Welt 1 Level 1 als Score-Attack-Arena
+// Mini-Game: sofort losspielen, Highscore-Jagd, schnelle Restarts (kein Intro/Karte/Boss)
+function startArcade(){ gameMode="arcade"; if(ac()&&ac().state==="suspended")ac().resume();
+  lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; comboReset();
+  loadPlatform(ARCADE_W,ARCADE_LI); }
+function retryGame(){ if(gameMode==="arcade")startArcade(); else startGame(); }
 function startGame(){ gameMode="story"; if(ac()&&ac().state==="suspended")ac().resume(); lives=diffCfg().lives+(hasPerk("extralife")?1:0);coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
   for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0; curWorld=WORLDS[0];
   // Kurzer, ueberspringbarer Einstieg -> DIREKT Welt 1 Level 1 (kein Hub/NPC-Gate davor).
@@ -878,7 +885,10 @@ function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;
 function takeHit(){ const d=duck; comboReset(); if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
 function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
 function gameOver(){saveEconomy();saveHighscore();state=ST.OVER;el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore;SFX.over();showScreen("scOver");}
-function levelCleared(){ SFX.clear(); const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
+function levelCleared(){ SFX.clear();
+  if(gameMode==="arcade"){ // Score-Attack: Runde geschafft -> sofort dieselbe Runde erneut, Score laeuft weiter
+    saveHighscore(); powerMsg=t("arcadeCleared"); powerMsgT=1.4; loadPlatform(ARCADE_W,ARCADE_LI); return; }
+  const w=worldIdx, li=curLevelIdx, levels=WORLDS[w].levels.length;
   if(worldProgress[w]===li) worldProgress[w]=li+1; // naechsten Knoten freischalten
   saveProgress();
   const lastLevel=(li===levels-1);
@@ -890,7 +900,7 @@ function bossDefeated(){ SFX.clear(); saveHighscore(); const w=worldIdx, levels=
   if(w>=WORLDS.length-1){ const fin=ta("finale")||[]; const beats=fin.map((b,i)=>({t:b.t,x:b.x,btn:i===fin.length-1?t("retry"):t("cont")}));
     dialogSeq(beats,startGame); }
   else { if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,w+1); cutscene("",t("worldDoneTitle",{world:worldName(w)}),t("worldDoneText"),t("toMap"),()=>enterOverworld()); } }
-el("btnRetry").addEventListener("click",startGame);
+el("btnRetry").addEventListener("click",retryGame);
 /* ---------- Pause-Wiring ---------- */
 el("btnPause").addEventListener("click",e=>{e.stopPropagation();pauseSet(true);});
 el("btnResume").addEventListener("click",e=>{e.stopPropagation();pauseSet(false);});
@@ -938,6 +948,7 @@ function showToast(msg){ const e=document.getElementById("toast"); if(!e)return;
 function unlockSecret(){ if(!owned.golden)owned.golden=true; equippedSkin="golden"; saveEconomy(); SFX.star&&SFX.star(); showToast(t("secretFound")); }
 function clk(id,fn){const e=el(id); if(e)e.addEventListener("click",ev=>{ev.stopPropagation();fn();});}
 clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startGame(); });
+clk("btnArcade",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startArcade(); });
 clk("btnContinue",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
 clk("btnMap",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); continueGame(); });
 clk("btnLeader",()=>showInfo("scLeader",fillLeader));
@@ -1644,7 +1655,7 @@ function drawHUD(){
   bmText("X"+String(coinsGot).padStart(2,"0"),VW-78,8,"#fff",1);
   bmText(String(score).padStart(6,"0"),VW-52,8,"#fff",1);
   // Welt-/Level-Anzeige (links unter den Herzen)
-  const wl=state===ST.BOSS?(t("world")+" "+(worldIdx+1)+" "+t("boss")):(t("world")+" "+(worldIdx+1)+"-"+(curLevelIdx+1));
+  const wl=gameMode==="arcade"?t("arcadeLabel"):(state===ST.BOSS?(t("world")+" "+(worldIdx+1)+" "+t("boss")):(t("world")+" "+(worldIdx+1)+"-"+(curLevelIdx+1)));
   bmText(wl,6,17,"#eaf2ff",1);
   // Drachenmuenzen
   if(L&&L.dragons&&L.dragons.length){const dx=6+bmW(wl,1)+8;px(dx,17,5,6,"#e2b33a");px(dx+1,18,3,4,"#ffe08a");bmText(dragonGot+"/"+L.dragons.length,dx+8,18,"#e2b33a",1);}
