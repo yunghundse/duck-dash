@@ -148,6 +148,8 @@ const probe = `
   try { g.enterOverworld = enterOverworld; } catch(e){}
   try { g.continueGame = continueGame; } catch(e){}
   try { g.goToMenu = goToMenu; } catch(e){}
+  try { g.moveY = moveY; } catch(e){}
+  try { g.TILE = TILE; } catch(e){}
   try { g.enterSubmap = enterSubmap; } catch(e){}
   try { g.enterSelectedNode = enterSelectedNode; } catch(e){}
   try { g.beginLevel = beginLevel; } catch(e){}
@@ -571,6 +573,40 @@ if (typeof G.buildLevel === "function") {
   }
   assert(!pitDetail, "Boden-Integritaet: kein Durchfall-Loch in allen 12 Leveln (auch rechter Rand)", pitDetail);
 } else { bad("buildLevel instrumentiert", "buildLevel nicht exponiert"); }
+
+/* ===================================================================
+   ANTI-TUNNELING — bei einem Frame-Ausreisser (grosses dt) faellt ein
+   schneller Fall-Schritt (MAXFALL*0.05 = 26px > TILE 16px). Ohne Substep
+   wuerde die Ente durch eine 1-Tile-Plattform fallen. Wir suchen eine
+   echte 1-Tile-Plattform (Luft drueber und drunter), lassen die Ente mit
+   max. Fallschritt knapp darueber fallen und pruefen, dass sie landet.
+   =================================================================== */
+if (typeof G.moveY === "function") {
+  const T = G.TILE || 16;
+  const isSolidCh = (ch) => ch === "#" || ch === "=" || ch === "?" || ch === "P" || ch === "Q";
+  let tested = false, tunnelDetail = "";
+  for (let w = 0; w < G.WORLDS.length && !tested; w++) {
+    G.loadPlatform(w, 1); step(1);                 // L2 hat schwebende Plattformen
+    const grid = G.L.grid, H = G.L.H, W = G.L.W;
+    for (let ty = 2; ty < H - 2 && !tested; ty++) for (let tx = 1; tx < W - 1; tx++) {
+      // 1-Tile-Plattform: solide, Luft drueber UND drunter
+      if (isSolidCh(grid[ty][tx]) && !isSolidCh(grid[ty-1][tx]) && !isSolidCh(grid[ty+1][tx])) {
+        const d = G.duck;
+        d.x = tx * T + 2; d.w = 12; d.h = 14;
+        d.y = ty * T - d.h - 2;                     // Fuesse 2px ueber der Plattform
+        d.vy = 520; d.onGround = false;
+        G.moveY(d, 520 * 0.05);                     // ein voller Fall-Step bei dt=0.05 (26px)
+        const landed = d.onGround && (d.y + d.h) <= (ty * T + 1);
+        if (!landed) tunnelDetail = "W" + (w+1) + " ty=" + ty + " tx=" + tx + ": y=" + d.y.toFixed(1) + " onG=" + d.onGround;
+        tested = true;
+      }
+    }
+  }
+  assert(tested, "Anti-Tunneling: 1-Tile-Testplattform gefunden", "keine schwebende 1-Tile-Plattform gefunden");
+  assert(tested && !tunnelDetail, "Anti-Tunneling: Ente faellt bei grossem Fall-Step (26px) NICHT durch 1-Tile-Plattform", tunnelDetail);
+} else { bad("moveY instrumentiert", "moveY nicht exponiert"); }
+// Source-Guard: Substep-Aufloesung vorhanden
+assert(/moveYStep/.test(html) && /Substep/.test(html), "Source-Guard: Kollisions-Substepping (moveYStep) vorhanden");
 
 /* ===================================================================
    VIEWPORTS / ORIENTIERUNG — Hochformat ist VOLL spielbar. Es gibt

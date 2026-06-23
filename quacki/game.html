@@ -1146,17 +1146,27 @@ function updateBoss(dt,d){
   }
 }
 
-/* ---------- Tile-Kollision ---------- */
-function moveX(e,dx){e.x+=dx;const top=Math.floor(e.y/TILE),bot=Math.floor((e.y+e.h-1)/TILE);
+/* ---------- Tile-Kollision (Substep gegen Tunneling: grosse Schritte > 1 Tile
+   werden zerlegt, damit die Ente bei Rucklern/grossem dt nicht durch duenne
+   Boeden/Decken faellt). Die *Step-Funktionen sind die eigentliche Aufloesung. ---------- */
+function moveX(e,dx){ e.hitWall=false; const max=TILE-1;
+  for(let r=dx;r!==0;){ const s=Math.abs(r)<=max?r:(r>0?max:-max); r-=s; moveXStep(e,s); if(e.hitWall)break; } }
+function moveY(e,dy){ const max=TILE-1;
+  for(let r=dy;r!==0;){ const s=Math.abs(r)<=max?r:(r>0?max:-max); const pv=e.vy; r-=s; moveYStep(e,s); if(e.vy===0&&pv!==0)break; } }
+function foeMoveY(e,dy){ const max=TILE-1; e.onG=false;
+  for(let r=dy;r!==0;){ const s=Math.abs(r)<=max?r:(r>0?max:-max); r-=s; foeMoveYStep(e,s); if(e.onG)break; } }
+function bMoveY(e,dy){ const max=TILE-1; e.onG=false;
+  for(let r=dy;r!==0;){ const s=Math.abs(r)<=max?r:(r>0?max:-max); r-=s; bMoveYStep(e,s); if(e.onG)break; } }
+function moveXStep(e,dx){e.x+=dx;const top=Math.floor(e.y/TILE),bot=Math.floor((e.y+e.h-1)/TILE);
   if(dx>0){const tx=Math.floor((e.x+e.w-1)/TILE);for(let ty=top;ty<=bot;ty++)if(solidAt(tx,ty)){e.x=tx*TILE-e.w;e.vx=0;e.hitWall=true;break;}}
   else if(dx<0){const tx=Math.floor(e.x/TILE);for(let ty=top;ty<=bot;ty++)if(solidAt(tx,ty)){e.x=(tx+1)*TILE;e.vx=0;e.hitWall=true;break;}}}
-function moveY(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
+function moveYStep(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
   if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onGround=true;break;}}
   else if(dy<0){const ty=Math.floor(e.y/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=(ty+1)*TILE;e.vy=0;
     if(L.grid[ty]&&L.grid[ty][tx]==="?"){L.grid[ty][tx]="Q";coinsGot++;addCoins(1);score+=hasPerk("double")?200:100;SFX.coin();pops.push({x:tx*TILE+8,y:ty*TILE,t:0.5});}else SFX.bump();break;}}}
-function foeMoveY(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
+function foeMoveYStep(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
   if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onG=true;break;}}}
-function bMoveY(e,dy){e.y+=dy;e.onG=false;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
+function bMoveYStep(e,dy){e.y+=dy;const lft=Math.floor(e.x/TILE),rgt=Math.floor((e.x+e.w-1)/TILE);
   if(dy>0){const ty=Math.floor((e.y+e.h-1)/TILE);for(let tx=lft;tx<=rgt;tx++)if(solidAt(tx,ty)){e.y=ty*TILE-e.h;e.vy=0;e.onG=true;break;}}}
 function rectsOverlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
 
