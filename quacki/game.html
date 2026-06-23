@@ -612,15 +612,15 @@ let subSel=0, curLevelIdx=0;
 // worldProgress[w] = naechster spielbarer Knoten (0..levels.length=Boss). =levels.length+1 -> Welt fertig.
 const worldProgress=WORLDS.map(()=>0);
 /* ---------- Fortschritt persistieren (fuer "Weiter") ---------- */
-function saveProgress(){ try{ localStorage.setItem("quacki_progress",JSON.stringify({u:unlocked,p:worldProgress.slice()})); }catch(e){} }
+function saveProgress(){ try{ localStorage.setItem("quacki_progress",JSON.stringify({u:unlocked,p:worldProgress.slice()})); }catch(e){} if(typeof saveState==="function")saveState(); }
 function loadProgress(){ try{ const r=localStorage.getItem("quacki_progress"); if(r){const o=JSON.parse(r);
   if(typeof o.u==="number")unlocked=Math.max(0,Math.min(WORLDS.length-1,o.u|0));
   if(Array.isArray(o.p))for(let i=0;i<worldProgress.length&&i<o.p.length;i++)worldProgress[i]=o.p[i]|0;} }catch(e){} }
-function hasSave(){ try{ return !!localStorage.getItem("quacki_progress"); }catch(e){ return false; } }
+// hasSave() ist weiter unten (Unified-Save) definiert und prueft beide Speicher-Formate.
 let highscore=0;
 function loadHighscore(){ try{ highscore=parseInt(localStorage.getItem("quacki_highscore")||"0",10)||0; }catch(e){} }
-function saveHighscore(){ try{ if(score>highscore)highscore=score; localStorage.setItem("quacki_highscore",String(highscore)); }catch(e){} }
-function continueGame(){ gameMode="story"; if(ac()&&ac().state==="suspended")ac().resume(); loadProgress(); lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; mapSel=Math.min(mapSel,unlocked); enterOverworld(); }
+function saveHighscore(){ try{ if(score>highscore)highscore=score; if(best[gameMode]!=null&&score>best[gameMode])best[gameMode]=score; localStorage.setItem("quacki_highscore",String(highscore)); }catch(e){} if(typeof saveState==="function")saveState(); }
+function continueGame(){ gameMode="story"; if(ac()&&ac().state==="suspended")ac().resume(); loadState(); lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; mapSel=Math.min(Math.max(lastWorld,0),unlocked); enterOverworld(); }
 let camX=0, deadT=0, flagT=0, shake=0, last=0, storyNext=null, bossWonT=0, gBarY=0, gDir=1, gaveBonus=false, clearBonus=0, dragonGot=0, musicT=0, musicI=0;
 let setSel=0, prevScreenState=ST.TITLE, howtoShown=false;
 let curWorld=WORLDS[0];
@@ -691,7 +691,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("btnHelpBack",t("back"));set("btnBiosBack",t("back"));set("btnLeaderBack",t("back"));
   const picks=document.querySelectorAll&&document.querySelectorAll(".langpick");
   if(picks)picks.forEach(p=>p.classList.toggle("active",p.getAttribute("data-l")===SET.lang)); }
-function saveSettings(){ try{ localStorage.setItem("quacki_settings",JSON.stringify(SET)); }catch(e){} }
+function saveSettings(){ try{ localStorage.setItem("quacki_settings",JSON.stringify(SET)); }catch(e){} if(typeof saveState==="function")saveState(); }
 loadSettings();
 /* ---------- Wirtschaft: dauerhafte Geldboerse + Skins/Perks ---------- */
 let wallet=0, equippedSkin="classic"; const owned={classic:true};
@@ -700,9 +700,52 @@ function loadEconomy(){ try{ wallet=parseInt(localStorage.getItem("quacki_wallet
     const s=localStorage.getItem("quacki_skin"); if(s&&SKINS[s])equippedSkin=s; }catch(e){} owned.classic=true; }
 function saveEconomy(){ try{ localStorage.setItem("quacki_wallet",String(wallet));
     localStorage.setItem("quacki_owned",JSON.stringify(Object.keys(owned).filter(k=>owned[k])));
-    localStorage.setItem("quacki_skin",equippedSkin); }catch(e){} }
+    localStorage.setItem("quacki_skin",equippedSkin); }catch(e){} if(typeof saveState==="function")saveState(); }
 function addCoins(n){ wallet+=n; }
 function hasPerk(id){ return !!owned[id]; }
+/* ---------- Unified, versionierter Spielstand (eine Quelle der Wahrheit) ----------
+   Buendelt Fortschritt, Wirtschaft, Einstellungen, Position und beste Scores in EIN
+   versioniertes Objekt (quacki_save). Migriert einmalig aus den alten Einzel-Keys und
+   ist robust gegen kaputte/fehlende Daten (Fallback auf Default). Die alten Keys
+   bleiben als Mirror erhalten (Abwaerts-Kompatibilitaet). */
+const SAVE_KEY="quacki_save", SAVE_VER=1;
+let lastWorld=0, lastLevel=0;        // zuletzt gespielte Story-Position (fuer "Weiter")
+let best={story:0, arcade:0};        // beste Scores je Modus
+function clampWorld(n){ return Math.max(0, Math.min(WORLDS.length-1, n|0)); }
+function gatherState(){ let named=false; try{ named=(localStorage.getItem("quacki_named")==="1"); }catch(e){}
+  return { v:SAVE_VER, world:lastWorld|0, level:lastLevel|0,
+    unlocked:unlocked|0, worldProgress:worldProgress.slice(),
+    coins:wallet|0, owned:Object.keys(owned).filter(k=>owned[k]), skin:equippedSkin,
+    duckName:SET.duckName||"", named:named||!!SET.duckName,
+    settings:{lang:SET.lang, theme:SET.theme, diff:SET.diff, sfx:SET.sfx, music:SET.music, crt:SET.crt},
+    best:{story:best.story|0, arcade:best.arcade|0}, highscore:highscore|0 }; }
+function saveState(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(gatherState())); }catch(e){} }
+function applyState(o){ if(!o||typeof o!=="object")return false;
+  if(typeof o.unlocked==="number")unlocked=clampWorld(o.unlocked);
+  if(Array.isArray(o.worldProgress))for(let i=0;i<worldProgress.length&&i<o.worldProgress.length;i++)worldProgress[i]=Math.max(0,o.worldProgress[i]|0);
+  if(typeof o.world==="number")lastWorld=clampWorld(o.world);
+  if(typeof o.level==="number")lastLevel=Math.max(0,o.level|0);
+  if(typeof o.coins==="number")wallet=Math.max(0,o.coins|0);
+  if(Array.isArray(o.owned))o.owned.forEach(id=>{ if(typeof id==="string")owned[id]=true; });
+  if(typeof o.skin==="string"&&SKINS[o.skin])equippedSkin=o.skin;
+  const s=(o.settings&&typeof o.settings==="object")?o.settings:{};
+  if(typeof s.lang==="string"&&I18N[s.lang])SET.lang=s.lang;
+  if(s.theme==="light"||s.theme==="dark")SET.theme=s.theme;
+  if(typeof s.diff==="number"&&s.diff>=0&&s.diff<=2)SET.diff=s.diff|0;
+  if(typeof s.sfx==="boolean")SET.sfx=s.sfx; if(typeof s.music==="boolean")SET.music=s.music; if(typeof s.crt==="boolean")SET.crt=s.crt;
+  if(typeof o.duckName==="string")SET.duckName=sanitizeName(o.duckName);
+  if(o.best&&typeof o.best==="object"){ best.story=Math.max(0,o.best.story|0); best.arcade=Math.max(0,o.best.arcade|0); }
+  if(typeof o.highscore==="number")highscore=Math.max(highscore|0, o.highscore|0);
+  owned.classic=true; return true; }
+function hasSave(){ try{ return !!(localStorage.getItem(SAVE_KEY)||localStorage.getItem("quacki_progress")); }catch(e){ return false; } }
+function loadState(){
+  let o=null; try{ const r=localStorage.getItem(SAVE_KEY); if(r)o=JSON.parse(r); }catch(e){ o=null; }
+  if(o&&o.v){ applyState(o); best.story=Math.max(best.story, highscore|0); return; }
+  // Migration: alte Einzel-Keys einlesen (Globals sind ggf. schon gefuellt), dann unified schreiben.
+  try{ loadProgress(); loadEconomy(); loadHighscore(); }catch(e){}
+  best.story=Math.max(best.story, highscore|0);
+  saveState();
+}
 // Skins: Farb-Varianten, Huete, goldene Ente, Prinzessinnen-Outfit
 const SKINS={
   classic:{type:"skin",price:0,  body:"#ecbf4e",dk:"#e0ad28"},
@@ -930,6 +973,7 @@ function beginLevel(w,li){ worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
   beats.push({t:worldName(w)+" - "+t("level")+" "+(li+1),x:intro,btn:t("start")});
   dialogSeq(beats,()=>loadPlatform(w,li)); }
 function loadPlatform(w,li){ if(li===undefined)li=curLevelIdx; worldIdx=w; curWorld=WORLDS[w]; curLevelIdx=li;
+  if(gameMode!=="arcade"){ lastWorld=w; lastLevel=li; } // Story-Resume-Position merken (Arcade nicht)
   L=buildLevel(WORLDS[w].levels[li]); resetDuckTo(L.spawn); if(hasPerk("shieldstart"))duck.big=true; bubbles.length=0;pops.length=0;parts.length=0;powerMsgT=0; camX=0;flagT=0;gaveBonus=false;gBarY=0;gDir=1;dragonGot=0; state=ST.PLAY; showScreen(null); saveEconomy(); }
 function startBossIntro(){ const nm=bossName(worldIdx);
   const beats=bossBanter(worldIdx).map(line=>({t:nm,x:line}));
@@ -1087,7 +1131,7 @@ function update(dt){
     else{d.star=8;powerMsg=t("starpower");burst(p.x,p.y,"#ffe96b",18,115);}
     SFX.star();}}}
   for(const c of L.dragons){if(!c.got){c.t+=dt*5;if(Math.abs((d.x+d.w/2)-c.x)<13&&Math.abs((d.y+d.h/2)-c.y)<14){c.got=true;dragonGot++;score+=500;SFX.coin();if(L.dragons.length>0&&dragonGot===L.dragons.length){score+=2000;SFX.clear();}}}}
-  if(L.checkpoint&&!L.checkpoint.taken&&(d.x+d.w)>L.checkpoint.x+4){L.checkpoint.taken=true;L.spawn={x:L.checkpoint.x,y:Math.max(0,L.checkpoint.y)};SFX.coin();}
+  if(L.checkpoint&&!L.checkpoint.taken&&(d.x+d.w)>L.checkpoint.x+4){L.checkpoint.taken=true;L.spawn={x:L.checkpoint.x,y:Math.max(0,L.checkpoint.y)};SFX.coin();saveState();}
   for(const mo of L.mounts){if(mo.taken)continue;mo.t+=dt;if(!d.mounted&&d.x<mo.x+16&&d.x+d.w>mo.x&&d.y+d.h>mo.y-2&&d.y<mo.y+14){mo.taken=true;d.mounted=true;score+=150;SFX.coin();}}
 
   // foes
@@ -1800,7 +1844,7 @@ function drawHUD(){
 function frame(now){let dt=(now-last)/1000;last=now;if(!(dt>=0))dt=0;if(dt>0.05)dt=0.05;
   const pb=document.getElementById("btnPause"); if(pb)pb.classList.toggle("hidden",!(isGameplay()&&!paused));
   update(dt);musicTick(dt);draw();drawCRT();requestAnimationFrame(frame);}
-loadProgress(); loadHighscore(); applyTheme(); applyTitleI18n(); showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
+loadState(); applyTheme(); applyTitleI18n(); showScreen("scTitle"); last=performance.now(); requestAnimationFrame(frame);
 // Erststart: einmalig nach dem Namen der Ente fragen (spaeter in Einstellungen aenderbar)
 try{ if(!localStorage.getItem("quacki_named")) openNameInput(); }catch(e){}
 

@@ -154,6 +154,15 @@ const probe = `
   try { g.FONT = FONT; } catch(e){}
   try { g.ACCMAP = ACCMAP; } catch(e){}
   try { g.bmExpand = bmExpand; } catch(e){}
+  try { g.loadState = loadState; } catch(e){}
+  try { g.saveState = saveState; } catch(e){}
+  try { g.gatherState = gatherState; } catch(e){}
+  try { g.hasSave = hasSave; } catch(e){}
+  try { Object.defineProperty(g,"unlocked",{get:()=>unlocked,set:v=>{unlocked=v;}}); } catch(e){}
+  try { Object.defineProperty(g,"lastWorld",{get:()=>lastWorld,set:v=>{lastWorld=v;}}); } catch(e){}
+  try { Object.defineProperty(g,"lastLevel",{get:()=>lastLevel,set:v=>{lastLevel=v;}}); } catch(e){}
+  try { g.best = best; } catch(e){}
+  try { g.applyDuckName = applyDuckName; } catch(e){}
   try { g.SHOPTXT = SHOPTXT; } catch(e){}
   try { g.ITEMNAMES = ITEMNAMES; } catch(e){}
   try { g.HUBTXT = HUBTXT; } catch(e){}
@@ -768,6 +777,53 @@ assert(!/Math\.floor\(\s*d\.blink\s*\*\s*\d+\s*\)\s*%\s*2/.test(html), "Source-G
 assert(!/Math\.floor\(\s*b\.invuln\s*\*\s*\d+\s*\)\s*%\s*2/.test(html), "Source-Guard: kein hartes Boss-Blink-Toggle (b.invuln%2) mehr");
 assert(/d\.blink>0\)ctx\.globalAlpha=/.test(html), "Source-Guard: Ente nutzt weichen Alpha-Puls bei Unverwundbarkeit");
 assert(/b\.invuln>0&&b\.defeated<=0\)ctx\.globalAlpha=/.test(html), "Source-Guard: Boss nutzt weichen Alpha-Puls bei Unverwundbarkeit");
+
+/* ===================================================================
+   SPIELSTAND — versionierter Unified-Save: Roundtrip, Migration aus
+   Legacy-Keys, Robustheit gegen kaputte Daten.
+   =================================================================== */
+if (typeof G.saveState === "function" && typeof G.loadState === "function") {
+  const LS = sandbox.localStorage;
+  // (a) Roundtrip: Zustand setzen -> speichern -> Globals zerstoeren -> laden -> wieder da
+  G.unlocked = 4; G.worldProgress[2] = 2; G.wallet = 777; G.SET.diff = 2; G.SET.lang = "fr";
+  G.applyDuckName("Donald"); G.lastWorld = 4; G.lastLevel = 1; G.best.story = 12345;
+  G.saveState();
+  const rawSaved = LS.getItem("quacki_save");
+  let parsed = null; try { parsed = JSON.parse(rawSaved); } catch (e) {}
+  assert(parsed && parsed.v === 1, "Save: quacki_save v1 geschrieben", "raw=" + String(rawSaved).slice(0, 40));
+  assert(parsed && parsed.world === 4 && parsed.coins === 777 && parsed.settings && parsed.settings.diff === 2 && parsed.duckName === "Donald",
+    "Save: alle Felder im Objekt (Position/Muenzen/Settings/Name)", JSON.stringify(parsed && { world: parsed.world, coins: parsed.coins, diff: parsed.settings && parsed.settings.diff, name: parsed.duckName }));
+  assert(G.hasSave() === true, "Save: hasSave() erkennt vorhandenen Stand");
+  // Globals verfaelschen, dann aus dem Save wiederherstellen
+  G.unlocked = 0; G.worldProgress[2] = 0; G.wallet = 0; G.SET.diff = 1; G.lastWorld = 0; G.best.story = 0; G.SET.lang = "de";
+  G.loadState();
+  assert(G.unlocked === 4, "Save/Load-Roundtrip: unlocked wiederhergestellt", "unlocked=" + G.unlocked);
+  assert(G.worldProgress[2] === 2, "Save/Load-Roundtrip: worldProgress wiederhergestellt", "wp2=" + G.worldProgress[2]);
+  assert(G.wallet === 777, "Save/Load-Roundtrip: Muenzen wiederhergestellt", "wallet=" + G.wallet);
+  assert(G.SET.diff === 2, "Save/Load-Roundtrip: Schwierigkeit wiederhergestellt", "diff=" + G.SET.diff);
+  assert(G.lastWorld === 4, "Save/Load-Roundtrip: Position (Welt) wiederhergestellt", "lastWorld=" + G.lastWorld);
+  assert(G.best.story === 12345, "Save/Load-Roundtrip: bester Score wiederhergestellt", "best.story=" + G.best.story);
+  assert(G.heroName() === "Donald", "Save/Load-Roundtrip: Enten-Name wiederhergestellt", "name=" + G.heroName());
+
+  // (b) Robust gegen kaputte Daten: Muelldaten -> kein Crash, Zustand bleibt nutzbar
+  let threw = false;
+  LS.setItem("quacki_save", "{ das ist kaputt :::");
+  try { G.loadState(); } catch (e) { threw = true; }
+  assert(!threw, "Save: kaputtes quacki_save wirft NICHT (Fallback greift)");
+  assert(G.unlocked >= 0 && G.unlocked <= G.WORLDS.length - 1, "Save: Zustand nach Korruption gueltig", "unlocked=" + G.unlocked);
+
+  // (c) Migration aus Legacy-Keys (kein quacki_save vorhanden)
+  LS.removeItem("quacki_save");
+  LS.setItem("quacki_progress", JSON.stringify({ u: 3, p: [9, 1, 0, 0, 0, 0] }));
+  LS.setItem("quacki_wallet", "555");
+  G.unlocked = 0; G.wallet = 0;
+  G.loadState();
+  assert(G.unlocked === 3, "Save: Migration aus Legacy quacki_progress (unlocked=3)", "unlocked=" + G.unlocked);
+  assert(G.wallet === 555, "Save: Migration aus Legacy quacki_wallet (555)", "wallet=" + G.wallet);
+  assert(!!LS.getItem("quacki_save"), "Save: Migration schreibt unified quacki_save");
+  // sauberer Ausgangszustand fuer Folgetests
+  G.SET.lang = "de"; G.SET.diff = 1; G.applyDuckName("");
+}
 
 /* ===================================================================
    SELF-CONTAINMENT / OFFLINE — keine externen URLs, Pixel-Schrift lokal.
