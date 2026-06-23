@@ -425,14 +425,20 @@ let bossesOk = true; for (let i = 0; i < 6; i++) if (!G.bossName(i) || !G.WORLDS
 assert(bossesOk, "Jede Welt hat Level + benannten Boss");
 assert(!!G.t("introText") && !!G.t("bioBaron") && !!G.t("bioGoldi"), "Story-Bogen vorhanden (Intro + Baron + Goldi)");
 
-// Intro ueberspringbar: startGame -> STORY -> skipScene -> direkt im Hub
+// Schneller Weg: startGame -> STORY -> skipScene -> DIREKT Welt 1 Level 1 (kein Hub-Gate)
 frameErr = null;
 G.startGame();
 assert(G.state === G.ST.STORY, "Intro zeigt Cutscene (STORY)", "state=" + G.state);
 G.skipScene();
-assert(G.state === G.ST.HUB, "Intro ueberspringbar -> direkt im Hub", "state=" + G.state);
+assert(G.state === G.ST.PLAY, "Intro ueberspringbar -> direkt ins Level (PLAY)", "state=" + G.state);
+assert(G.worldIdx === 0 && G.curLevelIdx === 0, "Direkt in Welt 1, Level 1", "w=" + G.worldIdx + " l=" + G.curLevelIdx);
+assert(G.L && !G.L.boss, "Level-1-Tilemap geladen (kein Hub/Arena)");
 step(2);
 assert(!frameErr, "Nach Intro-Skip laufen Frames fehlerfrei", frameErr);
+// Auch ohne Skip: ganze Sequenz durchklicken endet im Level 1 (PLAY), nie im Hub
+frameErr = null; G.startGame();
+let gi = 0; while (G.state === G.ST.STORY && gi++ < 10) G.storyAdvance();
+assert(G.state === G.ST.PLAY && G.worldIdx === 0, "Intro durchklicken -> Welt 1 Level 1 (kein Hub davor)", "state=" + G.state + " w=" + G.worldIdx);
 
 // (7) Welten-Kulissen: jede der 6 Welten hat eine eigene, atmosphaerische Parallax-Kulisse (datengetrieben)
 assert(Array.isArray(G.BGS) && G.BGS.length === 6, "6 Welten-Kulissen definiert (BGS)", "len=" + (G.BGS && G.BGS.length));

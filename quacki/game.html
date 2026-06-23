@@ -834,9 +834,15 @@ function dialogSeq(beats,done){ seqDone=done||null; let i=0; const next=()=>{ if
   const b=beats[i++]; cutscene("",b.t,b.x,b.btn||t("cont"),next); }; next(); }
 
 /* ---------- Flow ---------- */
-function startGame(){ if(ac()&&ac().state==="suspended")ac().resume(); lives=diffCfg().lives+(hasPerk("extralife")?1:0);coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
-  for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0;
-  cutscene("",t("introTitle"),t("introText"),t("cont"),()=>enterHub()); }
+let gameMode="story"; // "story" = Kampagne, "arcade" = Mini-Game/Schnellspiel
+function startGame(){ gameMode="story"; if(ac()&&ac().state==="suspended")ac().resume(); lives=diffCfg().lives+(hasPerk("extralife")?1:0);coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
+  for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0; curWorld=WORLDS[0];
+  // Kurzer, ueberspringbarer Einstieg -> DIREKT Welt 1 Level 1 (kein Hub/NPC-Gate davor).
+  // Eine einzige Cutscene-Sequenz: Premise (+ einmalig How-to) + Welt-1-Titel -> Level.
+  const beats=[{t:t("introTitle"),x:t("introText")}];
+  if(!howtoShown){ howtoShown=true; beats.push({t:t("howToTitle"),x:t("howToText")},{t:t("howToTitle2"),x:t("howToText2")}); }
+  beats.push({t:worldName(0)+" - "+t("level")+" 1",x:worldStory(0),btn:t("start")});
+  dialogSeq(beats,()=>loadPlatform(0,0)); }
 function enterOverworld(){ mapSel=Math.min(mapSel,unlocked); state=ST.OVERWORLD; showScreen(null);
   owDuckX=MAPNODES[mapSel].x; owDuckY=MAPNODES[mapSel].y; owLastSel=mapSel; owWalk=0;
   owCam=Math.max(0,Math.min(MAPW-VW,owDuckX-VW/2)); }
