@@ -518,6 +518,18 @@ G.applyDuckName("fuck");
 assert(G.heroName() === "Quacki", "Wortfilter: unangemessener Name -> Standard 'Quacki'", "name=" + G.heroName());
 assert(!/[^\p{L}\p{N} ]/u.test(G.sanitizeName("Lo@@tt!!")), "Name wird gesaeubert (Sonderzeichen weg)", "san=" + G.sanitizeName("Lo@@tt!!"));
 assert(G.sanitizeName("ABCDEFGHIJKLMNOP").length <= 12, "Name auf 12 Zeichen begrenzt", "len=" + G.sanitizeName("ABCDEFGHIJKLMNOP").length);
+// Wortfilter haerter: Leetspeak- und Umlaut-Umgehungen werden geblockt
+{
+  const blocked = ["fück", "b1tch", "a55hole", "Sh1t", "H1tler", "f u c k", "sche1ss", "p3nis"];
+  let leaked = "";
+  for (const n of blocked) { if (G.sanitizeName(n) !== "") { leaked = n + " -> " + G.sanitizeName(n); break; } }
+  assert(!leaked, "Wortfilter: Leetspeak/Umlaut-Umgehungen werden geblockt", leaked);
+  // Echte Namen mit Akzenten bleiben erhalten (keine Falsch-Positiven)
+  const kept = ["Quacki", "José", "Lümmel", "Anna"];
+  let fp = "";
+  for (const n of kept) { if (G.sanitizeName(n) === "") { fp = n; break; } }
+  assert(!fp, "Wortfilter: echte (auch akzentuierte) Namen bleiben erhalten", "faelschlich geblockt: " + fp);
+}
 G.setLang("fr"); assert(typeof G.t("nameTitle") === "string" && G.t("nameTitle").length > 0, "FR Namens-Frage vorhanden"); G.setLang("de");
 G.applyDuckName(""); // zuruecksetzen auf Standard fuer Folgetests
 
@@ -813,6 +825,8 @@ if (G.FONT && G.ACCMAP && typeof G.bmExpand === "function") {
   assert(/[¡¿]/.test(esBlob), "Sonderzeichen ES: umgedrehte Satzzeichen (¡/¿) vorhanden");
   assert(/[àâäéèêëîïôûùç]/.test(frBlob), "Sonderzeichen FR: echte Akzente vorhanden");
   assert(/[äöüß]/.test(JSON.stringify(EX.de)), "Sonderzeichen DE: echte Umlaute/ß vorhanden");
+  // Auswahl-Cursor '>' (Settings/Shop) hat jetzt ein echtes Glyph (vorher leere Luecke)
+  assert(Array.isArray(FONT[">"]) && Array.isArray(FONT["<"]), "Pixel-Font: Auswahl-Cursor-Glyphen > und < vorhanden");
 } else { bad("FONT/ACCMAP instrumentiert", "FONT/ACCMAP/bmExpand nicht exponiert"); }
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);

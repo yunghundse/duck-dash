@@ -50,7 +50,7 @@
   .langpick{cursor:pointer;display:inline-block;padding:2px 5px;border:2px solid rgba(255,255,255,.3);margin:0 1px;color:#cdd5e0;font-size:.95em;}
   .langpick.active{background:#ecbf4e;color:#23180a;border-color:#23180a;}
   #pad{position:absolute;inset:0;pointer-events:none;}
-  .tb{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom));width:clamp(84px,14vw,108px);height:clamp(84px,14vw,108px);
+  .tb{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom));width:clamp(84px,14vw,96px);height:clamp(84px,14vw,96px);
     border-radius:50%;background:rgba(255,255,255,.18);
     border:3px solid rgba(255,255,255,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:38px;color:#fff;
     pointer-events:auto;user-select:none;-webkit-user-select:none;touch-action:none;box-shadow:0 3px 10px rgba(0,0,0,.35);}
@@ -975,9 +975,15 @@ document.addEventListener("visibilitychange",()=>{ if(document.hidden&&isGamepla
 function heroName(){ return SET.duckName || HERO; }
 // Saeubert + kindersicher: nur Buchstaben/Ziffern/Space, max 12, Wortfilter -> sonst Standardname
 function sanitizeName(raw){ let s=String(raw==null?"":raw).replace(/[^\p{L}\p{N} ]/gu,"").replace(/\s+/g," ").trim().slice(0,12);
-  const low=s.toLowerCase().replace(/\s+/g,"");
-  const bad=["scheiss","arsch","fuck","shit","bitch","nazi","hitler","penis","vagina","porno","hure","fotze","wichs","schlampe","fick"];
-  if(bad.some(b=>low.includes(b))) return "";
+  // Normalisieren NUR fuer den Wortfilter: Akzente weg, ss, Leetspeak (4->a, 1->i, 5->s ...), alles klein ohne Trenner.
+  // So greifen auch Umgehungen wie "fück", "b1tch", "a55hole". Der angezeigte Name behaelt seine Zeichen.
+  const norm=String(raw==null?"":raw).toLowerCase().normalize("NFD").replace(/\p{M}/gu,"").replace(/ß/g,"ss")
+    .replace(/[1!|]/g,"i").replace(/3/g,"e").replace(/[4@]/g,"a").replace(/0/g,"o").replace(/[5$]/g,"s").replace(/7/g,"t").replace(/8/g,"b")
+    .replace(/[^a-z]/g,"");
+  const bad=["scheiss","arsch","fuck","fick","ficker","shit","bitch","nazi","hitler","penis","vagina","porno","hure","fotze","wichs","wichser","schlampe",
+    "hurensohn","nutte","pimmel","kacke","schwuchtel","missgeburt","spasti",
+    "nigger","nigga","fag","faggot","cunt","cock","pussy","slut","whore","asshole","dick","kkk","sex"];
+  if(bad.some(b=>norm.includes(b))) return "";
   return s; }
 let nameOpen=false, nameReturn="scTitle";
 function applyDuckName(raw){ SET.duckName=sanitizeName(raw); try{localStorage.setItem("quacki_named","1");}catch(e){} saveSettings(); applyTitleI18n(); return SET.duckName; }
@@ -1201,6 +1207,7 @@ const FONT={
  "ß":["110","101","110","101","100"],"·":["000","000","010","000","000"],
  "×":["000","101","010","101","000"],"—":["000","000","111","000","000"],",":["000","000","000","010","100"],
  "=":["000","111","000","111","000"],"(":["010","100","100","100","010"],")":["010","001","001","001","010"],"&":["010","101","010","101","011"],
+ ">":["100","010","001","010","100"],"<":["001","010","100","010","001"],"$":["111","110","111","011","111"],
 };
 /* Ligaturen/Mehrzeichen: vor dem Rendern expandieren (Breite bleibt korrekt, da bmW dieselbe Expansion nutzt). */
 function bmExpand(s){ return String(s).replace(/[Œœ]/g,"OE"); }
