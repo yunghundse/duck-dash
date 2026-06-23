@@ -153,6 +153,8 @@ const probe = `
   try { g.buildLevel = buildLevel; } catch(e){}
   try { g.drawWorldBG = drawWorldBG; } catch(e){}
   try { g.drawDuck = drawDuck; } catch(e){}
+  try { g.checkOrientation = checkOrientation; } catch(e){}
+  try { g.isPortraitPhone = isPortraitPhone; } catch(e){}
   try { g.BGS = BGS; } catch(e){}
   try { g.startArcade = startArcade; } catch(e){}
   try { g.levelCleared = levelCleared; } catch(e){}
@@ -526,6 +528,27 @@ frameErr = null; let playBgOk = true, playBgDetail = "";
 for (let wi=0; wi<6 && playBgOk; wi++){ frameErr=null; G.loadPlatform(wi, 0); step(2);
   if (frameErr){ playBgOk=false; playBgDetail = "W"+(wi+1)+": "+frameErr; } }
 assert(playBgOk, "Alle 6 Welten als Vollbild (Kulisse + Vordergrund) rendern fehlerfrei", playBgDetail);
+
+/* ===================================================================
+   VIEWPORTS / ORIENTIERUNG — Querformat ist Hauptformat. Der
+   "Bitte drehen"-Hinweis erscheint NUR im Handy-Hochformat (kleine
+   Kante < 560px). Desktop, Phone-Querformat und Tablet-Hochformat
+   spielen normal; Handy-Hochformat pausiert bis zum Drehen.
+   =================================================================== */
+if (typeof G.checkOrientation === "function") {
+  const rot = getEl("scRotate");
+  const hidden = () => rot.classList.contains("hidden");
+  function setVP(w, h) { sandbox.innerWidth = w; sandbox.innerHeight = h; G.checkOrientation(); }
+  // ins Gameplay, damit der Pause-bei-Drehen-Pfad mitgeprueft wird
+  G.SET.diff = 1; G.loadPlatform(0, 0); step(1);
+  setVP(1280, 720); assert(hidden(), "Viewport Desktop (1280x720): kein Dreh-Hinweis");
+  setVP(844, 390);  assert(hidden(), "Viewport Phone-Querformat (844x390): kein Dreh-Hinweis");
+  setVP(768, 1024); assert(hidden(), "Viewport Tablet-Hochformat (768x1024): kein Dreh-Hinweis (kein Handy)");
+  setVP(390, 844);  assert(!hidden(), "Viewport Handy-Hochformat (390x844): Dreh-Hinweis sichtbar");
+  assert(G.paused === true, "Handy-Hochformat pausiert das Spiel bis zum Drehen", "paused=" + G.paused);
+  setVP(844, 390);  assert(hidden(), "Zurueck auf Querformat: Dreh-Hinweis weg");
+  assert(G.paused === false, "Nach dem Drehen laeuft das Spiel wieder", "paused=" + G.paused);
+} else { bad("checkOrientation instrumentiert", "checkOrientation nicht exponiert"); }
 
 /* ===================================================================
    ANTI-FLACKER — der Kern-Fix: Ente (und Boss) duerfen waehrend der
