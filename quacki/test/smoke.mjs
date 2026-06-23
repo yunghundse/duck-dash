@@ -1176,6 +1176,42 @@ if (G.FONT && G.ACCMAP && typeof G.bmExpand === "function") {
   assert(Array.isArray(FONT[">"]) && Array.isArray(FONT["<"]), "Pixel-Font: Auswahl-Cursor-Glyphen > und < vorhanden");
 } else { bad("FONT/ACCMAP instrumentiert", "FONT/ACCMAP/bmExpand nicht exponiert"); }
 
+/* ===================================================================
+   VERANKERUNG (Desktop-Browser) — die Seite darf beim Spielen NIE
+   scrollen oder verrutschen. Stage fest im Fenster verankert, ALLE
+   Spiel-/Navigationstasten mit preventDefault, Layout reflowt beim
+   Resize. Texteingabe (Namensfeld/Submit) bleibt davon ausgenommen.
+   =================================================================== */
+// R2: Voll-Viewport-Lock per CSS (Source-Guards schuetzen vor Regression)
+assert(/html\s*,\s*body\s*\{[^}]*overflow:hidden/.test(html), "Verankerung: html,body overflow:hidden (keine Scrollbalken)");
+assert(/html\s*,\s*body\s*\{[^}]*position:fixed/.test(html) && /html\s*,\s*body\s*\{[^}]*inset:0/.test(html), "Verankerung: html,body position:fixed + inset:0 (Voll-Viewport-Lock)");
+assert(/\*\s*\{[^}]*margin:0/.test(html), "Verankerung: globaler margin:0-Reset (kein Seitenversatz)");
+// R1: Stage-Container fest verankert + Canvas pixelscharf/letterboxed
+assert(/#wrap\{[^}]*position:fixed/.test(html), "Verankerung: Stage-Container #wrap ist position:fixed (fest im Fenster, kein Verrutschen)");
+assert(/#cv\{[^}]*image-rendering:pixelated/.test(html) && /aspect-ratio:384\/224/.test(html), "Verankerung: Canvas pixelscharf (nearest-neighbor) + letterboxed (Seitenverhaeltnis fix)");
+// R4: Resize reflowt das Layout sofort (kein Springen/Abschneiden)
+assert(/addEventListener\("resize",\s*checkOrientation\)/.test(html), "Verankerung: resize-Listener reflowt das Layout sofort");
+// R3 funktional: ALLE Spiel-/Scrolltasten rufen preventDefault -> Seite scrollt nie
+{
+  sandbox.document.activeElement = null;
+  const scrollKeys = ["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"];
+  let allPrevented = true, missed = "";
+  for (const code of scrollKeys) {
+    let pd = false;
+    fireWin("keydown", { code, preventDefault(){ pd = true; }, stopPropagation(){} });
+    if (!pd) { allPrevented = false; missed += code + " "; }
+  }
+  assert(allPrevented, "Verankerung: jede Spiel-/Scrolltaste (Space + 4 Pfeile) ruft preventDefault", "ohne preventDefault: " + missed);
+}
+// R3 Ausnahme funktional: bei Fokus in einem Textfeld wird NICHT preventDefaultet (Tippen bleibt moeglich)
+{
+  sandbox.document.activeElement = { tagName: "INPUT" };
+  let pd = false;
+  fireWin("keydown", { code: "ArrowLeft", preventDefault(){ pd = true; }, stopPropagation(){} });
+  sandbox.document.activeElement = null;
+  assert(!pd, "Verankerung: in Texteingabe (INPUT-Fokus) KEIN preventDefault (Name tippen bleibt moeglich)");
+}
+
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
 
