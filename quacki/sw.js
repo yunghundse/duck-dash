@@ -1,6 +1,6 @@
 /* Quacki Service Worker — App-Shell offline-faehig (cache-first). */
-const CACHE = "quacki-v5";
-const ASSETS = ["./", "./index.html", "./game.html", "./i18n.js", "./i18n_extra.js", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const CACHE = "quacki-v6";
+const ASSETS = ["./", "./index.html", "./game.html", "./i18n.js", "./i18n_extra.js", "./manifest.json", "./pressstart2p.woff2", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

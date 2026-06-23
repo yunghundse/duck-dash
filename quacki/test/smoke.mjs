@@ -740,6 +740,24 @@ assert(!/Math\.floor\(\s*b\.invuln\s*\*\s*\d+\s*\)\s*%\s*2/.test(html), "Source-
 assert(/d\.blink>0\)ctx\.globalAlpha=/.test(html), "Source-Guard: Ente nutzt weichen Alpha-Puls bei Unverwundbarkeit");
 assert(/b\.invuln>0&&b\.defeated<=0\)ctx\.globalAlpha=/.test(html), "Source-Guard: Boss nutzt weichen Alpha-Puls bei Unverwundbarkeit");
 
+/* ===================================================================
+   SELF-CONTAINMENT / OFFLINE — keine externen URLs, Pixel-Schrift lokal.
+   =================================================================== */
+{
+  const idxHtml = readFileSync(join(__dir, "..", "index.html"), "utf8");
+  const swSrc = readFileSync(join(__dir, "..", "sw.js"), "utf8");
+  const manifest = JSON.parse(readFileSync(join(__dir, "..", "manifest.json"), "utf8"));
+  const httpRe = /https?:\/\//;
+  assert(!httpRe.test(html), "Self-Containment: game.html ohne externe http(s)-URL", (html.match(httpRe) || [])[0]);
+  assert(!httpRe.test(idxHtml), "Self-Containment: quacki/index.html ohne externe http(s)-URL", (idxHtml.match(httpRe) || [])[0]);
+  assert(/@font-face/.test(html) && /pressstart2p\.woff2/.test(html), "Self-Containment: game.html bindet Pixel-Schrift lokal ein (@font-face)");
+  assert(/pressstart2p\.woff2/.test(idxHtml), "Self-Containment: index.html bindet Pixel-Schrift lokal ein");
+  let fontOk = true; try { const st = readFileSync(join(__dir, "..", "pressstart2p.woff2")); fontOk = st.length > 1000 && st.slice(0,4).toString() === "wOF2"; } catch(e){ fontOk = false; }
+  assert(fontOk, "Self-Containment: lokale Schrift-Datei pressstart2p.woff2 vorhanden (gueltiges wOF2)");
+  assert(swSrc.includes("pressstart2p.woff2"), "Self-Containment: Service Worker cacht die Schrift (App-Shell offline)");
+  assert(manifest.orientation === "any", "manifest orientation=any (Hoch- UND Querformat erlaubt)", "orientation=" + manifest.orientation);
+}
+
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
 
