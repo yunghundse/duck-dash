@@ -42,6 +42,7 @@ function makeEl(id) {
     classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);}, toggle(c,f){f?this._s.add(c):this._s.delete(c);} },
     getContext() { return ctxStub; },
     getBoundingClientRect() { return { left: 0, top: 0, width: 384, height: 224, right: 384, bottom: 224 }; },
+    setPointerCapture() {}, releasePointerCapture() {},
     addEventListener(t, fn) { (listeners[t] || (listeners[t] = [])).push(fn); },
     setAttribute(k, v) { attrs[k] = String(v); }, getAttribute(k) { return (k in attrs) ? attrs[k] : null; }, removeAttribute(k) { delete attrs[k]; }, hasAttribute(k) { return k in attrs; },
     _fire(t, e) { (listeners[t] || []).forEach(fn => fn(e || { preventDefault(){}, stopPropagation(){} })); },
@@ -195,6 +196,10 @@ const probe = `
   try { g.checkOrientation = checkOrientation; } catch(e){}
   try { g.isPortraitPhone = isPortraitPhone; } catch(e){}
   try { g.dismissPortHint = dismissPortHint; } catch(e){}
+  try { g.detectInputMode = detectInputMode; } catch(e){}
+  try { g.setTouchMode = setTouchMode; } catch(e){}
+  try { g.inputIsTouch = inputIsTouch; } catch(e){}
+  try { Object.defineProperty(g,"touchMode",{get:()=>touchMode}); } catch(e){}
   try { Object.defineProperty(g,"portHintDismissed",{get:()=>portHintDismissed,set:v=>{portHintDismissed=v;}}); } catch(e){}
   try { g.BGS = BGS; } catch(e){}
   try { g.startArcade = startArcade; } catch(e){}
@@ -968,6 +973,33 @@ if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
 // Source-Guard: Leaderboard self-contained (keine fest verdrahtete http-URL im Client)
 { const lbSrc = readFileSync(join(__dir, "..", "leaderboard.js"), "utf8");
   assert(!/https?:\/\//.test(lbSrc), "Self-Containment: leaderboard.js ohne fest verdrahtete http-URL (Basis kommt aus Config)"); }
+
+/* ===================================================================
+   PLATTFORM-TRENNUNG — Desktop (Tastatur/Maus, KEIN Touch-Pad) vs. Touch
+   (On-Screen-Pad). Multitouch: laufen + springen gleichzeitig, kein Verschlucken.
+   =================================================================== */
+if (typeof G.detectInputMode === "function") {
+  // Desktop (kein Touch): kein data-touch -> CSS blendet das Touch-Pad aus
+  sandbox.navigator.maxTouchPoints = 0;
+  G.setTouchMode(false); G.detectInputMode();
+  assert(htmlEl.getAttribute("data-touch") === null && G.touchMode === false, "Desktop-Modus: kein data-touch (Touch-Pad ausgeblendet)", "attr=" + htmlEl.getAttribute("data-touch"));
+  // Touch-Geraet: data-touch gesetzt -> Touch-Pad sichtbar
+  sandbox.navigator.maxTouchPoints = 5;
+  G.detectInputMode();
+  assert(htmlEl.getAttribute("data-touch") === "1" && G.touchMode === true, "Touch-Modus: data-touch=1 (Touch-Pad sichtbar)", "attr=" + htmlEl.getAttribute("data-touch"));
+  // Multitouch: links + springen GLEICHZEITIG, ohne Verschlucken
+  G.SET.diff = 1; G.loadPlatform(0, 0); step(1);
+  G.keys.left = G.keys.right = G.keys.jump = false;
+  getEl("bLeft")._fire("pointerdown"); getEl("bJump")._fire("pointerdown");
+  assert(G.keys.left === true && G.keys.jump === true, "Multitouch: laufen + springen gleichzeitig erkannt (kein Verschlucken)", "left=" + G.keys.left + " jump=" + G.keys.jump);
+  getEl("bLeft")._fire("pointerup"); getEl("bJump")._fire("pointerup");
+  assert(G.keys.left === false && G.keys.jump === false, "Touch: Loslassen beendet beide Eingaben sauber", "left=" + G.keys.left + " jump=" + G.keys.jump);
+  sandbox.navigator.maxTouchPoints = 0; G.setTouchMode(false);
+} else { bad("detectInputMode instrumentiert", "detectInputMode nicht exponiert"); }
+// Source-Guards Plattform-Trennung
+assert(/data-touch/.test(html) && /detectInputMode/.test(html), "Source-Guard: JS-Plattform-Erkennung (data-touch) vorhanden");
+assert(/setPointerCapture/.test(html), "Source-Guard: setPointerCapture fuer sauberes Multitouch");
+assert(/html:not\(\[data-touch\]\) #pad\{display:none;?\}/.test(html), "Source-Guard: Touch-Pad nur im Touch-Modus (CSS via data-touch)");
 
 /* ===================================================================
    SELF-CONTAINMENT / OFFLINE — keine externen URLs, Pixel-Schrift lokal.

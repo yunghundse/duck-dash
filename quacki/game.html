@@ -58,7 +58,10 @@
   .tb:active{transform:scale(.92);background:rgba(255,255,255,.32);}
   #bLeft{left:calc(16px + env(safe-area-inset-left));} #bRight{left:calc(128px + env(safe-area-inset-left));}
   #bJump{right:calc(20px + env(safe-area-inset-right));background:rgba(236,191,78,.4);border-color:#ecbf4e;}
-  @media (hover:hover) and (pointer:fine){#pad{display:none;}}
+  /* Touch-Pad nur im Touch-Modus (per JS gesetztes data-touch am <html>); Desktop = Tastatur/Maus, kein Pad. */
+  html:not([data-touch]) #pad{display:none;}
+  html:not([data-touch]) #pad *{display:none;}
+  @media (hover:hover) and (pointer:fine){ html:not([data-touch]) #pad{display:none;} }
   .hudbtn{position:absolute;top:calc(10px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));z-index:6;width:46px;height:46px;border:3px solid var(--ui-edge);
     background:var(--ui-panel);color:var(--ui-edge);font-family:'Press Start 2P',monospace;font-size:14px;
     cursor:pointer;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;}
@@ -918,7 +921,9 @@ addEventListener("keyup",e=>{
   else if(["Space","ArrowUp","KeyW"].includes(e.code)){keys.jump=false;duck.jumpHeld=false;}
 });
 function bindBtn(id,on,off){const el=document.getElementById(id);
-  el.addEventListener("pointerdown",e=>{e.preventDefault();on();});
+  // setPointerCapture: der Button behaelt den Finger, auch wenn er rausrutscht -> kein
+  // "haengendes" Laufen und sauberes Multitouch (links + springen gleichzeitig).
+  el.addEventListener("pointerdown",e=>{e.preventDefault(); try{ if(e.pointerId!=null&&el.setPointerCapture)el.setPointerCapture(e.pointerId); }catch(_){} on();});
   ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off&&off();}));}
 bindBtn("bLeft",()=>{ if(state===ST.OVERWORLD)mapSel=Math.max(0,mapSel-1); else if(state===ST.SUBMAP)subSel=Math.max(0,subSel-1); else if(state===ST.SETTINGS){const n=settingsRows().length;setSel=(setSel+n-1)%n;} else if(state===ST.SHOP){const n=shopList().length;shopSel=(shopSel+n-1)%n;} else keys.left=true; },()=>keys.left=false);
 bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1); else if(state===ST.SUBMAP)subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(state===ST.SETTINGS){const n=settingsRows().length;setSel=(setSel+1)%n;} else if(state===ST.SHOP){const n=shopList().length;shopSel=(shopSel+1)%n;} else keys.right=true; },()=>keys.right=false);
@@ -1936,6 +1941,25 @@ function checkOrientation(){ const portrait=isPortraitPhone();
 addEventListener("resize",checkOrientation);
 addEventListener("orientationchange",()=>setTimeout(checkOrientation,120));
 checkOrientation();
+
+/* ---------- Plattform-Erkennung: echtes Desktop (Tastatur/Maus) vs. Touch (On-Screen) ----------
+   Setzt data-touch am <html>. CSS blendet das Touch-Pad nur im Touch-Modus ein. Auf Hybrid-
+   Geraeten schaltet die zuletzt genutzte Eingabeart um (Maus -> Desktop, Finger -> Touch). */
+let touchMode=false;
+function inputIsTouch(){ try{
+  if(typeof navigator!=="undefined"&&navigator.maxTouchPoints>0)return true;
+  if(typeof window!=="undefined"&&"ontouchstart" in window)return true;
+  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(pointer:coarse)").matches)return true;
+  }catch(e){} return false; }
+function setTouchMode(on){ touchMode=!!on; const de=(typeof document!=="undefined")&&document.documentElement;
+  if(de&&de.setAttribute){ if(on)de.setAttribute("data-touch","1"); else if(de.removeAttribute)de.removeAttribute("data-touch"); } }
+function detectInputMode(){ setTouchMode(inputIsTouch()); }
+detectInputMode();
+addEventListener("resize",detectInputMode);
+// Hybrid: zuletzt genutzte Eingabeart bestimmt den Modus
+addEventListener("pointerdown",e=>{ if(e&&e.pointerType==="touch")setTouchMode(true); else if(e&&e.pointerType==="mouse")setTouchMode(false); }, true);
+// iOS: Pinch-Zoom-Geste unterbinden (Vollbild-App-Gefuehl)
+["gesturestart","gesturechange","gestureend"].forEach(ev=>{ try{ addEventListener(ev,e=>{e.preventDefault&&e.preventDefault();}, {passive:false}); }catch(_){} });
 // Audio erst nach erster Nutzergeste starten (iOS/Autoplay-Policy)
 function unlockAudio(){ try{ const a=ac(); if(a&&a.state==="suspended")a.resume(); }catch(e){}
   removeEventListener("pointerdown",unlockAudio); removeEventListener("touchstart",unlockAudio); removeEventListener("keydown",unlockAudio); }
