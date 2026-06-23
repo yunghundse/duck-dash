@@ -160,7 +160,10 @@
   <div id="scOver" class="screen dim hidden">
     <h1 id="tGameover">Game Over</h1>
     <div class="sub" id="overText">—</div>
-    <button class="btn" id="btnRetry">Nochmal</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="btnRetry">Nochmal</button>
+      <button class="btn ghost" id="btnOverMenu" style="background:transparent;color:var(--ui-sub);border-color:var(--ui-edge);box-shadow:none">Hauptmenue</button>
+    </div>
   </div>
 
   <div id="scPause" class="screen dim hidden">
@@ -559,7 +562,7 @@ function buildLevel(def){
       if(last==="#"||last==="=") pad=last; }
     return r.padEnd(W,pad).split(""); });
   const H=grid.length;
-  const coins=[],foes=[],powers=[],dragons=[],mounts=[]; let spawn={x:2*TILE,y:2*TILE},flag=null,checkpoint=null;
+  const coins=[],foes=[],powers=[],dragons=[],mounts=[],checkpoints=[]; let spawn={x:2*TILE,y:2*TILE},flag=null;
   for(let ty=0;ty<H;ty++)for(let tx=0;tx<W;tx++){const ch=grid[ty][tx];
     if(ch==="o"){coins.push({x:tx*TILE+8,y:ty*TILE+8,got:false,t:Math.random()*6});grid[ty][tx]=" ";}
     else if(ch==="E"){foes.push(makeFoe(tx*TILE+1,ty*TILE,"walk"));grid[ty][tx]=" ";}
@@ -570,17 +573,18 @@ function buildLevel(def){
   }
   const surfaceY=(tx)=>{for(let ty=0;ty<H;ty++){if(isSolidCh(grid[ty][tx])&&(ty===0||!isSolidCh(grid[ty-1][tx])))return ty;}return -1;};
   [0.16,0.33,0.5,0.67,0.84].forEach(fr=>{const tx=Math.floor(W*fr);const sy=surfaceY(tx);if(sy>2)dragons.push({x:tx*TILE+8,y:(sy-3)*TILE+8,got:false,t:Math.random()*6});});
-  { const tx=Math.floor(W*0.42); const sy=surfaceY(tx); if(sy>1) checkpoint={x:tx*TILE,y:(sy-2)*TILE,taken:false}; }
+  // Mehrere sichtbare Checkpoint-Fahnen je Level: bei Treffer wird hier respawnt (innerhalb eines Lebens).
+  [0.42,0.70].forEach(fr=>{ const tx=Math.floor(W*fr); const sy=surfaceY(tx); if(sy>1) checkpoints.push({x:tx*TILE,y:(sy-2)*TILE,taken:false}); });
   { const tx=Math.floor(W*0.25); const sy=surfaceY(tx); if(sy>2) powers.push({x:tx*TILE+8,y:(sy-2)*TILE+8,got:false,t:0,type:"mush"}); }
   { const tx=Math.floor(W*0.6); const sy=surfaceY(tx); if(sy>2) powers.push({x:tx*TILE+8,y:(sy-2)*TILE+8,got:false,t:0,type:"feather"}); }
   { const tx=Math.floor(W*0.38); const sy=surfaceY(tx); if(sy>1) mounts.push({x:tx*TILE,y:(sy-1)*TILE,taken:false,t:0}); }
-  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins,foes,powers,dragons,mounts,spawn,flag,checkpoint,boss:false};
+  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins,foes,powers,dragons,mounts,spawn,flag,checkpoints,boss:false};
 }
 function buildArena(){
   const W=26,H=14; const grid=[];
   for(let y=0;y<H;y++){let row=[];for(let x=0;x<W;x++){
     let ch=" "; if(y>=H-2) ch="#"; else if(x===0||x===W-1) ch="#"; row.push(ch);} grid.push(row);}
-  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:2*TILE,y:(H-4)*TILE},flag:null,checkpoint:null,boss:true};
+  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:2*TILE,y:(H-4)*TILE},flag:null,checkpoints:[],boss:true};
 }
 function isSolidCh(ch){return ch==="#"||ch==="="||ch==="?"||ch==="P"||ch==="Q";}
 function solidAt(tx,ty){ if(tx<0||tx>=L.W) return true; if(ty<0||ty>=L.H) return false; return isSolidCh(L.grid[ty][tx]); }
@@ -677,7 +681,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("startHint",t("pressStart"));set("tTap",t("tapStart"));
   set("tMove",t("ctrlMove"));set("tJump",t("ctrlJump"));set("tGlide",t("ctrlGlide"));
   set("tKeys",t("keysLine"));set("tBetaNote",t("betaNote"));set("tLangLabel",t("language"));
-  set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnShop",t("menuShop"));
+  set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnOverMenu",t("toMenu"));set("btnShop",t("menuShop"));
   // Hauptmenue-Knoepfe
   set("btnNew",t("menuStory"));set("btnArcade",t("menuArcade"));set("btnContinue",t("menuContinue"));set("btnMap",t("menuMap"));
   set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));
@@ -820,7 +824,7 @@ const HUB_EXIT=70;
 let hubL=null, hubNear=null;
 function buildHub(){const W=82,H=14,grid=[];for(let y=0;y<H;y++){const row=[];for(let x=0;x<W;x++)row.push(y>=H-2?"#":" ");grid.push(row);}
   [[19,9,4],[34,8,3],[52,9,5],[63,10,3]].forEach(p=>{for(let i=0;i<p[2];i++)grid[p[1]][p[0]+i]="=";});
-  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:6*TILE,y:(H-4)*TILE},flag:null,checkpoint:null,boss:false};}
+  return {grid,W,H,pxW:W*TILE,pxH:H*TILE,coins:[],foes:[],powers:[],dragons:[],mounts:[],spawn:{x:6*TILE,y:(H-4)*TILE},flag:null,checkpoints:[],boss:false};}
 function enterHub(){ if(!hubL)hubL=buildHub(); L=hubL; resetDuckTo(L.spawn); duck.blink=0; camX=0; hubNear=null; dlgActive=false; state=ST.HUB; showScreen(null); saveEconomy(); }
 // Dialog
 let dlgActive=false, dlgLines=[], dlgIdx=0, dlgName="";
@@ -921,7 +925,7 @@ cv.addEventListener("pointerdown",e=>{
       if(p.x>=lx-2&&p.x<=lx+148&&p.y>=cy-2&&p.y<=cy+rh-2){ if(i===shopSel)shopAction(); else shopSel=i; return; } } }
 });
 function pressJump(){ if(state===ST.PLAY||state===ST.BOSS) duck.buffer=0.12; }
-function screenConfirm(){ if(state===ST.TITLE)startGame(); else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)retryGame(); }
+function screenConfirm(){ if(state===ST.TITLE){ hasSave()?continueGame():startGame(); } else if(state===ST.STORY)storyAdvance(); else if(state===ST.OVER)retryGame(); }
 
 /* ---------- Cutscenes ---------- */
 const el=id=>document.getElementById(id);
@@ -945,7 +949,16 @@ const ARCADE_W=0, ARCADE_LI=0; // Mini-Game nutzt Welt 1 Level 1 als Score-Attac
 function startArcade(){ gameMode="arcade"; if(ac()&&ac().state==="suspended")ac().resume();
   lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; comboReset();
   loadPlatform(ARCADE_W,ARCADE_LI); }
-function retryGame(){ if(gameMode==="arcade")startArcade(); else startGame(); }
+// Story-Game-Over: NICHT von vorn. Aktuelles Level mit vollen Leben neu starten,
+// Welt-/Spiel-Fortschritt (unlocked/worldProgress/Muenzen) bleibt erhalten.
+function respawnAtLevelStart(){ gameMode="story"; lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; comboReset(); loadPlatform(worldIdx,curLevelIdx); }
+function retryGame(){ if(gameMode==="arcade")startArcade(); else respawnAtLevelStart(); }
+// "Neues Spiel" mit Sicherheitsabfrage, wenn schon ein Spielstand existiert (Ja/Abbrechen via Story-Screen).
+function confirmNewGame(){ if(!hasSave()){ startGame(); return; }
+  el("storyEmoji").textContent=""; el("storyTitle").textContent=t("newGameTitle"); el("storyText").textContent=t("newGameWarn");
+  el("storyBtn").textContent=t("newGameYes"); el("storySkip").textContent=t("cancel");
+  storyNext=()=>{ startGame(); }; seqDone=()=>{ state=ST.TITLE; showScreen("scTitle"); applyTitleI18n(); };
+  state=ST.STORY; showScreen("scStory"); }
 function startGame(){ gameMode="story"; if(ac()&&ac().state==="suspended")ac().resume(); lives=diffCfg().lives+(hasPerk("extralife")?1:0);coinsGot=0;score=0;worldIdx=0;unlocked=0;mapSel=0;subSel=0;curLevelIdx=0;
   for(let i=0;i<worldProgress.length;i++)worldProgress[i]=0; curWorld=WORLDS[0];
   // Kurzer, ueberspringbarer Einstieg -> DIREKT Welt 1 Level 1 (kein Hub/NPC-Gate davor).
@@ -989,7 +1002,9 @@ function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=
 function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
 function takeHit(){ const d=duck; comboReset(); if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
 function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
-function gameOver(){saveEconomy();saveHighscore();state=ST.OVER;el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore;SFX.over();showScreen("scOver");}
+function gameOver(){saveEconomy();saveHighscore();state=ST.OVER;
+  el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore+(gameMode==="story"?("   "+t("gameOverHint")):"");
+  SFX.over();showScreen("scOver");}
 function levelCleared(){ SFX.clear();
   if(gameMode==="arcade"){ // Score-Attack: Runde geschafft -> sofort dieselbe Runde erneut, Score laeuft weiter
     saveHighscore(); powerMsg=t("arcadeCleared"); powerMsgT=1.4; loadPlatform(ARCADE_W,ARCADE_LI); return; }
@@ -1006,6 +1021,7 @@ function bossDefeated(){ SFX.clear(); saveHighscore(); const w=worldIdx, levels=
     dialogSeq(beats,startGame); }
   else { if(w===unlocked&&unlocked<WORLDS.length-1)unlocked++; mapSel=Math.min(unlocked,w+1); cutscene("",t("worldDoneTitle",{world:worldName(w)}),t("worldDoneText"),t("toMap"),()=>enterOverworld()); } }
 el("btnRetry").addEventListener("click",retryGame);
+{ const b=el("btnOverMenu"); if(b)b.addEventListener("click",e=>{e.stopPropagation();goToMenu();}); }
 /* ---------- Pause-Wiring ---------- */
 el("btnPause").addEventListener("click",e=>{e.stopPropagation();pauseSet(true);});
 el("btnResume").addEventListener("click",e=>{e.stopPropagation();pauseSet(false);});
@@ -1081,7 +1097,7 @@ function fillLeader(){ el("leaderBody").innerHTML = (highscore>0)
 function showToast(msg){ const e=document.getElementById("toast"); if(!e)return; e.textContent=msg; e.classList.remove("hidden"); try{clearTimeout(showToast._t);showToast._t=setTimeout(()=>e.classList.add("hidden"),2600);}catch(x){} }
 function unlockSecret(){ if(!owned.golden)owned.golden=true; equippedSkin="golden"; saveEconomy(); SFX.star&&SFX.star(); showToast(t("secretFound")); }
 function clk(id,fn){const e=el(id); if(e)e.addEventListener("click",ev=>{ev.stopPropagation();fn();});}
-clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startGame(); });
+clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); confirmNewGame(); });
 clk("btnArcade",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startArcade(); });
 clk("btnContinue",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
 clk("btnMap",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); continueGame(); });
@@ -1131,7 +1147,7 @@ function update(dt){
     else{d.star=8;powerMsg=t("starpower");burst(p.x,p.y,"#ffe96b",18,115);}
     SFX.star();}}}
   for(const c of L.dragons){if(!c.got){c.t+=dt*5;if(Math.abs((d.x+d.w/2)-c.x)<13&&Math.abs((d.y+d.h/2)-c.y)<14){c.got=true;dragonGot++;score+=500;SFX.coin();if(L.dragons.length>0&&dragonGot===L.dragons.length){score+=2000;SFX.clear();}}}}
-  if(L.checkpoint&&!L.checkpoint.taken&&(d.x+d.w)>L.checkpoint.x+4){L.checkpoint.taken=true;L.spawn={x:L.checkpoint.x,y:Math.max(0,L.checkpoint.y)};SFX.coin();saveState();}
+  if(L.checkpoints){ for(const cp of L.checkpoints){ if(!cp.taken&&(d.x+d.w)>cp.x+4){ cp.taken=true; L.spawn={x:cp.x,y:Math.max(0,cp.y)}; SFX.coin(); saveState(); } } }
   for(const mo of L.mounts){if(mo.taken)continue;mo.t+=dt;if(!d.mounted&&d.x<mo.x+16&&d.x+d.w>mo.x&&d.y+d.h>mo.y-2&&d.y<mo.y+14){mo.taken=true;d.mounted=true;score+=150;SFX.coin();}}
 
   // foes
@@ -1656,8 +1672,8 @@ function drawCoins(){for(const c of L.coins){if(c.got)continue;const ww=Math.abs
   px(c.x-ww/2,c.y-6,ww,12,C.coin);px(c.x-ww/2,c.y-6,ww,2,"#fff2a8");px(c.x-1,c.y-3,1,6,C.coinDk);}}
 function drawDragons(){if(!L.dragons)return;for(const c of L.dragons){if(c.got)continue;const bob=Math.sin(c.t)*2;
   px(c.x-7,c.y-8+bob,14,16,"#e2b33a");px(c.x-7,c.y-8+bob,14,2,"#ffe08a");px(c.x-7,c.y+6+bob,14,2,"#a8531c");px(c.x-2,c.y-3+bob,4,7,"#a8531c");}}
-function drawCheckpoint(){if(!L.checkpoint)return;const X=L.checkpoint.x,Y=L.checkpoint.y;px(X+7,Y-2,2,L.pxH-Y,C.pole);
-  ctx.fillStyle=L.checkpoint.taken?"#4ec03a":"#bcbcbc";ctx.beginPath();ctx.moveTo(X+9,Y);ctx.lineTo(X+20,Y+4);ctx.lineTo(X+9,Y+8);ctx.fill();}
+function drawCheckpoint(){ if(!L.checkpoints)return; for(const cp of L.checkpoints){ const X=cp.x,Y=cp.y; px(X+7,Y-2,2,L.pxH-Y,C.pole);
+  ctx.fillStyle=cp.taken?"#4ec03a":"#bcbcbc";ctx.beginPath();ctx.moveTo(X+9,Y);ctx.lineTo(X+20,Y+4);ctx.lineTo(X+9,Y+8);ctx.fill(); } }
 function drawPowers(){for(const p of L.powers){if(p.got)continue;p.t+=0.06;const yy=p.y+Math.sin(p.t)*2,x=p.x;
   if(p.type==="mush"){px(x-6,yy-2,12,7,"#e24b4a");px(x-6,yy-2,12,2,"#ff7a78");px(x-4,yy,2,2,"#fff");px(x+2,yy,2,2,"#fff");px(x-3,yy+5,6,5,"#f0e2c0");}
   else if(p.type==="feather"){px(x-1,yy-7,3,14,"#ffffff");px(x-4,yy-2,8,3,"#e24b6a");px(x-5,yy+1,10,2,"#cf3f58");}

@@ -97,7 +97,14 @@ const probe = `
   try { Object.defineProperty(g,"state",{get:()=>state}); } catch(e){}
   try { Object.defineProperty(g,"L",{get:()=>L}); } catch(e){}
   try { Object.defineProperty(g,"worldIdx",{get:()=>worldIdx}); } catch(e){}
-  try { Object.defineProperty(g,"lives",{get:()=>lives}); } catch(e){}
+  try { Object.defineProperty(g,"lives",{get:()=>lives,set:v=>{lives=v;}}); } catch(e){}
+  try { g.retryGame = retryGame; } catch(e){}
+  try { g.respawnAtLevelStart = respawnAtLevelStart; } catch(e){}
+  try { g.gameOver = gameOver; } catch(e){}
+  try { g.confirmNewGame = confirmNewGame; } catch(e){}
+  try { g.afterDeath = afterDeath; } catch(e){}
+  try { g.loseLife = loseLife; } catch(e){}
+  try { Object.defineProperty(g,"curLevelIdx2",{get:()=>curLevelIdx}); } catch(e){}
   try { Object.defineProperty(g,"score",{get:()=>score,set:v=>{score=v;}}); } catch(e){}
   try { Object.defineProperty(g,"boss",{get:()=>boss}); } catch(e){}
   try { Object.defineProperty(g,"subSel",{get:()=>subSel}); } catch(e){}
@@ -824,6 +831,54 @@ if (typeof G.saveState === "function" && typeof G.loadState === "function") {
   // sauberer Ausgangszustand fuer Folgetests
   G.SET.lang = "de"; G.SET.diff = 1; G.applyDuckName("");
 }
+
+/* ===================================================================
+   CHECKPOINTS + FAIRES GAME OVER — Respawn am letzten Checkpoint (mit
+   Leben uebrig), bei 0 Leben Neustart am LEVEL-Start (nicht Spielanfang),
+   Welt-Fortschritt bleibt; "Neues Spiel" nur mit Sicherheitsabfrage.
+   =================================================================== */
+if (typeof G.afterDeath === "function" && typeof G.retryGame === "function") {
+  // Checkpoints vorhanden + Respawn innerhalb eines Lebens
+  G.SET.diff = 1; G.startGame(); let gs = 0; while (G.state === G.ST.STORY && gs++ < 12) G.storyAdvance();
+  frameErr = null; G.loadPlatform(0, 0); step(1);
+  const cps = G.L.checkpoints;
+  assert(Array.isArray(cps) && cps.length >= 1, "Checkpoints: Level hat sichtbare Checkpoint-Fahnen", "n=" + (cps && cps.length));
+  const startSpawnX = G.L.spawn.x;
+  G.duck.x = cps[0].x + 6; G.duck.y = Math.max(0, cps[0].y); step(1);
+  assert(cps[0].taken === true, "Checkpoint: wird beim Passieren aktiviert");
+  assert(Math.abs(G.L.spawn.x - cps[0].x) < 1, "Checkpoint: setzt den Respawn-Punkt", "spawn=" + G.L.spawn.x + " cp=" + cps[0].x);
+  G.lives = 3; G.loseLife(); G.afterDeath();
+  assert(G.state === G.ST.PLAY, "Tod mit Leben uebrig -> zurueck ins Spiel", "state=" + G.state);
+  assert(Math.abs(G.duck.x - cps[0].x) < 1 && G.duck.x !== startSpawnX, "Checkpoint-Respawn: am Checkpoint, NICHT am Levelanfang", "x=" + G.duck.x + " start=" + startSpawnX);
+  assert(!frameErr, "Checkpoint-Frames laufen fehlerfrei", frameErr);
+
+  // Game Over (0 Leben, Story) -> Level-Neustart, Welt-Fortschritt bleibt, NICHT Welt 1
+  G.unlocked = 3; G.worldProgress[1] = 2;
+  G.loadPlatform(1, 1); step(1);
+  assert(G.gameMode === "story", "Setup: Story-Modus aktiv", "mode=" + G.gameMode);
+  G.lives = 1; G.loseLife(); G.afterDeath();
+  assert(G.state === G.ST.OVER, "0 Leben (Story) -> Game Over", "state=" + G.state);
+  G.retryGame();
+  assert(G.state === G.ST.PLAY, "Game-Over-Nochmal -> wieder im Level (PLAY)", "state=" + G.state);
+  assert(G.worldIdx === 1 && G.curLevelIdx2 === 1, "Nochmal bleibt im selben Level (nicht Welt 1)", "w=" + G.worldIdx + " l=" + G.curLevelIdx2);
+  assert(G.unlocked === 3, "Nochmal behaelt Welt-Fortschritt (unlocked bleibt 3)", "unlocked=" + G.unlocked);
+  assert(G.lives === 3, "Nochmal fuellt die Leben wieder auf", "lives=" + G.lives);
+
+  // "Neues Spiel" mit Sicherheitsabfrage (Save vorhanden)
+  G.saveState();
+  const unlk = G.unlocked;
+  G.confirmNewGame();
+  assert(G.state === G.ST.STORY, "Neues Spiel: Sicherheitsabfrage erscheint (kein sofortiger Reset)", "state=" + G.state);
+  assert(G.unlocked === unlk, "Neues Spiel: vor Bestaetigung kein Reset", "unlocked=" + G.unlocked);
+  G.skipScene();
+  assert(G.state === G.ST.TITLE, "Neues Spiel: Abbrechen kehrt zum Titel", "state=" + G.state);
+  assert(G.unlocked === unlk, "Neues Spiel: Abbrechen aendert Fortschritt nicht", "unlocked=" + G.unlocked);
+  G.confirmNewGame(); G.storyAdvance();   // Bestaetigen -> startGame
+  let gn = 0; while (G.state === G.ST.STORY && gn++ < 12) G.storyAdvance();
+  assert(G.unlocked === 0 && G.worldIdx === 0, "Neues Spiel bestaetigt: Reset auf Welt 1", "unlocked=" + G.unlocked + " w=" + G.worldIdx);
+}
+// Source-Guard: kein Voll-Reset bei Game Over (retryGame ruft im Story-Pfad nicht startGame)
+assert(/respawnAtLevelStart/.test(html) && /else respawnAtLevelStart\(\)/.test(html), "Source-Guard: Game Over startet Level neu (kein Spiel-Voll-Reset)");
 
 /* ===================================================================
    SELF-CONTAINMENT / OFFLINE — keine externen URLs, Pixel-Schrift lokal.
