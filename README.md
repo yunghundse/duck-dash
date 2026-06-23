@@ -1,137 +1,96 @@
-# 🦆 Duck Dash – Die Kicker-Ente auf WM-Tour
+# Duck Dash – Die Entenrettung
 
-Ein **gewaltfreier, kinderfreundlicher Retro-Endless-Runner** im Look alter
-8-/16-Bit-Spiele. Die Spielfigur ist eine **Gummiente**, die auf WM-Tour durch
-sechs Länder watschelt: springen, sliden, Fußbälle sammeln und fair-fordernde
-Hindernisse meistern – mit echtem **Pixel-Art-Gefühl**, Chiptune-Sound und
-abschaltbarem CRT-Look.
+Ein gewaltfreies, kinderfreundliches Retro-Jump'n'Run im echten Pixel-Look.
+Hilf der Gummiente **Quacki**, die goldene Gummiente Goldi aus dem Quakschloss von
+Baron von Quak zu retten: 6 Welten, je ein Gummi-Tier-Boss, 3 Schwierigkeiten.
+Story-Modus mit Spielstand + Checkpoints und ein Mini-Game (Score-Jagd) mit echter
+Online-Bestenliste.
 
-Pflicht-Thema der Challenge (eine Gummiente kommt vor) ist hier zur Hauptfigur gemacht.
-Komplett **gewaltfrei**: Gegner werden nur über- oder unterlaufen – kein Schlagen,
-kein Schießen. Keine Werbung, keine Echtgeld-Käufe.
+**▶ Live spielen: <https://quacki.vercel.app>**
 
-## Spielen (Web)
+Das Spiel ist selbst-enthalten (relative Pfade, keine externen Bibliotheken,
+offline lauffaehig als PWA) und liegt im Ordner [`quacki/`](./quacki).
 
-Einfach `index.html` im Browser öffnen – alles steckt in dieser **einen Datei**
-(CSS + JS inline, keine externen Bibliotheken).
+## Spielen
+
+Online unter <https://quacki.vercel.app> – oder lokal `quacki/game.html` im Browser
+oeffnen bzw. einen kleinen Server starten:
 
 ```bash
-open index.html      # macOS
-# oder einen kleinen Server:
-python3 -m http.server 8000   # dann http://localhost:8000
+cd quacki
+python3 -m http.server 8000   # dann http://localhost:8000/game.html
 ```
 
 ### Steuerung
 
-| Aktion    | Tastatur                | Touch / Maus              |
-|-----------|-------------------------|---------------------------|
-| Springen  | Leertaste / ↑ / W       | Tippen / großes Feld rechts |
-| Ducken/Slide | ↓ / S                | Wisch runter / Feld links halten |
-| Gleiten   | nochmal Springen in der Luft 🪶 | nochmal tippen     |
-| Pause     | Esc / P                 | ⏸-Button (auto bei Tab-Wechsel) |
+- **Desktop:** Pfeiltasten / A D laufen, Leertaste / Pfeil hoch / W springen
+  (in der Luft halten = gleiten), P oder Esc Pause, Maus fuer Menues. Das Spielfeld
+  ist fest im Browserfenster verankert (zentriert + letterboxed); die Pfeiltasten
+  scrollen die Seite nie. Vollbild per Knopf oben links.
+- **Handy:** grosse Touch-Tasten unten (links/rechts = laufen, rechts = springen);
+  laufen und springen gleichzeitig moeglich. Hoch- UND Querformat spielbar.
 
-- **Doppelsprung** (genau einer), **Coyote-Time** und **Input-Buffer** für wendiges,
-  sofort reagierendes Spielgefühl.
-- Gewaltfreier Zusatz-Move: kurzes **Gleiten/Flattern** einmal pro Luftphase.
-- **3 Leben** (Easy: 5) mit kurzer Unverwundbarkeit nach einem Treffer.
+## Modi
 
-## Modi & Schwierigkeit
+- **Story:** 6 Welten mit je einem Gummi-Tier-Boss und grossem Finale. Fortschritt,
+  Checkpoints und faires Game Over (nie zurueck zum Spielanfang).
+- **Mini-Game (Score-Jagd):** ein durchgehender Lauf auf Punkte – mit echter
+  Online-Bestenliste.
 
-- **♾️ Endlos (Standard)**: zeitloser, unendlicher Lauf mit steigenden **Wellen**
-  und neutralem Retro-Setting (Tag/Dämmerung/Nacht).
-- **🏆 WM-Tour (Feature)**: die 6 Länder-Etappen mit Story und großem Finale.
-- **🐣 Einfach / 🦆 Normal**: Einfach deckelt das Tempo, vergrößert Lücken, bringt
-  weniger Slide-Hindernisse, 5 Herzen und längere Unverwundbarkeit.
+## Spielstand
 
-## Kinderfreundlich
+Der Fortschritt wird automatisch im Browser gespeichert (`localStorage`, ein
+versioniertes Save-Objekt). Im Hauptmenue laedt **Weiter** den letzten Stand;
+**Story / Neues Spiel** setzt mit Sicherheitsabfrage zurueck. Bei Game Over geht
+es am letzten Welt-/Level-Start weiter – der Welt-Fortschritt bleibt erhalten.
 
-- Einmalige, überspringbare **How-to-Anleitung** (in allen 4 Sprachen, jederzeit
-  aus den Einstellungen wiederholbar).
-- Große **On-Screen-Touch-Felder** (Springen rechts, Halten-zum-Sliden links);
-  Wisch-Gesten funktionieren weiterhin.
-- **Kindersichere Namen**: Preset-/Emoji-Namen per Tipp + einfacher Wortfilter
-  (Tippen ist optional).
-- **Auto-Pause** beim Tab-Wechsel, klarer Pause-Button, kontrastreiche Hinweise.
+## Online-Bestenliste
 
-## Retro-Look
+Die geteilte Online-Bestenliste ist **bereits aktiv** (Supabase-Backend, Echtzeit,
+statisch-tauglich). Faellt das Backend aus, schaltet das Spiel automatisch auf eine
+lokale Bestenliste (im Browser) zurueck – es funktioniert also immer.
 
-- **Pixel-Art-Rendering**: intern wird in **320×180** auf einen Offscreen-Canvas
-  gezeichnet und mit **Nearest-Neighbor** formatfüllend hochskaliert
-  (`imageSmoothingEnabled = false`, CSS `image-rendering: pixelated`) → chunky Pixel,
-  kein weiches Anti-Aliasing.
-- **Feste 16-Farben-Palette** (`PALETTE`), gedämpft aber kontrastreich.
-- **Pixel-UI**: monospace Pixel-Font (deckt alle Umlaute + ES/FR-Akzente ab,
-  offline-tauglich), eckige Retro-Buttons mit hartem Rahmen, blinkendes „PRESS START",
-  Score mit führenden Nullen, Pixel-Herzen.
-- **CRT-Effekte** (abschaltbar): Scanlines, Vignette, sanftes Glühen, plus
-  Fade-Übergänge zwischen den Szenen.
-- **Chiptune-Sound**: Square/Triangle/Noise-SFX und eine loopende
-  Hintergrundmelodie – alles per WebAudio, ohne Dateien.
+Eigenes Backend einrichten (optional, ~5 Min): ein kostenloses Supabase-Projekt
+anlegen, im SQL-Editor eine `scores`-Tabelle mit RLS (nur INSERT + SELECT fuer
+`anon`) erstellen und Project-URL + **anon public** Key in
+**`quacki/leaderboard-config.js`** eintragen. Der `anon public` Key darf oeffentlich
+im Repo stehen (durch die RLS-Regeln abgesichert); den `service_role`-Key **niemals**
+committen.
 
-## Features
-
-- **6 WM-Etappen**: Brasilien, Deutschland, Japan, USA, Argentinien, WM-Finale –
-  je mit eigener Farbpalette, Flagge, Story-Intro und erkennbarer
-  **Pixel-Parallax-Skyline** (Rio-Berge, Brandenburger Tor, Fuji/Pagode,
-  NYC-Skyline, Obelisk, Stadion).
-- **Kombo-System**: Bälle in Folge ohne Treffer erhöhen den Multiplikator (bis x5).
-- **Sammeln**: Fußbälle (Punkte + Münzen), selten ein goldener Pokal.
-- **Sound**: Sprung, Münze, Pokal, Treffer, Etappe, Game Over, Sieg + Musik –
-  Ton und Musik getrennt schaltbar, Auswahl wird gemerkt.
-- **4 Sprachen**: Deutsch, Englisch, Spanisch, Französisch (mit korrekten Sonderzeichen
-  im DOM **und** auf dem Canvas).
-- **Einstellungen**: Sprache, Ton, Musik, CRT – erreichbar aus Menü und Pause.
-- **Shop**: Enten-Skins/Kosmetik (Trikots, Hut, Brille, Goldene Ente) und
-  gewaltfreie Power-ups (Schild, Münz-Magnet, Extra-Leben, Doppelpunkte, Tempo-Boost).
-  Münzen werden dauerhaft gespeichert.
-- **Bestenliste**: Top-20-Speicher mit Namens-Eingabe, Top-10-Anzeige,
-  „NEW HIGHSCORE"-Banner.
-- **Easter Egg**: Wer das Spiel in **allen 4 Sprachen** durchspielt, schaltet den
-  „Golden Quack"-Bonus-Skin frei (mit Konfetti-Glückwunsch). Fortschritt x/4 im Menü.
-- **PWA**: installierbar (`manifest.json` + `sw.js`), funktioniert offline.
-
-## Terminal-Version (`play.py`)
-
-Eine vereinfachte ASCII-Variante mit Retro-Titelbanner – nur
-Python-3-Standardbibliothek, keine Pakete.
-
-```bash
-python3 play.py
+```sql
+create table scores (
+  id bigint generated always as identity primary key,
+  name text not null,
+  score int not null,
+  mode text not null default 'story',
+  created_at timestamptz not null default now()
+);
+alter table scores enable row level security;
+create policy "anon insert" on scores for insert to anon
+  with check (char_length(name) between 1 and 20 and score >= 0);
+create policy "anon read" on scores for select to anon using (true);
 ```
 
-- Ente `Q`, Hindernisse `^`, Bälle `o`, Boden `=`
-- Steuerung: **Leertaste / W** = springen, **Q** = beenden
-- 3 Leben, Länder-Etappen mit Fortschrittsbalken, Sieg nach dem Finale
-- Ohne interaktives Terminal (z. B. in einer Pipe) läuft eine kurze **Auto-Demo**.
+## Tests
 
-## Technik / Engine-Gerüst
+Dependency-freier Headless-Smoke-Test (Node 18+):
 
-Sauber getrennte Module in der einen `index.html`:
+```bash
+node quacki/test/smoke.mjs
+```
 
-| Modul        | Aufgabe                                                         |
-|--------------|-----------------------------------------------------------------|
-| `CONFIG`     | alle Tuning-Werte (Physik, Tempo, Spawn, Auflösung)             |
-| `PALETTE`    | feste 16-Farben-Retro-Palette                                   |
-| `SAVE`       | gekapselter `localStorage`-Zugriff (get/set, try/catch)         |
-| `INPUT`      | vereinheitlichte Eingabe (Tastatur + Touch/Maus) → Aktionen     |
-| `AUDIO`      | Chiptune-Engine (Square/Triangle/Noise) + SFX                   |
-| `RENDER`     | Pixel-Renderer (Low-Res-Buffer, Sprites, HUD)                   |
-| `SCENES`     | State-Manager mit `enter/update/draw/exit`                      |
-| `ENTITIES`   | Ente, Hindernisse, Sammelobjekte, Partikel                      |
-| `Store`/`ScoreStore` | Geldbörse/Skins bzw. Bestenliste (Online-Backend-ready) |
+Deckt u.a. ab: Spielstand-Roundtrip + Migration, Checkpoint-Respawn, faires
+Game Over, Online-Highscore (Insert/Fetch gemockt) + Offline-Fallback +
+Namensfilter/Escaping, Sonderzeichen in 4 Sprachen, Hoch-/Querformat,
+Desktop/Touch-Trennung, Browser-Verankerung (fixierte Stage + preventDefault).
 
-- Game-Loop mit `requestAnimationFrame` und begrenzter Delta-Zeit.
-- Szenen: Menü, Story, Spiel, Pause, Game Over, Sieg, Shop, Bestenliste, Egg, Einstellungen.
-- Persistenz über `localStorage` (Bestwert, Münzen, Skins, Sprache, Ton/Musik/CRT, Scores).
-- **UTF-8** durchgängig: `<meta charset="utf-8">`, echte Sonderzeichen überall
-  (ä ö ü Ä Ö Ü ß, á é í ó ú ñ ¡ ¿ à â ç è ê î ô û) – im DOM und per `fillText` auf dem Canvas.
+## Deploy
 
-## Dateien
+Statische Seite auf Vercel (Deploy-Root = `quacki/`). Live:
+<https://quacki.vercel.app>.
 
-| Datei           | Zweck                                  |
-|-----------------|----------------------------------------|
-| `index.html`    | Komplettes Spiel (Web)                 |
-| `manifest.json` | PWA-Manifest                           |
-| `sw.js`         | Service Worker (Offline-Cache)         |
-| `icon.svg`      | App-Icon                               |
-| `play.py`       | Terminal-Version (ASCII, Retro-Banner) |
+## Eigenstaendigkeit
+
+Alle Figuren, Texte, Grafiken (Pixel-Art im Code gezeichnet), Musik (Chiptune im
+Code) und die Pixel-Schrift (lokal gebundelt) sind original bzw. frei lizenziert.
+Keine urheberrechtlich geschuetzten Inhalte, keine Werbung, keine Echtgeld-Kaeufe.
