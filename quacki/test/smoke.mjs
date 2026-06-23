@@ -769,6 +769,54 @@ assert(/data-portrait/.test(html), "Source-Guard: Portrait-Layout per data-portr
 assert(/portHint/.test(html), "Source-Guard: dezenter, wegklickbarer Portrait-Hinweis vorhanden");
 
 /* ===================================================================
+   VOLLBILD — echte Fullscreen-API (mit Vendor-Prefixes), Knopf im Menue
+   UND im HUD, einmaliger Auto-Versuch bei Nutzergeste. Wo die API fehlt
+   (iPhone-Safari), wird der Knopf ausgeblendet -> sauberer 100dvh-Fallback.
+   =================================================================== */
+// Source-Guards: API + Vendor-Prefixes + Knoepfe + i18n verdrahtet
+assert(/requestFullscreen/.test(html), "Vollbild: Fullscreen-API (requestFullscreen) verdrahtet");
+assert(/webkitRequestFullscreen/.test(html), "Vollbild: Vendor-Prefix (webkitRequestFullscreen) beachtet");
+assert(/exitFullscreen/.test(html) && /webkitExitFullscreen/.test(html), "Vollbild: Verlassen (exit + webkit-Prefix) vorhanden");
+assert(/fullscreenchange/.test(html) && /webkitfullscreenchange/.test(html), "Vollbild: fullscreenchange-Listener (inkl. webkit) vorhanden");
+assert(/qkToggleFullscreen/.test(html) && /qkAutoFullscreen/.test(html), "Vollbild: Toggle + einmaliger Auto-Versuch vorhanden");
+assert(/id="btnFs"/.test(html), "Vollbild: HUD-Knopf (#btnFs) im Spiel vorhanden");
+assert(/id="btnFsMenu"/.test(html), "Vollbild: Menue-Knopf (#btnFsMenu) vorhanden");
+assert(/qkAutoFullscreen\(\)/.test(html), "Vollbild: Auto-Versuch ist an Start-/Tap-Pfade gekoppelt");
+{
+  const exSrc = readFileSync(join(__dir, "..", "i18n_extra.js"), "utf8");
+  assert(/fullscreen:/.test(exSrc), "Vollbild: i18n-Key 'fullscreen' vorhanden");
+  const EX = sandbox.I18N_EXTRA;
+  assert(EX && ["de","en","es","fr"].every(l => EX[l] && typeof EX[l].fullscreen === "string" && EX[l].fullscreen.length > 0),
+    "Vollbild: 'fullscreen' in allen 4 Sprachen uebersetzt", JSON.stringify(EX && {de:EX.de&&EX.de.fullscreen,en:EX.en&&EX.en.fullscreen,es:EX.es&&EX.es.fullscreen,fr:EX.fr&&EX.fr.fullscreen}));
+}
+// Funktional: ohne API-Unterstuetzung (wie iPhone-Safari) wird der Knopf ausgeblendet
+assert(getEl("btnFs").classList.contains("hidden"), "Vollbild: HUD-Knopf ausgeblendet, wenn API fehlt (iOS-Fallback)");
+assert(getEl("btnFsMenu").classList.contains("hidden"), "Vollbild: Menue-Knopf ausgeblendet, wenn API fehlt (iOS-Fallback)");
+// Menue-Knopf ist beschriftet (i18n)
+G.setLang("de"); G.applyTitleI18n();
+assert(getEl("btnFsMenu").textContent === G.t("fullscreen") && getEl("btnFsMenu").textContent.length > 0, "Vollbild: Menue-Knopf traegt uebersetztes Label", "txt=" + getEl("btnFsMenu").textContent);
+// Funktional: mit (gemockter) API toggelt der Knopf rein/raus, idempotent + crashfrei
+if (typeof sandbox.qkToggleFullscreen === "function") {
+  let reqs = 0, exits = 0;
+  htmlEl.requestFullscreen = () => { reqs++; return Promise.resolve(); };
+  sandbox.document.exitFullscreen = () => { exits++; return Promise.resolve(); };
+  sandbox.document.fullscreenElement = null;
+  sandbox.qkToggleFullscreen();                                   // nicht im Vollbild -> anfordern
+  assert(reqs === 1 && exits === 0, "Vollbild: Toggle fordert Vollbild an (requestFullscreen)", "reqs=" + reqs + " exits=" + exits);
+  sandbox.document.fullscreenElement = htmlEl;                    // jetzt im Vollbild
+  sandbox.qkToggleFullscreen();                                   // -> verlassen
+  assert(exits === 1, "Vollbild: Toggle verlaesst Vollbild (exitFullscreen)", "exits=" + exits);
+  // Auto-Versuch feuert genau EINMAL (kein Re-Trigger, wenn der Nutzer wieder verlaesst)
+  sandbox.document.fullscreenElement = null; reqs = 0;
+  sandbox.qkAutoFullscreen(); sandbox.qkAutoFullscreen();
+  assert(reqs <= 1, "Vollbild: Auto-Versuch feuert hoechstens einmal (kein erzwungenes Re-Entern)", "reqs=" + reqs);
+  // Support-Gating: ohne API -> No-op, kein Crash (iOS)
+  delete htmlEl.requestFullscreen; reqs = 0; sandbox.document.fullscreenElement = null;
+  sandbox.qkToggleFullscreen();
+  assert(reqs === 0, "Vollbild: ohne API-Unterstuetzung kein Request + kein Crash (iOS-Safari-Fallback)", "reqs=" + reqs);
+} else { bad("Vollbild instrumentiert", "qkToggleFullscreen nicht exponiert"); }
+
+/* ===================================================================
    ANTI-FLACKER — der Kern-Fix: Ente (und Boss) duerfen waehrend der
    Unverwundbarkeit NICHT hart blinken/verschwinden. Wir rendern drawDuck
    isoliert ueber eine volle Puls-Periode und pruefen pro Frame:

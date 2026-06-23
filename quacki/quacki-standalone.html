@@ -66,6 +66,13 @@
     background:var(--ui-panel);color:var(--ui-edge);font-family:'Press Start 2P',monospace;font-size:14px;
     cursor:pointer;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;}
   .hudbtn:active{transform:scale(.92);}
+  /* Vollbild-Knopf: Pendant zum Pause-Knopf, aber oben LINKS. Immer sichtbar (Menue + Spiel),
+     wird per JS ausgeblendet, wenn die Fullscreen-API fehlt (z.B. iPhone-Safari -> 100dvh-Fallback). */
+  #btnFs{right:auto;left:calc(12px + env(safe-area-inset-left));z-index:7;padding:0;}
+  #btnFs svg{width:22px;height:22px;display:block;}
+  #btnFs .fs-exit{display:none;}
+  html.qk-fs #btnFs .fs-enter{display:none;}
+  html.qk-fs #btnFs .fs-exit{display:block;}
   .menugrid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;width:100%;max-width:300px;}
   .menugrid .btn{width:100%;min-width:0;font-size:clamp(9px,2.4vw,12px);padding:11px 6px;overflow:hidden;text-overflow:ellipsis;}
   .menugrid .btn[disabled]{opacity:.4;pointer-events:none;}
@@ -137,6 +144,7 @@
       <button class="btn" id="btnBios">Steckbriefe</button>
       <button class="btn" id="btnHelp">Hilfe</button>
       <button class="btn" id="btnSettings">Einstellungen</button>
+      <button class="btn" id="btnFsMenu">Vollbild</button>
     </div>
   </div>
 
@@ -190,6 +198,10 @@
   </div>
 
   <button id="btnPause" class="hudbtn hidden" aria-label="Pause">II</button>
+  <button id="btnFs" class="hudbtn" aria-label="Vollbild" title="Vollbild">
+    <svg class="fs-ic fs-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    <svg class="fs-ic fs-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+  </button>
   <div id="toast" class="hidden"></div>
 
   <div id="portHint" class="hidden">
@@ -632,6 +644,7 @@ window.I18N_EXTRA = {
     theme: "Anzeige",
     themeLight: "Hell",
     themeDark: "Dunkel",
+    fullscreen: "Vollbild",
     helpTitle: "Hilfe & Steuerung",
     helpRun: "Laufen: Pfeiltasten oder A/D - am Handy die großen Tasten unten",
     helpJump: "Springen: Leertaste, Pfeil hoch oder W",
@@ -711,6 +724,7 @@ window.I18N_EXTRA = {
     theme: "Display",
     themeLight: "Light",
     themeDark: "Dark",
+    fullscreen: "Fullscreen",
     helpTitle: "Help & Controls",
     helpRun: "Run: arrow keys or A/D - on mobile, the big buttons below",
     helpJump: "Jump: spacebar, up arrow or W",
@@ -790,6 +804,7 @@ window.I18N_EXTRA = {
     theme: "Pantalla",
     themeLight: "Claro",
     themeDark: "Oscuro",
+    fullscreen: "Pantalla completa",
     helpTitle: "Ayuda y controles",
     helpRun: "Correr: teclas de flecha o A/D - en el móvil, los botones grandes de abajo",
     helpJump: "Saltar: barra espaciadora, flecha arriba o W",
@@ -869,6 +884,7 @@ window.I18N_EXTRA = {
     theme: "Affichage",
     themeLight: "Clair",
     themeDark: "Sombre",
+    fullscreen: "Plein écran",
     helpTitle: "Aide et commandes",
     helpRun: "Courir : touches fléchées ou A/D - sur mobile, les grands boutons en bas",
     helpJump: "Sauter : barre d'espace, flèche haut ou W",
@@ -1506,7 +1522,8 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnOverLeader",t("menuLeaderboard"));set("btnOverMenu",t("toMenu"));set("btnShop",t("menuShop"));
   // Hauptmenue-Knoepfe
   set("btnNew",t("menuStory"));set("btnArcade",t("menuArcade"));set("btnContinue",t("menuContinue"));set("btnMap",t("menuMap"));
-  set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));
+  set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));set("btnFsMenu",t("fullscreen"));
+  { const fb=document.getElementById("btnFs"); if(fb&&fb.setAttribute){ fb.setAttribute("aria-label",t("fullscreen")); fb.setAttribute("title",t("fullscreen")); } }
   const cont=document.getElementById("btnContinue"); if(cont){ if(hasSave())cont.removeAttribute("disabled"); else cont.setAttribute("disabled","1"); }
   // Info-Screen-Titel + Zurueck
   set("tHi", highscore>0 ? (t("highscoreShort")+": "+String(highscore).padStart(6,"0")) : "");
@@ -1713,7 +1730,7 @@ addEventListener("keydown",e=>{
   else if(e.code==="KeyM"){const on=!(SET.sfx&&SET.music);SET.sfx=on;SET.music=on;saveSettings();}
   else if(e.code==="KeyC"){SET.crt=!SET.crt;saveSettings();}
   else if(e.code==="KeyO"&&(state===ST.TITLE||state===ST.OVERWORLD||state===ST.SUBMAP)){openSettings();}
-  if(state===ST.TITLE&&(e.code==="Space"||e.code==="Enter"))startGame();
+  if(state===ST.TITLE&&(e.code==="Space"||e.code==="Enter")){ if(window.qkAutoFullscreen)window.qkAutoFullscreen(); startGame(); }
   if(state===ST.OVERWORLD){ if(["ArrowLeft","KeyA"].includes(e.code))mapSel=Math.max(0,mapSel-1); else if(["ArrowRight","KeyD"].includes(e.code))mapSel=Math.min(unlocked,mapSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedWorld(); else if(["Escape","Backspace"].includes(e.code))goToMenu(); }
   else if(state===ST.SUBMAP){ if(["ArrowLeft","KeyA"].includes(e.code))subSel=Math.max(0,subSel-1); else if(["ArrowRight","KeyD"].includes(e.code))subSel=Math.min(maxSelNode(worldIdx),subSel+1); else if(["Space","ArrowUp","KeyW","Enter"].includes(e.code))enterSelectedNode(); else if(["ArrowDown","KeyS","Escape","Backspace"].includes(e.code))enterOverworld(); }
   else if(state===ST.SETTINGS){ const n=settingsRows().length; if(["ArrowUp","KeyW"].includes(e.code))setSel=(setSel+n-1)%n; else if(["ArrowDown","KeyS"].includes(e.code))setSel=(setSel+1)%n; else if(["ArrowLeft","KeyA"].includes(e.code))settingsToggle(-1); else if(["ArrowRight","KeyD"].includes(e.code))settingsToggle(1); else if(["Space","Enter"].includes(e.code))settingsActivate(); else if(["Escape","Backspace"].includes(e.code))closeSettings(); }
@@ -1735,7 +1752,7 @@ bindBtn("bRight",()=>{ if(state===ST.OVERWORLD)mapSel=Math.min(unlocked,mapSel+1
 bindBtn("bJump",()=>{ if(state===ST.OVERWORLD){enterSelectedWorld();return;} if(state===ST.SUBMAP){enterSelectedNode();return;} if(state===ST.SETTINGS){settingsActivate();return;} if(state===ST.SHOP){shopAction();return;} if(state===ST.HUB){hubInteract();return;} keys.jump=true;pressJump(); },()=>{keys.jump=false;duck.jumpHeld=false;});
 function evToCanvas(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(VW/r.width),y:(e.clientY-r.top)*(VH/r.height)};}
 cv.addEventListener("pointerdown",e=>{
-  if(state===ST.TITLE){startGame();return;}
+  if(state===ST.TITLE){ if(window.qkAutoFullscreen)window.qkAutoFullscreen(); startGame();return;}
   if(state===ST.HUB&&dlgActive){advanceDialog();return;}
   if(state===ST.OVERWORLD){ const p=evToCanvas(e); if(inBackChip(p)){goToMenu();return;} const mx=p.x+owCam; let best=-1,bd=1e9;
     for(let i=0;i<=unlocked;i++){const n=MAPNODES[i],d=Math.hypot(mx-n.x,p.y-n.y);if(d<MAP.nodeR+8&&d<bd){bd=d;best=i;}}
@@ -1977,10 +1994,10 @@ function fillBios(){ const chars=[
 function showToast(msg){ const e=document.getElementById("toast"); if(!e)return; e.textContent=msg; e.classList.remove("hidden"); try{clearTimeout(showToast._t);showToast._t=setTimeout(()=>e.classList.add("hidden"),2600);}catch(x){} }
 function unlockSecret(){ if(!owned.golden)owned.golden=true; equippedSkin="golden"; saveEconomy(); SFX.star&&SFX.star(); showToast(t("secretFound")); }
 function clk(id,fn){const e=el(id); if(e)e.addEventListener("click",ev=>{ev.stopPropagation();fn();});}
-clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); confirmNewGame(); });
-clk("btnArcade",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startArcade(); });
-clk("btnContinue",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
-clk("btnMap",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); continueGame(); });
+clk("btnNew",()=>{ if(window.qkAutoFullscreen)window.qkAutoFullscreen(); if(ac()&&ac().state==="suspended")ac().resume(); confirmNewGame(); });
+clk("btnArcade",()=>{ if(window.qkAutoFullscreen)window.qkAutoFullscreen(); if(ac()&&ac().state==="suspended")ac().resume(); startArcade(); });
+clk("btnContinue",()=>{ if(window.qkAutoFullscreen)window.qkAutoFullscreen(); if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
+clk("btnMap",()=>{ if(window.qkAutoFullscreen)window.qkAutoFullscreen(); if(ac()&&ac().state==="suspended")ac().resume(); continueGame(); });
 clk("btnLeader",()=>openLeaderboard("scTitle"));
 clk("lbTabStory",()=>setLeaderMode("story")); clk("lbTabMini",()=>setLeaderMode("mini"));
 clk("btnBios",()=>showInfo("scBios",fillBios));
@@ -2790,6 +2807,36 @@ function unlockAudio(){ try{ const a=ac(); if(a&&a.state==="suspended")a.resume(
 addEventListener("pointerdown",unlockAudio,{passive:true});
 addEventListener("touchstart",unlockAudio,{passive:true});
 addEventListener("keydown",unlockAudio);
+
+/* ---------- Vollbild (Fullscreen-API + iOS-Safari-Fallback) ----------
+   Echtes Browser-Vollbild ueber die Fullscreen-API (mit Vendor-Prefixes).
+   Knopf im Menue UND im HUD; zusaetzlich ein einmaliger Auto-Versuch beim
+   ersten Start/Tap (Fullscreen braucht eine Nutzergeste). Die Canvas-Skalierung
+   bleibt formatfuellend + pixelscharf, weil das CSS (#cv: aspect-ratio 384/224,
+   min(100vw, 100dvh*...), image-rendering:pixelated) im Vollbild automatisch
+   greift - in Hoch- UND Querformat. iPhone-Safari kennt die API nicht: dort
+   wird der Knopf ausgeblendet und es bleibt beim bestehenden Standalone-/100dvh-
+   Vollbild (viewport-fit=cover). */
+(function(){
+  var docEl=(typeof document!=="undefined")&&document.documentElement;
+  function fsElement(){ try{ return document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||null; }catch(e){ return null; } }
+  function fsSupported(){ try{ return !!(docEl&&(docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.mozRequestFullScreen||docEl.msRequestFullscreen)); }catch(e){ return false; } }
+  function isFs(){ return !!fsElement(); }
+  function reqFs(){ try{ var fn=docEl&&(docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.mozRequestFullScreen||docEl.msRequestFullscreen); if(fn){ var p=fn.call(docEl); if(p&&p.catch)p.catch(function(){}); } }catch(e){} }
+  function exitFs(){ try{ var fn=document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen; if(fn){ var p=fn.call(document); if(p&&p.catch)p.catch(function(){}); } }catch(e){} }
+  window.qkToggleFullscreen=function(){ if(!fsSupported())return; if(isFs())exitFs(); else reqFs(); };
+  var autoTried=false;
+  // EINMALIGER Auto-Versuch (innerhalb einer Nutzergeste aufrufen!). Reagiert nie erneut, wenn der Nutzer wieder verlaesst.
+  window.qkAutoFullscreen=function(){ if(autoTried)return; autoTried=true; if(!fsSupported()||isFs())return; reqFs(); };
+  function syncFs(){ try{ if(docEl&&docEl.classList){ if(isFs())docEl.classList.add("qk-fs"); else docEl.classList.remove("qk-fs"); } }catch(e){}
+    try{ if(typeof checkOrientation==="function")checkOrientation(); }catch(e){} } // Canvas-/Layout-Neuberechnung nach Wechsel
+  ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"].forEach(function(ev){ try{ document.addEventListener(ev,syncFs); }catch(e){} });
+  function wireBtn(id){ try{ var b=document.getElementById(id); if(!b)return;
+    b.addEventListener("click",function(e){ if(e&&e.stopPropagation)e.stopPropagation(); window.qkToggleFullscreen(); });
+    if(!fsSupported()&&b.classList)b.classList.add("hidden"); }catch(e){} }
+  wireBtn("btnFs"); wireBtn("btnFsMenu");
+  syncFs();
+})();
 try{ if(typeof location!=="undefined"&&location.hash==="#shop"){ openShop(); } }catch(e){}
 /* PWA: Service Worker registrieren (nur ueber http/https, nicht file://) */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
