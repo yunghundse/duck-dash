@@ -900,6 +900,20 @@ if (typeof G.afterDeath === "function" && typeof G.retryGame === "function") {
   G.confirmNewGame(); G.storyAdvance();   // Bestaetigen -> startGame
   let gn = 0; while (G.state === G.ST.STORY && gn++ < 12) G.storyAdvance();
   assert(G.unlocked === 0 && G.worldIdx === 0, "Neues Spiel bestaetigt: Reset auf Welt 1", "unlocked=" + G.unlocked + " w=" + G.worldIdx);
+
+  // Boss-Game-Over: 'Nochmal' respawnt in der Boss-Arena, NICHT im letzten Normal-Level
+  frameErr = null;
+  G.startGame(); let gb = 0; while (G.state === G.ST.STORY && gb++ < 12) G.storyAdvance();
+  G.worldProgress[0] = G.WORLDS[0].levels.length; // Boss-Knoten frei
+  G.enterSubmap(0); G.enterSelectedNode();        // -> Boss-Intro (STORY)
+  let gb2 = 0; while (G.state === G.ST.STORY && gb2++ < 12) G.storyAdvance();
+  step(1);
+  assert(G.state === G.ST.BOSS && G.L && G.L.boss === true, "Setup: Boss-Kampf aktiv", "state=" + G.state);
+  G.score2 = 0; G.lives = 1; G.loseLife(); G.afterDeath();
+  assert(G.state === G.ST.OVER, "Boss-Game-Over -> Game-Over-Screen", "state=" + G.state);
+  G.retryGame();
+  assert(G.state === G.ST.BOSS && G.L && G.L.boss === true, "Boss-Game-Over 'Nochmal' -> zurueck in die Boss-Arena (nicht Normal-Level)", "state=" + G.state + " boss=" + (G.L && G.L.boss));
+  assert(!frameErr, "Boss-Retry laeuft fehlerfrei", frameErr);
 }
 // Source-Guard: kein Voll-Reset bei Game Over (retryGame ruft im Story-Pfad nicht startGame)
 assert(/respawnAtLevelStart/.test(html) && /else respawnAtLevelStart\(\)/.test(html), "Source-Guard: Game Over startet Level neu (kein Spiel-Voll-Reset)");

@@ -972,7 +972,8 @@ function startArcade(){ gameMode="arcade"; if(ac()&&ac().state==="suspended")ac(
   loadPlatform(ARCADE_W,ARCADE_LI); }
 // Story-Game-Over: NICHT von vorn. Aktuelles Level mit vollen Leben neu starten,
 // Welt-/Spiel-Fortschritt (unlocked/worldProgress/Muenzen) bleibt erhalten.
-function respawnAtLevelStart(){ gameMode="story"; lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; comboReset(); loadPlatform(worldIdx,curLevelIdx); }
+function respawnAtLevelStart(){ gameMode="story"; lives=diffCfg().lives+(hasPerk("extralife")?1:0); coinsGot=0; score=0; comboReset();
+  if(L&&L.boss){ startBoss(); } else { loadPlatform(worldIdx,curLevelIdx); } }
 function retryGame(){ if(gameMode==="arcade")startArcade(); else respawnAtLevelStart(); }
 // "Neues Spiel" mit Sicherheitsabfrage, wenn schon ein Spielstand existiert (Ja/Abbrechen via Story-Screen).
 function confirmNewGame(){ if(!hasSave()){ startGame(); return; }
