@@ -1,0 +1,5 @@
+test/
+*.mjs
+*.original.md
+quacki-standalone.html
+.DS_Store
