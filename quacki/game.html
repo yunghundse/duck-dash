@@ -420,6 +420,61 @@ const BOSSCFG=[
 const BOSSSHAPE=["frog","croc","penguin","camel","owl","baron"];
 const BOSSCOLOR=["#62c24a","#3f9f5a","#3a5b8f","#d9a85a","#a06b3a","#7a5a9a"];
 
+/* ---------- Welten-Kulissen (datengetrieben) ----------
+   Jede Welt hat eine eigene, atmosphaerische Mehrebenen-Parallax-Kulisse:
+   3-Stop-Himmel, ferne/mittlere/nahe Ebene, ein Wahrzeichen und ein
+   animiertes Detail. ALLE Farben/Parameter stehen hier -> leicht justierbar,
+   ohne die Render-Logik (drawWorldBG + bg*-Funktionen) zu beruehren.
+   Lesbarkeit: kraeftige Akzente sitzen OBEN/hinter den Huegeln, das
+   Gameplay-Band (y~110..224) bleibt entsaettigt/diesig, damit die gelbe
+   Ente, goldene Muenzen und der orange-braune Boden klar im Vordergrund
+   stehen. `style` waehlt die passende Zeichen-Funktion, `detail` das
+   animierte Partikel-System. */
+const BGS=[
+ { // 0 Sonnenwiese — warmer Tag, Sonne, Bluetenblaetter
+   style:"meadow", detail:"petals", accent:"#ff8fb4",
+   sky:["#6fb7ff","#9fd0ff","#dff0e6"],
+   c:{ far:"#bfe3c0", farSock:"#d4ecd2", hillBack:"#3a9c34", hillFront:"#5fcf45",
+       fringe:"#7ad95a", grassDk:"#69c94d", flower:"#ff8fb4", flowerHi:"#fff2c8",
+       sun:"#ffd23f", sunHi:"#fff4c2", sunRay:"#ffe27a", petal:["#fff2c8","#ffd9e6","#ffffff"] } },
+ { // 1 Seifenblasen-Bucht — Fernmeer, Leuchtturm, aufsteigende Blasen
+   style:"bay", detail:"bubbles", accent:"#ffe9a3",
+   sky:["#1f8fbf","#5fc4e0","#c8eef9"],
+   c:{ sea:"#2f9ec4", seaEdge:"#a9e2f1", glit:"#eaf9ff", land1:"#4d8a74", land2:"#5e9e86",
+       foam:"#bfe6dd", haze:"rgba(216,241,251,0.55)", wave:"#f2fbff", waveDk:"#aedcec",
+       lhBody:"#f4f4ee", lhRing:"#d9322f", lhBase:"#c7c7bf", lhLight:"#ffe9a3", lhGlass:"#3a5d6e",
+       bub:"rgba(223,246,255,0.42)" } },
+ { // 2 Frostzipfel — Polarlicht, Schneeberge, gefrorener Wasserfall, Schneefall
+   style:"frost", detail:"snow", accent:"#b6a9e8",
+   sky:["#7ea8e0","#aacdf2","#e8f4ff"],
+   c:{ aurora0:"#9ad6c8", aurora1:"#b6a9e8", aurora2:"#cfe4f7", iceFar:"#cfe4f7",
+       mtnShad:"#6f93bb", mtnSun:"#8fb0d4", mtnFront:"#bcd6ef", cap:"#ffffff", cap2:"#dcebfb",
+       hill:"#dcefff", hillHi:"#ffffff", icicle:"#aad4f2",
+       fallIce:"#bfe6ff", fallIce2:"#d6f0ff", cliff:"#6f93bb", cliffHi:"#8fc4ec" } },
+ { // 3 Wuestenei — Glutsonne, Mesa-Tafelberge, Felsbogen, wehender Sand
+   style:"desert", detail:"sand", accent:"#ff7a2e",
+   sky:["#d98b34","#f2b85e","#ffe8bf"],
+   c:{ sun:"#ffd98a", band:"rgba(255,232,180,.35)", farDune:"#c9772b",
+       mesa:"#d98a3e", mesaShad:"#b96a26", mesaSock:"#a6571c",
+       arch:"#c47a32", archShad:"#a6571c", archSock:"#8a4516",
+       sand:"#f0c878", sand2:"#e0b060", sand3:"#caa05a", veil:"rgba(255,240,208,.30)" } },
+ { // 4 Wolkenburg — Wolkenbaenke, schwebende Wolkenburg, Wind + Voegel
+   style:"clouds", detail:"wind", accent:"#f3d98a",
+   sky:["#6fa6e6","#aacdf2","#eaf5ff"],
+   c:{ glow:"rgba(255,243,200,.28)", bank:"#cfe2f7", bankDk:"#bcd6f0",
+       isle:"#ffffff", isleShad:"#b9d2ee", isleShad2:"#9fc0e6", tower:"#dcecfb",
+       cWall:"#c3d6ee", cWhite:"#dfeaf7", cBlue:"#a7c0e2", cDeep:"#8aa9d6", cGold:"#f3d98a",
+       fog0:"#f2f8ff", fog1:"#e2eefb", fog2:"#cfe2f7", bird:"#7a93b5" } },
+ { // 5 Quakschloss — Nacht, Mond, zackige Burg, Fackeln + Nebel
+   style:"castle", detail:"torch", accent:"#ff8c42",
+   sky:["#2a1d3c","#4a3560","#6a4f7a"],
+   c:{ moon:"#e7dcf2", moonHalo:"rgba(231,220,242,0.10)", star:"#cdbce0", starHi:"#e7dcf2",
+       cloudBand:"rgba(122,95,150,0.45)", ridge:"#3f2c52", ridge2:"#33233f",
+       wall:"#241830", wallDk:"#1a1024", zinne:"#33233f", window:"#0e0818",
+       torch:"#ff8c42", torchHi:"#ffd23f", spark:"#ffb066",
+       cBody:"#2c1d3a", cRoof:"#241830", cLit:"#ff8c42", cFlag:"#1a1024", fog:"rgba(183,143,216,0.12)" } },
+];
+
 /* ---------- Weltkarte (Overworld) — Layout & Theme als Daten ----------
    Gewundener Pfad ueber breite Karte; Kamera folgt der Ente. Alles hier
    anpassbar, ohne die Render-Logik zu beruehren. */
@@ -1066,9 +1121,7 @@ function draw(){
   if(state===ST.HUB){ drawHub(); ctx.restore(); return; }
   if(state===ST.OVERWORLD){ drawOverworld(); ctx.restore(); return; }
   const w=curWorld;
-  const grd=ctx.createLinearGradient(0,0,0,VH); grd.addColorStop(0,w.sky[0]); grd.addColorStop(1,w.sky[1]);
-  ctx.fillStyle=grd; ctx.fillRect(0,0,VW,VH);
-  drawClouds(); drawHills(w);
+  drawWorldBG(worldIdx);
   if(state===ST.SUBMAP){ drawSubmap(); ctx.restore(); return; }
   if(state===ST.SETTINGS){ drawSettings(); ctx.restore(); return; }
   if(state===ST.SHOP){ drawShop(); ctx.restore(); return; }
@@ -1080,13 +1133,148 @@ function draw(){
     ctx.restore(); drawHUD(); }
   ctx.restore();
 }
-function drawClouds(){const t=performance.now()/3000;
-  for(let i=0;i<4;i++){let x=((i*150-camX*0.3-t*10)%(VW+120));if(x<-80)x+=VW+120;const y=22+(i%2)*24;
-    px(x,y,22,8,C.cloud);px(x+8,y-6,18,8,C.cloud);px(x+18,y,16,8,C.cloud);}}
-function drawHills(w){const base=VH-30;
-  for(let i=0;i<6;i++){let x=((i*92-camX*0.5)%(VW+184));if(x<-92)x+=VW+184;
-    ctx.fillStyle=w.hillDk;ctx.beginPath();ctx.moveTo(x-30,base);ctx.lineTo(x+18,base-38);ctx.lineTo(x+66,base);ctx.fill();
-    ctx.fillStyle=w.hill;ctx.beginPath();ctx.moveTo(x-20,base);ctx.lineTo(x+18,base-32);ctx.lineTo(x+56,base);ctx.fill();}}
+/* ===================================================================
+   WELTEN-KULISSE — datengetrieben (BGS oben). 3+ Parallax-Ebenen, ein
+   Wahrzeichen und ein animiertes Detail pro Welt. Wird VOR der Kamera-
+   Translation gezeichnet; Boden/Muenzen/Ente kommen danach obendrauf.
+   =================================================================== */
+const _M=(a,m)=>((a%m)+m)%m;                 // positive Modulo (nahtloses Scrollen)
+function tri(ax,ay,bx,by,cx,cy,col){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineTo(cx,cy);ctx.closePath();ctx.fill();}
+function disc(cx,cy,r,col){ctx.fillStyle=col;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();}
+function skyGrad(s){const g=ctx.createLinearGradient(0,0,0,VH);g.addColorStop(0,s[0]);g.addColorStop(0.5,s[1]);g.addColorStop(1,s[2]);ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);}
+let _bgInit=false; const bgSnow=[], bgPetals=[];
+function bgEnsure(){ if(_bgInit)return; _bgInit=true;
+  for(let i=0;i<14;i++)bgPetals.push({x:Math.random()*VW,y:20+Math.random()*88,vx:0.1+Math.random()*0.18,k:Math.random(),s:Math.random()*6});
+  for(let i=0;i<40;i++)bgSnow.push({x:Math.random()*VW,y:Math.random()*VH,r:Math.random()<0.6?1:2,sp:0.25+Math.random()*0.45,dr:0.3+Math.random()*0.5,ph:Math.random()*100}); }
+function drawWorldBG(wi){ bgEnsure(); const b=BGS[wi]||BGS[0], T=performance.now();
+  skyGrad(b.sky); (BGFN[b.style]||BGFN.meadow)(b.c,b,T); }
+
+/* ----- Welt 1: Sonnenwiese ----- */
+function bgMeadow(c,b,T){
+  px(0,150,VW,8,c.farSock);                                                  // Dunstsockel
+  for(let i=0;i<6;i++){let x=_M(i*96-camX*0.12,VW+96)-48; tri(x-48,150,x,132,x+48,150,c.far);} // ferne Huegelwelle
+  for(let i=0;i<7;i++){let x=_M(i*88-camX*0.32,VW+200)-100;                  // hintere Reihe
+    tri(x-34,194,x+16,154,x+66,194,c.hillBack);}
+  for(let i=0;i<7;i++){let x=_M(i*88-camX*0.32,VW+200)-100+20;               // vordere Reihe + Margeriten
+    tri(x-24,194,x+16,160,x+56,194,c.hillFront);
+    px(x+15,159,2,2,"#ffffff");px(x+16,160,1,1,c.flowerHi);px(x+9,161,2,2,"#ffffff");px(x+23,161,2,2,"#ffffff");}
+  px(0,176,VW,8,c.fringe);                                                   // naher Wiesensaum
+  for(let i=0;i<VW/18+2;i++){let x=_M(i*18-camX*0.55,VW+18)-9;
+    px(x,172,1,5,c.grassDk);px(x+2,170,1,7,c.fringe);px(x+4,173,1,4,c.grassDk);
+    if(i%5===0){px(x+1,167,3,3,c.flower);px(x+2,168,1,1,c.flowerHi);}}
+  const sx2=300-camX*0.05, sy=48;                                           // Wahrzeichen: grosse Sonne
+  disc(sx2,sy,34,"rgba(255,242,194,0.35)");
+  const ra=T/2500; ctx.fillStyle=c.sunRay;
+  for(let k=0;k<8;k++){const a=ra+k*Math.PI/4; tri(sx2+Math.cos(a)*20,sy+Math.sin(a)*20,sx2+Math.cos(a)*34,sy+Math.sin(a)*34,sx2+Math.cos(a+0.22)*22,sy+Math.sin(a+0.22)*22,c.sunRay);}
+  disc(sx2,sy,20,c.sun); disc(sx2-4,sy-4,11,c.sunHi);
+  for(const p of bgPetals){ p.x+=p.vx; p.y+=Math.sin(T/600+p.s)*0.05-0.05;   // Detail: Bluetenblaetter
+    if(p.x>VW)p.x=0; if(p.y<14)p.y=108;
+    const col=p.k<0.6?c.petal[0]:(p.k<0.9?c.petal[1]:c.petal[2]); px(p.x|0,p.y|0,2,2,col);} }
+
+/* ----- Welt 2: Seifenblasen-Bucht ----- */
+function bgBay(c,b,T){
+  px(0,76,VW,2,c.seaEdge); px(0,78,VW,28,c.sea);                            // Fernmeer
+  for(let i=0;i<14;i++){const gx=190+(i*53%40),gy=82+(i*37%22); if(Math.sin(T/300+i)>0)px(gx,gy,2,1,c.glit);} // Sonnenglitzer
+  for(let i=0;i<4;i++){let x=_M(i*150-camX*0.3,VW+150)-75;                  // Landzungen
+    tri(x-34,188,x+20,142,x+74,188,c.land1); tri(x-24,188,x+20,148,x+64,188,c.land2);
+    if(i%2===0)px(x-24,186,88,2,c.foam);}
+  px(0,106,VW,10,c.haze);                                                    // Wasserdunst-Saum
+  for(let i=0;i<8;i++){let wx=_M(i*64-camX*0.55,VW+64)-32; px(wx,110,10,2,c.wave);px(wx+4,108,6,2,c.wave);px(wx-6,112,6,2,c.waveDk);}
+  const tx=300-camX*0.3;                                                     // Wahrzeichen: Leuchtturm
+  if(tx>-30&&tx<VW+30){ px(tx,176,22,4,c.lhBase);px(tx+1,150,20,26,c.lhBody);px(tx+2,128,18,22,c.lhBody);px(tx+3,112,16,16,c.lhBody);
+    px(tx+1,158,20,6,c.lhRing);px(tx+2,138,18,6,c.lhRing);px(tx+3,120,16,5,c.lhRing);
+    px(tx+4,104,14,8,c.lhGlass);px(tx+6,106,10,4,c.lhLight); tri(tx+3,104,tx+11,96,tx+19,104,c.lhRing); px(tx+10,92,2,4,c.lhBase);
+    const ba=0.10+0.10*Math.abs(Math.sin(T/900)); tri(tx+11,100,tx+64,82,tx+64,108,"rgba(255,233,163,"+ba.toFixed(2)+")");}
+  for(let i=0;i<7;i++){const by=VH-_M(T/30+i*46,VH+40),bx=(i*61+18)+Math.sin(T/700+i)*10,r=3+(i%3); // Detail: Blasen
+    disc(bx,by,r,c.bub); px(bx-r*0.4,by-r*0.4,1,1,"#ffffff");} }
+
+/* ----- Welt 3: Frostzipfel ----- */
+function bgFrost(c,b,T){
+  for(let i=0;i<6;i++){let x=_M(i*70-camX*0.12,VW+90)-45;                   // Polarlicht-Schleier
+    ctx.globalAlpha=0.10+0.08*Math.sin(T/1400+i*0.9);
+    px(x,6,10,22,i%2?c.aurora1:c.aurora0);px(x+2,26,10,16,c.aurora1);px(x+4,40,8,10,c.aurora2);}
+  ctx.globalAlpha=1;
+  for(let i=0;i<6;i++){let x=_M(i*78-camX*0.12,VW+90)-45; tri(x-30,78,x+16,48,x+62,78,c.iceFar); tri(x+16,48,x+9,59,x+23,59,c.cap);} // ferne Eiskette
+  for(let i=0;i<5;i++){let x=_M(i*108-camX*0.30,VW+150)-75;                 // Hauptbergkette
+    tri(x-44,180,x+8,118,x+52,180,c.mtnShad); tri(x-44,180,x+8,118,x+2,180,c.mtnSun); tri(x-20,180,x+24,146,x+60,180,c.mtnFront);
+    tri(x+8,118,x-6,140,x+22,140,c.cap); px(x+2,140,2,10,c.cap);px(x+12,142,2,8,c.cap2);}
+  for(let i=0;i<6;i++){let x=_M(i*86-camX*0.55,VW+150)-75;                  // naher Schneehuegel-Saum
+    ctx.fillStyle=c.hill;ctx.beginPath();ctx.ellipse(x+22,200,52,26,0,Math.PI,0);ctx.fill(); px(x+4,182,36,2,c.hillHi);}
+  for(let i=0;i<9;i++){let x=_M(i*46-camX*0.55,VW+60)-30,len=8+(i%3)*5; tri(x,0,x+5,0,x+2,len,c.icicle); px(x+1,2,1,Math.max(2,len-4),c.hillHi);} // Eiszapfen oben
+  const sx2=1180-camX*0.30;                                                  // Wahrzeichen: gefrorener Wasserfall
+  if(sx2>-120&&sx2<VW+40){ px(sx2,96,56,84,c.cliff);px(sx2,96,56,4,c.cliffHi);
+    px(sx2+10,100,10,78,c.fallIce);px(sx2+24,100,12,80,c.fallIce2);px(sx2+40,100,9,74,c.fallIce);
+    px(sx2+14,104,2,68,"#ffffff");px(sx2+30,104,2,72,"#ffffff");
+    ctx.fillStyle=c.fallIce2;ctx.beginPath();ctx.ellipse(sx2+28,182,34,8,0,0,7);ctx.fill();
+    px(sx2+8,180,8,3,"#ffffff");px(sx2+24,183,10,3,"#ffffff");px(sx2+40,181,7,3,"#ffffff");}
+  for(const p of bgSnow){ p.y+=p.sp; p.x+=Math.sin((p.y+p.ph)*0.05)*p.dr*0.4; // Detail: Schneefall
+    if(p.y>VH){p.y=-2;p.x=Math.random()*VW;} if(p.x<0)p.x+=VW; if(p.x>VW)p.x-=VW; px(p.x|0,p.y|0,p.r,p.r,"#ffffff");} }
+
+/* ----- Welt 4: Wuestenei ----- */
+function bgDesert(c,b,T){
+  const cx=_M(40-camX*0.12,520)-60; disc(cx,72,18,c.sun);                    // Glutsonne
+  px(cx-22,60,44,2,c.band);px(cx-26,66,52,2,c.band);px(cx-20,78,40,2,c.band);
+  for(let i=0;i<7;i++){let x=_M(i*150-camX*0.12,VW+300)-150; tri(x-80,96,x+40,80,x+150,96,c.farDune);} // ferne Duenen
+  for(let i=0;i<5;i++){let x=_M(i*168-camX*0.3,VW+340)-170;                 // Mesa-Tafelberge
+    px(x,88,70,30,c.mesa);px(x+10,80,50,8,c.mesa);px(x+58,88,12,30,c.mesaShad);px(x,114,70,6,c.mesaSock);
+    px(x,98,70,2,c.mesaShad);px(x,106,70,2,c.mesaShad);}
+  const X=560-camX*0.3;                                                      // Wahrzeichen: Felsbogen
+  if(X>-60&&X<VW+60){ px(X,70,14,48,c.arch);px(X+34,70,14,48,c.arch);px(X,64,48,8,c.arch);
+    px(X+14,78,20,40,b.sky[1]); ctx.fillStyle=b.sky[1];ctx.beginPath();ctx.arc(X+24,78,10,Math.PI,0);ctx.fill();
+    px(X+30,78,4,40,c.archShad);px(X-2,114,52,6,c.archSock);}
+  for(let i=0;i<6;i++){let x=_M(i*130-camX*0.55,VW+260)-130;                // naher Sandhang + Felsbrocken
+    tri(x-50,150,x+30,128,x+110,150,c.sand); px(x+18,134,10,8,c.sand2);px(x+15,138,16,4,c.sand3);px(x+20,131,5,3,c.sand);}
+  for(let k=0;k<3;k++){const yy=[112,118,124][k]+Math.sin(T/1000*2+k)*1.5,bw=40+k*15,x=_M(k*123-T/1000*40,VW+80)-40; px(x,yy,bw,3,c.veil);} } // Detail: Sandschleier
+
+/* ----- Welt 5: Wolkenburg ----- */
+function bgClouds(c,b,T){
+  disc(300,30,70,c.glow); disc(300,30,95,"rgba(255,243,200,.12)"); disc(300,30,120,"rgba(255,243,200,.06)"); // Sonnenglanz
+  for(let i=0;i<5;i++){let x=_M(i*150-camX*0.12,VW+150)-75,y=40+(i%2)*16;   // ferne Wolkenbaenke
+    px(x,y,54,7,c.bank);px(x+10,y-5,38,6,c.bank);px(x+22,y+6,30,5,c.bankDk);}
+  for(let i=0;i<4;i++){let x=_M(i*140-camX*0.3,VW+140)-70,yb=60+(i%2)*22+Math.sin(T/1000*0.6+i)*3; // schwebende Inseln
+    px(x,yb,46,12,c.isle);px(x+8,yb-7,30,8,c.isle);px(x+24,yb-4,18,7,c.isle);px(x+4,yb+10,40,5,c.isleShad);px(x+10,yb+14,26,3,c.isleShad2);
+    if(i%2===0){px(x+18,yb-16,8,10,c.tower); tri(x+16,yb-16,x+22,yb-23,x+28,yb-16,c.isleShad); px(x+20,yb-13,2,3,c.isleShad2);}}
+  const X=VW*0.66-camX*0.2,Y=56;                                            // Wahrzeichen: Wolkenburg
+  px(X-6,Y+30,64,10,c.cWall);px(X+2,Y+26,48,8,c.cWhite); tri(X+4,Y+40,X+26,Y+54,X+48,Y+40,c.cBlue);
+  px(X+6,Y+10,42,22,c.cWall);px(X+40,Y+10,8,22,c.cBlue);
+  px(X+4,Y-2,10,32,c.cWhite);px(X+20,Y-10,12,42,c.cWhite);px(X+38,Y+2,9,28,c.cWall);
+  px(X+8,Y+8,4,3,c.cWhite);px(X+18,Y+8,4,3,c.cWhite);px(X+30,Y+8,4,3,c.cWhite);
+  tri(X+18,Y-10,X+26,Y-22,X+34,Y-10,c.cGold); px(X+26,Y-24,5,3,c.cGold);
+  px(X+24,Y+0,3,5,c.cDeep);px(X+9,Y+6,2,4,c.cDeep);
+  ctx.globalAlpha=0.5;                                                       // naher Bodennebel
+  for(let i=0;i<6;i++){let x=_M(i*86-camX*0.55,VW+86)-43,y=VH-34; px(x,y,60,6,c.fog0);px(x+14,y-4,40,5,c.fog1);px(x+30,y+5,26,4,c.fog2);}
+  ctx.globalAlpha=1;
+  for(let i=0;i<4;i++){const ph=T/1000*0.5+i*1.7,wx=_M(ph*60,VW+80)-40,wy=26+i*15,a=(0.25+Math.abs(Math.sin(ph+i))*0.3).toFixed(2); // Detail: Wind
+    px(wx,wy,14,2,"rgba(255,255,255,"+a+")");px(wx+16,wy-2,10,2,"rgba(255,255,255,"+a+")");px(wx+28,wy+1,7,2,"rgba(255,255,255,"+a+")");}
+  for(let j=0;j<5;j++){const bx=VW-_M(T/1000*8+j*22,VW+60),by=40+Math.sin(T/600+j)*4; px(bx-3,by-1,3,2,c.bird);px(bx,by-2,2,2,c.bird);px(bx+1,by-1,3,2,c.bird);} } // ferne Voegel
+
+/* ----- Welt 6: Quakschloss ----- */
+function bgCastle(c,b,T){
+  disc(312,40,27,c.moonHalo); disc(312,40,20,c.moon); disc(322,34,20,b.sky[0]); // Mond (Sichel)
+  const stars=[[22,14],[60,30],[95,12],[140,40],[176,20],[210,52],[250,18],[286,46],[348,24],[365,58]];
+  for(const s of stars)px(s[0],s[1],1,1,c.star);
+  drawStar(48,22,2,c.starHi);drawStar(200,16,2,c.starHi);drawStar(300,64,2,c.starHi);
+  for(let k=0;k<3;k++){ctx.fillStyle=c.cloudBand;ctx.beginPath();ctx.ellipse([70,200,330][k],78,64,7,0,0,7);ctx.fill();} // Wolkenband
+  for(let i=0;i<4;i++){let x0=_M(i*192-camX*0.22,VW+192)-96,base=180; ctx.fillStyle=c.ridge;ctx.beginPath(); // ferne Zinnen-Berge
+    ctx.moveTo(x0-20,base);ctx.lineTo(x0+8,base-30);ctx.lineTo(x0+24,base-16);ctx.lineTo(x0+48,base-40);ctx.lineTo(x0+72,base-14);
+    ctx.lineTo(x0+96,base-34);ctx.lineTo(x0+120,base-18);ctx.lineTo(x0+150,base-38);ctx.lineTo(x0+180,base-12);ctx.lineTo(x0+212,base);ctx.closePath();ctx.fill();}
+  const KX=250-camX*0.22,B=180;                                             // Wahrzeichen: Quakschloss
+  px(KX-14,B-86,28,86,c.cBody);px(KX-34,B-66,16,66,c.cBody);px(KX+18,B-66,16,66,c.cBody);
+  for(const zx of [KX-14,KX-2,KX+10])px(zx,B-91,4,5,c.cBody);
+  tri(KX-34,B-66,KX-26,B-82,KX-18,B-66,c.cRoof); tri(KX+18,B-66,KX+26,B-82,KX+34,B-66,c.cRoof);
+  tri(KX-14,B-91,KX,B-112,KX+14,B-91,c.cRoof); px(KX-1,B-118,1,8,c.cFlag);px(KX,B-118,5,3,c.cLit);
+  for(const wp of [[KX-3,B-70],[KX-3,B-50],[KX-28,B-50],[KX+22,B-50]])px(wp[0],wp[1],3,4,c.cLit);
+  px(KX-7,B-22,14,22,c.cFlag);
+  const wallTop=166;                                                        // naher Schloss-Wall
+  px(0,wallTop,VW,VH-wallTop,c.wall);px(0,wallTop+30,VW,VH-wallTop-30,c.wallDk);
+  for(let x=-_M(camX*0.45,24);x<VW;x+=24)px(x,wallTop-6,12,6,c.zinne);
+  for(let x=-_M(camX*0.45,48);x<VW;x+=48)px(x+22,wallTop+10,3,9,c.window);
+  for(let x=-_M(camX*0.45,96);x<VW;x+=96){const tx=x+48,flick=5+Math.sin(T/90+tx)*1.5; // Detail: Fackeln + Funken
+    px(tx-1,wallTop-2-flick,4,flick,c.torch);px(tx,wallTop-2-flick*0.6,2,Math.max(1,flick*0.6),c.torchHi);
+    for(let s=0;s<2;s++){const pp=_M(T/650+s*0.5+tx*0.01,1); if(pp<0.85)px(tx+Math.sin(pp*9)*3,wallTop-7-pp*22,1,1,pp<0.6?c.torchHi:c.spark);}}
+  for(let k=0;k<3;k++){const nx=_M(k*150-T/55,VW+160)-80; ctx.fillStyle=c.fog;ctx.beginPath();ctx.ellipse(nx,158+k*6,60,9,0,0,7);ctx.fill();} } // Nebel
+
+const BGFN={meadow:bgMeadow,bay:bgBay,frost:bgFrost,desert:bgDesert,clouds:bgClouds,castle:bgCastle};
 function drawStar(cx,cy,r,col){ctx.fillStyle=col;ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;const xx=cx+Math.cos(a)*rr,yy=cy+Math.sin(a)*rr;i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);}ctx.closePath();ctx.fill();}
 function drawWorldIcon(type,x,y){
   if(type==="flower"){px(x-1,y-8,2,8,"#3a8f2f");px(x-4,y-12,4,4,"#ff6ea0");px(x+1,y-12,4,4,"#ff6ea0");px(x-2,y-15,4,4,"#ff6ea0");px(x-2,y-9,4,4,"#ff6ea0");px(x-1,y-11,2,2,"#ffe08a");}
@@ -1245,9 +1433,7 @@ function drawDialog(){ if(!dlgActive)return; const u=UI(),bx=10,bw=VW-20,bh=56,b
   wrapText(dlgLines[dlgIdx]||"",bx+10,by+22,bw-20,9,u.text);
   const more="> "+t("cont"); bmText(more,bx+bw-bmW(more,1)-10,by+bh-12,u.dim,1); }
 function drawHub(){
-  const g=ctx.createLinearGradient(0,0,0,VH);g.addColorStop(0,"#5fb0e8");g.addColorStop(1,"#bfe6ff");ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
-  for(let i=0;i<8;i++){const x=i*120-camX*0.4,base=VH-26;ctx.fillStyle="rgba(120,200,120,.35)";ctx.beginPath();ctx.moveTo(x-40,base);ctx.lineTo(x+20,base-44);ctx.lineTo(x+80,base);ctx.closePath();ctx.fill();}
-  for(let i=0;i<5;i++){let x=((i*150-camX*0.5)%(VW+140));if(x<-100)x+=VW+140;const y=18+(i%2)*16;px(x,y,22,8,"#fff");px(x+8,y-6,18,8,"#fff");px(x+18,y,16,8,"#fff");}
+  drawWorldBG(0); // Quack-Bucht teilt die Sonnenwiesen-Kulisse (datengetrieben)
   ctx.save();ctx.translate(-Math.round(camX),0);
   const gw="#5fb24a",gd="#c75c1c",gdk="#8a3e10";
   for(let tx=Math.floor(camX/TILE);tx<Math.min(L.W,camX/TILE+VW/TILE+2);tx++)for(let ty=0;ty<L.H;ty++){const ch=L.grid[ty][tx];if(ch===" ")continue;const X=tx*TILE,Y=ty*TILE;

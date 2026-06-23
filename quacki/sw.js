@@ -1,5 +1,5 @@
 /* Quacki Service Worker — App-Shell offline-faehig (cache-first). */
-const CACHE = "quacki-v4";
+const CACHE = "quacki-v5";
 const ASSETS = ["./", "./index.html", "./game.html", "./i18n.js", "./i18n_extra.js", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {

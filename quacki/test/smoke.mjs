@@ -19,18 +19,18 @@ function bad(name, err) { failed++; console.log("  \x1b[31mFAIL\x1b[0m " + name 
 function assert(cond, name, detail) { cond ? ok(name) : bad(name, detail); }
 
 /* ---------- DOM / Canvas / Audio Stubs ---------- */
-const grad = { addColorStop() {} };
-// Layout-Instrumentierung: fillRect-Aufrufe optional aufzeichnen (Bounding-Boxes)
-let recordOn = false; const drawRects = [];
+const grad = { addColorStop(off, col) { if (recordOn && typeof col === "string") fillStyles.push(col); } };
+// Layout-Instrumentierung: fillRect-Aufrufe optional aufzeichnen (Bounding-Boxes + Farbe)
+let recordOn = false; const drawRects = []; const fillStyles = [];
 const ctxStub = new Proxy({}, {
   get(t, p) {
     if (p in t) return t[p];
     if (p === "createLinearGradient" || p === "createRadialGradient" || p === "createPattern") return () => grad;
     if (p === "measureText") return () => ({ width: 0 });
-    if (p === "fillRect") return (x, y, w, h) => { if (recordOn) drawRects.push([x, y, w, h]); };
+    if (p === "fillRect") return (x, y, w, h) => { if (recordOn) drawRects.push([x, y, w, h, t.fillStyle]); };
     return () => {};
   },
-  set(t, p, v) { t[p] = v; return true; },
+  set(t, p, v) { t[p] = v; if (recordOn && p === "fillStyle" && typeof v === "string") fillStyles.push(v); return true; },
 });
 
 const els = new Map();
@@ -151,6 +151,8 @@ const probe = `
   try { g.startBossIntro = startBossIntro; } catch(e){}
   try { g.pressJump = pressJump; } catch(e){}
   try { g.buildLevel = buildLevel; } catch(e){}
+  try { g.drawWorldBG = drawWorldBG; } catch(e){}
+  try { g.BGS = BGS; } catch(e){}
   return g;
 })();
 `;
@@ -431,6 +433,47 @@ G.skipScene();
 assert(G.state === G.ST.HUB, "Intro ueberspringbar -> direkt im Hub", "state=" + G.state);
 step(2);
 assert(!frameErr, "Nach Intro-Skip laufen Frames fehlerfrei", frameErr);
+
+// (7) Welten-Kulissen: jede der 6 Welten hat eine eigene, atmosphaerische Parallax-Kulisse (datengetrieben)
+assert(Array.isArray(G.BGS) && G.BGS.length === 6, "6 Welten-Kulissen definiert (BGS)", "len=" + (G.BGS && G.BGS.length));
+assert((G.BGS || []).every(b => Array.isArray(b.sky) && b.sky.length === 3), "Jede Kulisse hat 3-Stop-Himmel");
+assert((G.BGS || []).every(b => typeof b.style === "string" && typeof b.detail === "string"), "Jede Kulisse hat style + animiertes Detail");
+assert(typeof G.drawWorldBG === "function", "drawWorldBG verfuegbar");
+
+// Warm-hell = Enten-/Muenz-naehe (Gelb/Gold/Hell-Orange) -> als grosse BG-Flaeche verboten
+function isWarmBright(col){ if (typeof col !== "string" || col[0] !== "#" || col.length < 7) return false;
+  const n = parseInt(col.slice(1,7),16), r=(n>>16)&255, g=(n>>8)&255, b=n&255; return r>205 && g>165 && b<145; }
+// pro Welt die BG isoliert rendern und Signatur (Farben, Rect-Zahl, Lesbarkeits-Flag) sammeln
+function bgSignature(wi){ drawRects.length=0; fillStyles.length=0; recordOn=true;
+  let err=null; try { G.drawWorldBG(wi); } catch(e){ err=e.message; } recordOn=false;
+  // Lesbarkeit: grosse warm-helle Vollflaeche tief im Gameplay-Band (y+h>120) verschluckt die gelbe Ente
+  const badFill = drawRects.some(r => isWarmBright(r[4]) && (r[2]||0) > 384*0.5 && (r[3]||0) > 16 && (r[1]+(r[3]||0)) > 120);
+  return { err, colors:[...new Set(fillStyles.filter(c => typeof c === "string"))], nRects:drawRects.length, badFill }; }
+const sigs = []; let bgErr = "", readErr = "";
+for (let wi=0; wi<6; wi++){ const s = bgSignature(wi); sigs.push(s);
+  if (s.err) bgErr = "W" + (wi+1) + ": " + s.err;
+  if (s.badFill) readErr = "W" + (wi+1) + ": grosse warm-helle BG-Flaeche im Gameplay-Band"; }
+assert(!bgErr, "Alle 6 Welten-Kulissen rendern fehlerfrei", bgErr);
+assert(sigs.every(s => s.colors.length >= 6), "Jede Kulisse zeichnet mehrere Ebenen (>=6 Farben)", sigs.map(s=>s.colors.length).join(","));
+// Datengetrieben: die in BGS hinterlegte Welt-Palette (sky + c.*) wird tatsaechlich gezeichnet
+function paletteHexes(b){ const out = b.sky.slice(); const c = b.c || {};
+  for (const k in c){ const v = c[k];
+    if (typeof v === "string" && v[0] === "#") out.push(v);
+    else if (Array.isArray(v)) for (const x of v) if (typeof x === "string" && x[0] === "#") out.push(x); }
+  return out; }
+assert(G.BGS.every((b,wi)=>{ const pal = paletteHexes(b), used = new Set(sigs[wi].colors);
+  return pal.filter(h => used.has(h)).length >= 4; }),
+  "Kulisse nutzt die Daten-Palette (sky + c.*) -> datengetrieben verdrahtet",
+  G.BGS.map((b,wi)=> paletteHexes(b).filter(h => sigs[wi].colors.includes(h)).length).join(","));
+const sigKeys = sigs.map(s => s.colors.slice().sort().join("|"));
+assert(new Set(sigKeys).size === 6, "Alle 6 Welten-Kulissen sind optisch verschieden (eigene Farb-Signatur)", "uniq=" + new Set(sigKeys).size);
+assert(!readErr, "Lesbarkeit: keine grosse warm-helle BG-Flaeche im Gameplay-Band (gelbe Ente bleibt lesbar)", readErr);
+
+// Integration: PLAY-Vollbild jeder Welt rendert mit neuer Kulisse fehlerfrei (BG + Vordergrund zusammen)
+frameErr = null; let playBgOk = true, playBgDetail = "";
+for (let wi=0; wi<6 && playBgOk; wi++){ frameErr=null; G.loadPlatform(wi, 0); step(2);
+  if (frameErr){ playBgOk=false; playBgDetail = "W"+(wi+1)+": "+frameErr; } }
+assert(playBgOk, "Alle 6 Welten als Vollbild (Kulisse + Vordergrund) rendern fehlerfrei", playBgDetail);
 
 console.log("\n  Frames gesamt gelaufen: " + framesRun);
 finish();
