@@ -162,8 +162,21 @@
     <div class="sub" id="overText">—</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
       <button class="btn" id="btnRetry">Nochmal</button>
+      <button class="btn ghost" id="btnOverLeader" style="background:transparent;color:var(--ui-sub);border-color:var(--ui-edge);box-shadow:none">Bestenliste</button>
       <button class="btn ghost" id="btnOverMenu" style="background:transparent;color:var(--ui-sub);border-color:var(--ui-edge);box-shadow:none">Hauptmenue</button>
     </div>
+  </div>
+
+  <div id="scSubmit" class="screen dim hidden">
+    <h2 id="submitTitle">Score senden</h2>
+    <div class="sub" id="submitScore">—</div>
+    <input id="submitName" class="txtin" type="text" maxlength="20" autocomplete="off" autocapitalize="words"
+      spellcheck="false" enterkeyhint="done" inputmode="text" placeholder="Quacki" />
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="submitOk">Senden</button>
+      <button class="btn ghost" id="submitSkip" style="background:transparent;color:var(--ui-sub);border-color:var(--ui-edge);box-shadow:none">Ueberspringen</button>
+    </div>
+    <div class="sub2" id="submitNote" style="color:var(--ui-sub)"></div>
   </div>
 
   <div id="scPause" class="screen dim hidden">
@@ -200,6 +213,8 @@
 
 <script src="./i18n.js"></script>
 <script src="./i18n_extra.js"></script>
+<script src="./leaderboard-config.js"></script>
+<script src="./leaderboard.js"></script>
 <script>
 "use strict";
 /* ===================================================================
@@ -602,7 +617,7 @@ function burst(x,y,col,n,spd){ for(let i=0;i<n;i++){const a=Math.random()*6.283,
   parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-28,life:0.35+Math.random()*0.3,t:0,col,sz:Math.random()<0.5?2:1});} }
 
 /* ---------- State ---------- */
-const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7,SETTINGS:8,SHOP:9,HUB:10};
+const ST={TITLE:0,STORY:1,PLAY:2,BOSS:3,DEAD:4,OVER:5,OVERWORLD:6,SUBMAP:7,SETTINGS:8,SHOP:9,HUB:10,SUBMIT:11};
 let state=ST.TITLE, L=null, worldIdx=0, lives=3, coinsGot=0, score=0, unlocked=0, mapSel=0;
 let paused=false;
 function isGameplay(){ return state===ST.PLAY||state===ST.BOSS||state===ST.HUB; }
@@ -681,7 +696,7 @@ function applyTitleI18n(){ const set=(id,v)=>{const e=document.getElementById(id
   set("startHint",t("pressStart"));set("tTap",t("tapStart"));
   set("tMove",t("ctrlMove"));set("tJump",t("ctrlJump"));set("tGlide",t("ctrlGlide"));
   set("tKeys",t("keysLine"));set("tBetaNote",t("betaNote"));set("tLangLabel",t("language"));
-  set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnOverMenu",t("toMenu"));set("btnShop",t("menuShop"));
+  set("btnSettings",t("menuSettings"));set("tGameover",t("gameover"));set("btnRetry",t("retry"));set("btnOverLeader",t("menuLeaderboard"));set("btnOverMenu",t("toMenu"));set("btnShop",t("menuShop"));
   // Hauptmenue-Knoepfe
   set("btnNew",t("menuStory"));set("btnArcade",t("menuArcade"));set("btnContinue",t("menuContinue"));set("btnMap",t("menuMap"));
   set("btnLeader",t("menuLeaderboard"));set("btnBios",t("menuBios"));set("btnHelp",t("menuHelp"));
@@ -875,7 +890,8 @@ function musicTick(dt){ if(!SET.music||!AC)return; musicT-=dt; if(musicT<=0){ co
 const keys={left:false,right:false,jump:false};
 addEventListener("keydown",e=>{
   if(nameOpen){ if(e.code==="Escape"){closeNameInput();} return; } // Namens-Eingabe: Tasten gehen ins Textfeld
-  if(infoOpen){ if(["Escape","Backspace","Enter","Space"].includes(e.code)){closeInfo();e.preventDefault();} return; }
+  if(state===ST.SUBMIT){ if(e.code==="Enter"){doSubmit();e.preventDefault();} else if(["Escape","Backspace"].includes(e.code)){skipSubmit();e.preventDefault();} return; }
+  if(infoOpen){ if(["Escape","Backspace","Enter","Space"].includes(e.code)){ (infoOpenId==="scLeader"?closeLeader():closeInfo()); e.preventDefault(); } return; }
   if(paused){ if(["KeyP","Escape","Enter","Space"].includes(e.code)){pauseSet(false);e.preventDefault();} return; }
   if(e.code==="KeyP"&&isGameplay()){ pauseSet(true); return; }
   if(e.code==="Escape"&&(state===ST.PLAY||state===ST.BOSS)){ pauseSet(true); return; }
@@ -1002,9 +1018,27 @@ function resetDuckTo(s){duck.x=s.x;duck.y=s.y;duck.vx=0;duck.vy=0;duck.onGround=
 function loseLife(){ lives--; SFX.hurt(); shake=0.3; if(lives<=0){state=ST.DEAD;deadT=0.9;duck.vy=-260;} else {state=ST.DEAD;deadT=0.7;duck.vy=-260;} }
 function takeHit(){ const d=duck; comboReset(); if(d.mounted){d.mounted=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.feather){d.feather=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} if(d.big){d.big=false;d.blink=1.0;shake=0.25;SFX.hurt();return;} loseLife(); }
 function afterDeath(){ if(lives<=0){gameOver();return;} if(L.boss){startBoss();} else {resetDuckTo(L.spawn);state=ST.PLAY;} }
-function gameOver(){saveEconomy();saveHighscore();state=ST.OVER;
-  el("overText").textContent=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore+(gameMode==="story"?("   "+t("gameOverHint")):"");
-  SFX.over();showScreen("scOver");}
+let overStatsText="", pendingScore=0, pendingMode="story", lastEntry=null;
+function gameOver(){ saveEconomy(); saveHighscore();
+  overStatsText=t("gameoverStats",{coins:coinsGot,score:score})+"   "+t("highscoreShort")+": "+highscore+(gameMode==="story"?("   "+t("gameOverHint")):"");
+  SFX.over();
+  if(score>0 && typeof window!=="undefined" && window.Leaderboard){ showSubmit(score,gameMode); } else { showOver(); } }
+function showOver(){ state=ST.OVER; const e=el("overText"); if(e)e.textContent=overStatsText; showScreen("scOver"); }
+// Score-Senden-Screen: Name vorbelegt mit Enten-Name, Wortfilter + max 20, sauber escaped.
+function showSubmit(sc,mode){ pendingScore=sc|0; pendingMode=(mode==="arcade"?"arcade":"story"); lastEntry=null; state=ST.SUBMIT;
+  const set=(id,v)=>{const e=el(id);if(e)e.textContent=v;};
+  set("submitTitle",t("submitTitle")); set("submitScore",t("yourScore",{score:String(sc).padStart(6,"0")}));
+  set("submitOk",t("submitSend")); set("submitSkip",t("skip"));
+  set("submitNote",(window.Leaderboard&&Leaderboard.configured())?t("submitOnline"):t("submitOffline"));
+  const inp=el("submitName"); if(inp){ inp.value=heroName(); inp.setAttribute("placeholder",t("namePlaceholder")); }
+  showScreen("scSubmit");
+  try{ setTimeout(()=>{ const i=el("submitName"); if(i){i.focus&&i.focus(); i.select&&i.select();} },30); }catch(e){} }
+function doSubmit(){ const inp=el("submitName"); const raw=inp?inp.value:"";
+  const nm=(window.Leaderboard&&Leaderboard.clean)?Leaderboard.clean(raw):(sanitizeName(raw)||"Quacki");
+  lastEntry={name:nm,score:pendingScore,mode:pendingMode};
+  if(window.Leaderboard&&Leaderboard.submit){ try{ Leaderboard.submit(nm,pendingScore,pendingMode); }catch(e){} }
+  openLeaderboard(); }
+function skipSubmit(){ showOver(); }
 function levelCleared(){ SFX.clear();
   if(gameMode==="arcade"){ // Score-Attack: Runde geschafft -> sofort dieselbe Runde erneut, Score laeuft weiter
     saveHighscore(); powerMsg=t("arcadeCleared"); powerMsgT=1.4; loadPlatform(ARCADE_W,ARCADE_LI); return; }
@@ -1080,9 +1114,32 @@ el("btnSettings").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac()
 document.querySelectorAll(".langpick").forEach(p=>p.addEventListener("click",e=>{e.stopPropagation();setLang(p.getAttribute("data-l"));}));
 el("btnShop").addEventListener("click",e=>{e.stopPropagation();if(ac()&&ac().state==="suspended")ac().resume();openShop();});
 /* ---------- Hauptmenue-Screens: Hilfe / Steckbriefe / Bestenliste ---------- */
-let infoOpen=false;
-function showInfo(id,fill){ fill(); infoOpen=true; showScreen(id); }
-function closeInfo(){ infoOpen=false; showScreen("scTitle"); }
+let infoOpen=false, infoOpenId="";
+function showInfo(id,fill){ infoOpenId=id; fill(); infoOpen=true; showScreen(id); }
+function closeInfo(){ infoOpen=false; infoOpenId=""; if(window.Leaderboard&&Leaderboard.stopPolling)Leaderboard.stopPolling(); showScreen("scTitle"); }
+// Bestenliste mit Rueckkehr-Ziel (vom Titel -> Titel; nach Game Over -> Game-Over-Screen)
+let leaderReturn="scTitle";
+function openLeaderboard(ret){ leaderReturn=ret||(state===ST.SUBMIT?"scOver":"scTitle"); showInfo("scLeader",fillLeader); }
+function closeLeader(){ infoOpen=false; infoOpenId=""; if(window.Leaderboard&&Leaderboard.stopPolling)Leaderboard.stopPolling();
+  if(leaderReturn==="scOver"){ showOver(); } else { state=ST.TITLE; showScreen("scTitle"); } }
+function escLB(s){ return (window.Leaderboard&&Leaderboard.escapeHtml)?Leaderboard.escapeHtml(s):String(s); }
+function renderLeader(res){ const rows=(res&&res.rows)||[]; const online=res&&res.online;
+  let html="<p>"+escLB(online?t("lbOnline"):t("lbOffline"))+"</p>";
+  if(!rows.length){ html+="<p>"+escLB(t("noScores"))+"</p>"; }
+  else { html+="<table style='width:100%;border-collapse:collapse;font-size:.95em'>";
+    for(let i=0;i<rows.length;i++){ const r=rows[i];
+      const me=lastEntry&&lastEntry.name===r.name&&(lastEntry.score|0)===(r.score|0);
+      const modeLbl=(r.mode==="arcade")?t("menuArcade"):t("menuStory");
+      html+="<tr style='"+(me?"color:var(--ui-edge);font-weight:bold;":"")+"'>"+
+        "<td style='padding:2px 6px'>"+(i+1)+"</td>"+
+        "<td style='padding:2px 6px'>"+escLB(r.name)+"</td>"+
+        "<td style='padding:2px 6px;text-align:right'>"+String(r.score|0).padStart(6,"0")+"</td>"+
+        "<td style='padding:2px 6px;opacity:.7'>"+escLB(modeLbl)+"</td></tr>"; }
+    html+="</table>"; }
+  const body=el("leaderBody"); if(body)body.innerHTML=html; }
+function fillLeader(){ const body=el("leaderBody"); if(body)body.innerHTML="<p>"+escLB(t("loading"))+"</p>";
+  if(window.Leaderboard&&Leaderboard.startPolling){ Leaderboard.startPolling(renderLeader,5000); }
+  else { renderLeader({rows:[],online:false}); } }
 function fillHelp(){ el("helpBody").innerHTML =
   "<p>"+t("helpRun")+"</p><p>"+t("helpJump")+"</p><p>"+t("helpGlide")+"</p><p>"+t("helpPause")+"</p><p>"+t("helpRestart")+"</p><p>"+t("helpGoal")+"</p>"+
   "<h3>"+t("helpHero")+"</h3><p>"+t("bioQuacki")+"</p>"; }
@@ -1091,9 +1148,6 @@ function fillBios(){ const chars=[
     [bossName(0),t("bioRoleGuard"),t("bioFrosch")],[bossName(1),t("bioRoleGuard"),t("bioKroko")],[bossName(2),t("bioRoleGuard"),t("bioPinguin")],
     [bossName(3),t("bioRoleGuard"),t("bioKamel")],[bossName(4),t("bioRoleGuard"),t("bioEule")]];
   el("biosBody").innerHTML = chars.map(c=>"<h3>"+c[0]+" <span class='role'>- "+c[1]+"</span></h3><p>"+c[2]+"</p>").join(""); }
-function fillLeader(){ el("leaderBody").innerHTML = (highscore>0)
-  ? "<p>"+t("highscoreLabel")+":</p><p class='big'>"+String(highscore).padStart(6,"0")+"</p><p>"+t("secretHint")+"</p>"
-  : "<p>"+t("noScores")+"</p><p>"+t("secretHint")+"</p>"; }
 function showToast(msg){ const e=document.getElementById("toast"); if(!e)return; e.textContent=msg; e.classList.remove("hidden"); try{clearTimeout(showToast._t);showToast._t=setTimeout(()=>e.classList.add("hidden"),2600);}catch(x){} }
 function unlockSecret(){ if(!owned.golden)owned.golden=true; equippedSkin="golden"; saveEconomy(); SFX.star&&SFX.star(); showToast(t("secretFound")); }
 function clk(id,fn){const e=el(id); if(e)e.addEventListener("click",ev=>{ev.stopPropagation();fn();});}
@@ -1101,10 +1155,13 @@ clk("btnNew",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); confirmNewGa
 clk("btnArcade",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); startArcade(); });
 clk("btnContinue",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); if(hasSave())continueGame(); else startGame(); });
 clk("btnMap",()=>{ if(ac()&&ac().state==="suspended")ac().resume(); continueGame(); });
-clk("btnLeader",()=>showInfo("scLeader",fillLeader));
+clk("btnLeader",()=>openLeaderboard("scTitle"));
 clk("btnBios",()=>showInfo("scBios",fillBios));
 clk("btnHelp",()=>showInfo("scHelp",fillHelp));
-clk("btnHelpBack",closeInfo); clk("btnBiosBack",closeInfo); clk("btnLeaderBack",closeInfo);
+clk("btnHelpBack",closeInfo); clk("btnBiosBack",closeInfo); clk("btnLeaderBack",closeLeader);
+// Score-Senden-Screen + Game-Over-Bestenliste
+clk("submitOk",doSubmit); clk("submitSkip",skipSubmit); clk("btnOverLeader",()=>openLeaderboard("scOver"));
+{ const inp=el("submitName"); if(inp)inp.addEventListener("keydown",e=>{ if(e.code==="Enter"){doSubmit();} else if(e.code==="Escape"){skipSubmit();} e.stopPropagation(); }); }
 // Enten-Name-Overlay
 clk("nameOk",submitName);
 clk("nameSkip",()=>{ applyDuckName(SET.duckName||""); closeNameInput(); });

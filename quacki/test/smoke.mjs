@@ -60,7 +60,7 @@ class ACStub { constructor(){ this.currentTime=0; this.destination={}; this.stat
 
 const sandbox = {
   console,
-  Math, JSON, Date, Object, Array, String, Number, Boolean, isNaN, parseInt, parseFloat,
+  Math, JSON, Date, Object, Array, String, Number, Boolean, isNaN, parseInt, parseFloat, Promise,
   setTimeout: () => 0, clearTimeout: () => {},
   performance: { now: () => clock },
   requestAnimationFrame: (cb) => { pendingRaf = cb; return 1; },
@@ -99,6 +99,15 @@ const probe = `
   try { Object.defineProperty(g,"worldIdx",{get:()=>worldIdx}); } catch(e){}
   try { Object.defineProperty(g,"lives",{get:()=>lives,set:v=>{lives=v;}}); } catch(e){}
   try { g.retryGame = retryGame; } catch(e){}
+  try { g.showSubmit = showSubmit; } catch(e){}
+  try { g.doSubmit = doSubmit; } catch(e){}
+  try { g.skipSubmit = skipSubmit; } catch(e){}
+  try { g.openLeaderboard = openLeaderboard; } catch(e){}
+  try { g.fillLeader = fillLeader; } catch(e){}
+  try { g.renderLeader = renderLeader; } catch(e){}
+  try { Object.defineProperty(g,"lastEntry",{get:()=>lastEntry}); } catch(e){}
+  try { Object.defineProperty(g,"infoOpenId",{get:()=>infoOpenId}); } catch(e){}
+  try { Object.defineProperty(g,"score2",{get:()=>score,set:v=>{score=v;}}); } catch(e){}
   try { g.respawnAtLevelStart = respawnAtLevelStart; } catch(e){}
   try { g.gameOver = gameOver; } catch(e){}
   try { g.confirmNewGame = confirmNewGame; } catch(e){}
@@ -209,8 +218,12 @@ try {
   vm.runInContext(i18nSrc, ctx, { filename: "i18n.js" });
   const extraSrc = readFileSync(join(__dir, "..", "i18n_extra.js"), "utf8");
   vm.runInContext(extraSrc, ctx, { filename: "i18n_extra.js" });
+  // Leaderboard-Config (Platzhalter -> Offline) + Client laden, wie im Spiel
+  vm.runInContext(readFileSync(join(__dir, "..", "leaderboard-config.js"), "utf8"), ctx, { filename: "leaderboard-config.js" });
+  vm.runInContext(readFileSync(join(__dir, "..", "leaderboard.js"), "utf8"), ctx, { filename: "leaderboard.js" });
 } catch (e) { loadErr = e; }
-assert(!loadErr, "i18n.js + i18n_extra.js laden ohne Exception", loadErr && loadErr.message);
+assert(!loadErr, "i18n + leaderboard-Skripte laden ohne Exception", loadErr && loadErr.message);
+assert(sandbox.Leaderboard && typeof sandbox.Leaderboard.submit === "function", "window.Leaderboard verfuegbar (Client geladen)");
 try {
   vm.runInContext(blocks.join("\n;\n") + probe, ctx, { filename: "quacki-inline.js" });
 } catch (e) { loadErr = e; }
@@ -856,6 +869,7 @@ if (typeof G.afterDeath === "function" && typeof G.retryGame === "function") {
   G.unlocked = 3; G.worldProgress[1] = 2;
   G.loadPlatform(1, 1); step(1);
   assert(G.gameMode === "story", "Setup: Story-Modus aktiv", "mode=" + G.gameMode);
+  G.score = 0;   // ohne Score direkt zum Game-Over-Screen (kein Score-Senden-Dialog)
   G.lives = 1; G.loseLife(); G.afterDeath();
   assert(G.state === G.ST.OVER, "0 Leben (Story) -> Game Over", "state=" + G.state);
   G.retryGame();
@@ -879,6 +893,81 @@ if (typeof G.afterDeath === "function" && typeof G.retryGame === "function") {
 }
 // Source-Guard: kein Voll-Reset bei Game Over (retryGame ruft im Story-Pfad nicht startGame)
 assert(/respawnAtLevelStart/.test(html) && /else respawnAtLevelStart\(\)/.test(html), "Source-Guard: Game Over startet Level neu (kein Spiel-Voll-Reset)");
+
+/* ===================================================================
+   ONLINE-HIGHSCORE — Name-Submit-Flow, Wortfilter/Escaping, Offline-
+   Fallback (lokal) und Online-Pfad mit gemocktem fetch (POST/GET).
+   =================================================================== */
+if (typeof G.showSubmit === "function" && sandbox.Leaderboard) {
+  const LB = sandbox.Leaderboard, LS = sandbox.localStorage;
+  LS.removeItem("quacki_scores");
+  assert(LB.configured() === false, "Leaderboard: ohne Config -> Offline-Modus", "configured=" + LB.configured());
+  // Wortfilter / Sicherheits-Bereinigung
+  const cl = LB.clean("<b>Hax</b> Bob");
+  assert(cl.indexOf("<") === -1 && cl.indexOf(">") === -1, "Leaderboard: clean() entfernt spitze Klammern (XSS-Schutz)", cl);
+  assert(LB.clean("ABCDEFGHIJKLMNOPQRSTUVWXYZ").length <= 20, "Leaderboard: Name auf max 20 Zeichen", "len=" + LB.clean("ABCDEFGHIJKLMNOPQRSTUVWXYZ").length);
+  assert(LB.clean("   ") === "Quacki", "Leaderboard: leerer Name -> Default 'Quacki'");
+  assert(LB.escapeHtml("<script>") === "&lt;script&gt;", "Leaderboard: escapeHtml schuetzt das Rendern", LB.escapeHtml("<script>"));
+
+  // Spiel-Integration: Game Over MIT Score -> Score-Senden-Screen, Name vorbelegt
+  G.startGame(); let gx = 0; while (G.state === G.ST.STORY && gx++ < 12) G.storyAdvance();
+  G.loadPlatform(0, 0); step(1);
+  G.applyDuckName("Donald"); G.score2 = 4200;
+  G.gameOver();
+  assert(G.state === G.ST.SUBMIT, "Game Over mit Score -> Score-Senden-Screen", "state=" + G.state);
+  assert(getEl("submitName").value === "Donald", "Score-Senden: Name vorbelegt mit Enten-Name", "val=" + getEl("submitName").value);
+  // absenden -> Name gefiltert, lokal gespeichert (Offline-Fallback), Bestenliste offen
+  getEl("submitName").value = "<b>Donald</b>";
+  G.doSubmit();
+  assert(G.lastEntry && G.lastEntry.name.indexOf("<") === -1, "Score-Senden: Name beim Senden gefiltert", JSON.stringify(G.lastEntry));
+  const stored = JSON.parse(LS.getItem("quacki_scores") || "[]");
+  assert(stored.length >= 1 && stored[0].score === 4200, "Score-Senden: Eintrag in lokaler Liste (Offline-Fallback)", JSON.stringify(stored[0] || {}));
+  assert(G.infoOpenId === "scLeader", "Score-Senden -> Bestenliste wird angezeigt", "info=" + G.infoOpenId);
+  // Render: eigener Eintrag + sicheres Escaping im erzeugten HTML
+  G.renderLeader({ rows: [{ name: "<script>x", score: 9999, mode: "arcade" }, { name: G.lastEntry.name, score: 4200, mode: "story" }], online: false });
+  const lbHtml = String(getEl("leaderBody").innerHTML);
+  assert(lbHtml.indexOf("<script>") === -1 && lbHtml.indexOf("&lt;script&gt;") !== -1, "Bestenliste: Namen werden escaped gerendert (kein XSS)", lbHtml.slice(0, 70));
+  assert(/9999/.test(lbHtml), "Bestenliste: Score wird angezeigt");
+  G.applyDuckName("");
+}
+
+// Online-Pfad mit gemocktem fetch (isolierter Kontext) — Insert (POST) + Top-N (GET) + Fehler-Fallback
+{
+  const calls = []; let netMode = "ok";
+  function mockFetch(url, opts) {
+    calls.push({ url: String(url), method: (opts && opts.method) || "GET" });
+    if (netMode === "error") return Promise.reject(new Error("net down"));
+    if ((opts && opts.method) === "POST") return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve([]) });
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([{ name: "Ada", score: 9000, mode: "story" }, { name: "Bo", score: 10, mode: "arcade" }]) });
+  }
+  const sb2 = {
+    console, JSON, Math, Date, Promise, String, Number, Array, Boolean,
+    setInterval: () => 0, clearInterval: () => {}, fetch: mockFetch,
+    localStorage: (() => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; })()
+  };
+  sb2.window = sb2; sb2.window.LEADERBOARD_CONFIG = { SUPABASE_URL: "https://demo.supabase.co", SUPABASE_ANON_KEY: "anon-demo-key" };
+  const c2 = vm.createContext(sb2);
+  let lbErr = null;
+  try { vm.runInContext(readFileSync(join(__dir, "..", "leaderboard.js"), "utf8"), c2, { filename: "leaderboard.js" }); } catch (e) { lbErr = e; }
+  assert(!lbErr, "Leaderboard-Client laedt im Online-Kontext", lbErr && lbErr.message);
+  const LB2 = sb2.window.Leaderboard;
+  assert(LB2 && LB2.configured() === true, "Leaderboard online: configured() true mit URL+Key");
+  let topRows = null, topOnline = null;
+  await LB2.top(20).then(r => { topRows = r.rows; topOnline = r.online; });
+  assert(topOnline === true && topRows && topRows.length === 2, "Leaderboard online: top() holt Eintraege vom Server (GET)", "n=" + (topRows && topRows.length));
+  assert(calls.some(c => /\/rest\/v1\/scores\?/.test(c.url) && /order=score\.desc/.test(c.url)), "Leaderboard online: GET /rest/v1/scores mit order=score.desc&limit");
+  let subRes = null;
+  await LB2.submit("Player One", 1234, "story").then(r => { subRes = r; });
+  assert(subRes && subRes.online === true, "Leaderboard online: submit() sendet erfolgreich (POST)", JSON.stringify(subRes));
+  assert(calls.some(c => c.method === "POST" && /\/rest\/v1\/scores$/.test(c.url)), "Leaderboard online: POST /rest/v1/scores abgesetzt");
+  netMode = "error";
+  let errRes = null;
+  await LB2.top(20).then(r => { errRes = r; });
+  assert(errRes && errRes.online === false, "Leaderboard online: bei Netzfehler Fallback auf lokale Liste (online=false)");
+}
+// Source-Guard: Leaderboard self-contained (keine fest verdrahtete http-URL im Client)
+{ const lbSrc = readFileSync(join(__dir, "..", "leaderboard.js"), "utf8");
+  assert(!/https?:\/\//.test(lbSrc), "Self-Containment: leaderboard.js ohne fest verdrahtete http-URL (Basis kommt aus Config)"); }
 
 /* ===================================================================
    SELF-CONTAINMENT / OFFLINE — keine externen URLs, Pixel-Schrift lokal.
